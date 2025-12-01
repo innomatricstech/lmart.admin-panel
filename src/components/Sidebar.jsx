@@ -95,14 +95,14 @@ export default function Sidebar({ onCloseSidebar, onLogout }) {
 
     { text: "Files", icon: FiFileText, key: "Files", path: "/files" },
     { text: "Posters", icon: FiImage, key: "Posters", path: "/posters" },
-    { text: "Banner", icon: FiMenu, key: "Banner", path: "/banner" },
+    // { text: "Banner", icon: FiMenu, key: "Banner", path: "/banner" },
 
     {
       text: "Sellers", icon: FiPackage, key: "Sellers", path: "/sellers/all", hasDropdown: true,
       dropdownContent: [
         { text: "Sellers", path: "/sellers/all" },
         { text: "Delete Seller", path: "/sellers/delete" },
-        { text: "Add Seller", path: "/sellers/add", icon: FiUserPlus },
+        // { text: "Add Seller", path: "/sellers/add", icon: FiUserPlus },
       ],
     },
 

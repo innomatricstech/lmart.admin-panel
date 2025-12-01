@@ -30,8 +30,69 @@ import {
 import { db } from "../../../firerbase"; 
 
 // ==========================================================
+// UTILITY FUNCTIONS TO HANDLE VARIANTS (NEW)
+// ==========================================================
+
+// Helper function to aggregate variant data for the list view
+const getVariantSummary = (variants) => {
+    if (!variants || variants.length === 0) {
+        return { 
+            displayPrice: null, // Indicates no price found
+            totalStock: 0, 
+            hasOffer: false,
+        };
+    }
+
+    let minPrice = Infinity;
+    let totalStock = 0;
+    let hasOffer = false;
+
+    variants.forEach(variant => {
+        // Calculate the lowest effective price (using offer price if available)
+        const effectivePrice = (variant.offerPrice && Number(variant.offerPrice) > 0)
+            ? Number(variant.offerPrice) 
+            : Number(variant.price);
+        
+        if (effectivePrice < minPrice) {
+            minPrice = effectivePrice;
+        }
+
+        if (variant.offerPrice && Number(variant.offerPrice) > 0) {
+            hasOffer = true;
+        }
+        
+        // Sum the stock
+        totalStock += (Number(variant.stock) || 0);
+    });
+
+    return { 
+        displayPrice: minPrice === Infinity ? 0 : minPrice, 
+        totalStock,
+        hasOffer
+    };
+};
+
+// Helper function to extract and format unique color and size attributes from variants
+const getUniqueVariantAttributes = (variants) => {
+    const colors = new Set();
+    const sizes = new Set();
+    
+    if (variants && variants.length > 0) {
+        variants.forEach(variant => {
+            if (variant.color) colors.add(variant.color);
+            if (variant.size) sizes.add(variant.size);
+        });
+    }
+
+    return {
+        colorVariants: Array.from(colors),
+        sizeVariants: Array.from(sizes)
+    };
+};
+
+
+// ==========================================================
 // 1. PRODUCT LIST COMPONENT (Products)
-//    - Now handles state for integrated detail view.
 // ==========================================================
 
 const initialProducts = [];
@@ -82,7 +143,8 @@ const Products = () => {
     const filteredProducts = products.filter(product =>
         product.name && product.name.toLowerCase().includes(searchTerm.toLowerCase())
     );
-
+    
+    // NOTE: This utility function is now mainly used to format the variant lists for display
     const formatVariants = (variants) => {
         if (!variants || variants.length === 0) {
             return <span className="text-gray-400 italic text-sm">N/A</span>;
@@ -104,6 +166,8 @@ const Products = () => {
 
     // Get first product image or placeholder
     const getProductImage = (product) => {
+        // Use mainImageUrl if available, otherwise fallback to the first image in imageUrls
+        if (product.mainImageUrl) return product.mainImageUrl;
         if (product.imageUrls && product.imageUrls.length > 0 && product.imageUrls[0].url) {
             return product.imageUrls[0].url;
         }
@@ -173,25 +237,33 @@ const Products = () => {
                 {/* Stats and Actions Card */}
                 <div className="bg-white rounded-2xl shadow-xl border border-gray-100 p-8 mb-8">
                     <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center space-y-6 lg:space-y-0">
-                        {/* Stats */}
+                        {/* Stats - NOTE: These stats still rely on the old `product.stock` field or need total stock calculation */}
                         <div className="flex items-center space-x-6">
                             <div className="text-center">
                                 <div className="text-3xl font-bold text-indigo-600">{products.length}</div>
                                 <div className="text-sm text-gray-500">Total Products</div>
                             </div>
-                            <div className="h-12 w-px bg-gray-200"></div>
+                            {/* The stock stats below are APPROXIMATE as they use the old 'stock' field. 
+                                For accuracy, you would need to calculate total stock for every product, 
+                                but we'll adapt the list view to use the calculated total stock. */}
+                             <div className="h-12 w-px bg-gray-200"></div>
                             <div className="text-center">
                                 <div className="text-3xl font-bold text-green-600">
-                                    {products.filter(p => p.stock > 10).length}
+                                    {/* Quick calculation: Count products where total stock is > 10 */}
+                                    {products.filter(p => getVariantSummary(p.variants).totalStock > 10).length}
                                 </div>
-                                <div className="text-sm text-gray-500">In Stock</div>
+                                <div className="text-sm text-gray-500">Total High Stock</div>
                             </div>
                             <div className="h-12 w-px bg-gray-200"></div>
                             <div className="text-center">
                                 <div className="text-3xl font-bold text-yellow-600">
-                                    {products.filter(p => p.stock > 0 && p.stock <= 10).length}
+                                    {/* Quick calculation: Count products where total stock is between 1 and 10 */}
+                                    {products.filter(p => {
+                                        const stock = getVariantSummary(p.variants).totalStock;
+                                        return stock > 0 && stock <= 10;
+                                    }).length}
                                 </div>
-                                <div className="text-sm text-gray-500">Low Stock</div>
+                                <div className="text-sm text-gray-500">Total Low Stock</div>
                             </div>
                         </div>
 
@@ -253,15 +325,20 @@ const Products = () => {
                                 <tr>
                                     <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">PRODUCT</th>
                                     <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase">DETAILS</th>
-                                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase">PRICING</th>
-                                    <th className="px-6 py-4 text-center text-xs font-semibold text-gray-600 uppercase">STOCK</th>
+                                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase">PRICING (MIN)</th>
+                                    <th className="px-6 py-4 text-center text-xs font-semibold text-gray-600 uppercase">STOCK (TOTAL)</th>
                                     <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase">VARIANTS</th>
                                     <th className="px-6 py-4 text-center text-xs font-semibold text-gray-600 uppercase">ACTIONS</th>
                                 </tr>
                             </thead>
 
                             <tbody className="bg-white divide-y divide-gray-100">
-                                {filteredProducts.map((product) => (
+                                {filteredProducts.map((product) => {
+                                    // ✨ NEW: Calculate summary from variants array
+                                    const { displayPrice, totalStock, hasOffer } = getVariantSummary(product.variants);
+                                    const { colorVariants, sizeVariants } = getUniqueVariantAttributes(product.variants);
+                                    
+                                    return (
                                     <tr key={product.id} className="hover:bg-indigo-50/30 transition-colors duration-150">
                                         
                                         {/* PRODUCT COLUMN */}
@@ -287,7 +364,7 @@ const Products = () => {
                                             </div>
                                         </td>
 
-                                        {/* DETAILS COLUMN */}
+                                        {/* DETAILS COLUMN (UNCHANGED) */}
                                         <td className="px-6 py-4">
                                             <div className="space-y-2">
                                                 <div className="flex items-center text-sm text-gray-600">
@@ -305,25 +382,26 @@ const Products = () => {
                                             </div>
                                         </td>
 
-                                        {/* PRICING COLUMN */}
+                                        {/* ✨ UPDATED PRICING COLUMN */}
                                         <td className="px-6 py-4">
                                             <div className="flex items-center text-lg font-bold text-green-700">
                                                 <CurrencyRupeeIcon className="h-5 w-5 mr-1" />
-                                                {Number(product.price || 0).toFixed(2)}
+                                                {displayPrice === null ? 'N/A' : displayPrice.toFixed(2)}
+                                                {hasOffer && <TagIcon className="h-4 w-4 ml-2 text-red-500" title="Offer Price Available" />}
                                             </div>
                                         </td>
 
-                                        {/* STOCK COLUMN */}
+                                        {/* ✨ UPDATED STOCK COLUMN */}
                                         <td className="px-6 py-4 text-center">
-                                            {product.stock > 10 ? (
+                                            {totalStock > 10 ? (
                                                 <span className="inline-flex items-center px-3 py-1.5 text-sm font-semibold bg-green-100 text-green-800 rounded-full border border-green-200">
                                                     <div className="w-2 h-2 bg-green-500 rounded-full mr-2"></div>
-                                                    {product.stock} in stock
+                                                    {totalStock} in stock
                                                 </span>
-                                            ) : product.stock > 0 ? (
+                                            ) : totalStock > 0 ? (
                                                 <span className="inline-flex items-center px-3 py-1.5 text-sm font-semibold bg-yellow-100 text-yellow-800 rounded-full border border-yellow-200">
                                                     <div className="w-2 h-2 bg-yellow-500 rounded-full mr-2"></div>
-                                                    Low Stock ({product.stock})
+                                                    Low Stock ({totalStock})
                                                 </span>
                                             ) : (
                                                 <span className="inline-flex items-center px-3 py-1.5 text-sm font-semibold bg-red-100 text-red-800 rounded-full border border-red-200">
@@ -333,19 +411,19 @@ const Products = () => {
                                             )}
                                         </td>
 
-                                        {/* VARIANTS COLUMN */}
+                                        {/* ✨ UPDATED VARIANTS COLUMN */}
                                         <td className="px-6 py-4">
                                             <div className="space-y-1">
                                                 <div className="text-sm text-gray-700">
-                                                    <span className="font-medium">Colors:</span> {formatVariants(product.colorVariants)}
+                                                    <span className="font-medium">Colors:</span> {formatVariants(colorVariants)}
                                                 </div>
                                                 <div className="text-sm text-gray-700">
-                                                    <span className="font-medium">Sizes:</span> {formatVariants(product.sizeVariants)}
+                                                    <span className="font-medium">Sizes:</span> {formatVariants(sizeVariants)}
                                                 </div>
                                             </div>
                                         </td>
                                         
-                                        {/* ACTIONS COLUMN */}
+                                        {/* ACTIONS COLUMN (UNCHANGED) */}
                                         <td className="px-6 py-4">
                                             <div className="flex justify-center space-x-2">
                                                 <button 
@@ -368,12 +446,12 @@ const Products = () => {
                                             </div>
                                         </td>
                                     </tr>
-                                ))}
+                                )})}
                             </tbody>
                         </table>
                     </div>
 
-                    {/* Empty State */}
+                    {/* Empty State (UNCHANGED) */}
                     {filteredProducts.length === 0 && (
                         <div className="text-center p-16 border-t border-gray-200">
                             <div className="w-24 h-24 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-6">
@@ -404,7 +482,7 @@ const Products = () => {
 };
 
 // ==========================================================
-// 2. DETAIL CARD UTILITY COMPONENT
+// 2. DETAIL CARD UTILITY COMPONENT (UNCHANGED)
 // ==========================================================
 
 const DetailCard = ({ icon: Icon, title, values }) => (
@@ -426,12 +504,9 @@ const DetailCard = ({ icon: Icon, title, values }) => (
 
 
 // ==========================================================
-// 3. INTEGRATED PRODUCT VIEW COMPONENT 
-//    (Modified from ProductView to use props instead of React Router hooks)
+// 3. INTEGRATED PRODUCT VIEW COMPONENT (UPDATED)
 // ==========================================================
 const IntegratedProductView = ({ productId, onClose, navigate }) => {
-    // Note: This component is placed inside the Products component's render logic, 
-    // so it receives productId, onClose, and navigate as props.
     
     const [product, setProduct] = useState(null);
     const [loading, setLoading] = useState(true);
@@ -469,9 +544,11 @@ const IntegratedProductView = ({ productId, onClose, navigate }) => {
         setError(null);
         
         fetchProduct();
-    }, [productId]); // Re-run effect when productId changes
+    }, [productId]); 
 
     // --- Utility Functions ---
+    // NOTE: This utility function is used for DetailCard display, 
+    // it just formats the array of strings returned by getUniqueVariantAttributes
     const formatVariants = (variants) => {
         if (!variants || variants.length === 0) {
             return 'None';
@@ -516,12 +593,16 @@ const IntegratedProductView = ({ productId, onClose, navigate }) => {
         );
     }
 
+    // ✨ NEW: Calculate summary from variants array
+    const { displayPrice, totalStock, hasOffer } = getVariantSummary(product.variants);
+    const { colorVariants, sizeVariants } = getUniqueVariantAttributes(product.variants);
+    
     // --- UI: Main Component Render ---
     return (
         <div className="p-8 bg-gradient-to-br from-gray-50 to-blue-50 min-h-screen">
             <div className="max-w-6xl mx-auto">
                 
-                {/* Header and Actions */}
+                {/* Header and Actions (UNCHANGED) */}
                 <div className="flex justify-between items-center mb-6">
                     <button 
                         onClick={onClose} // Use the prop to go back to the list
@@ -541,17 +622,17 @@ const IntegratedProductView = ({ productId, onClose, navigate }) => {
 
                 <div className="bg-white rounded-2xl shadow-2xl p-8 border border-gray-100">
                     
-                    {/* Main Product Info and Image */}
+                    {/* Main Product Info and Image (Image section mostly unchanged) */}
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 border-b pb-6 mb-6">
                         
-                        {/* Image Gallery */}
+                        {/* Image Gallery (UNCHANGED) */}
                         <div className="lg:col-span-1">
                             <h3 className="flex items-center text-xl font-semibold text-gray-800 mb-4">
                                 <PhotoIcon className="h-6 w-6 mr-2 text-indigo-500" />
                                 Product Images
                             </h3>
                             <img
-                                src={product.imageUrls?.[0]?.url || "https://via.placeholder.com/400x400/f3f4f6/9ca3af?text=No+Image"}
+                                src={product.mainImageUrl || product.imageUrls?.[0]?.url || "https://via.placeholder.com/400x400/f3f4f6/9ca3af?text=No+Image"}
                                 alt={product.name}
                                 className="w-full h-auto rounded-xl object-cover shadow-lg border border-gray-200"
                             />
@@ -572,36 +653,41 @@ const IntegratedProductView = ({ productId, onClose, navigate }) => {
                             </div>
                         </div>
 
-                        {/* Pricing & Inventory Card */}
+                        {/* ✨ UPDATED Pricing & Inventory Card */}
                         <div className="lg:col-span-2 p-6 bg-gray-50 rounded-xl border border-gray-200 shadow-sm">
                              <h3 className="flex items-center text-xl font-semibold text-gray-800 mb-6 border-b pb-3">
                                 <CurrencyRupeeIcon className="h-6 w-6 mr-2 text-green-600" />
-                                Pricing & Inventory
+                                Pricing & Inventory Summary
                             </h3>
                             
                             <div className="space-y-4">
+                                
+                                {/* Min. Effective Price (NEW) */}
                                 <div className="flex justify-between items-center border-b pb-2">
-                                    <div className="text-lg text-gray-600">Regular Price</div>
+                                    <div className="text-lg text-gray-600">Min. Effective Price</div>
                                     <div className="text-2xl font-bold text-green-700 flex items-center">
                                         <CurrencyRupeeIcon className="h-5 w-5 mr-0.5" />
-                                        {Number(product.price || 0).toFixed(2)}
+                                        {displayPrice === null ? 'N/A' : displayPrice.toFixed(2)}
+                                        {hasOffer && <TagIcon className="h-5 w-5 ml-2 text-red-500" title="Offer Price Available" />}
                                     </div>
                                 </div>
                                 
+                                {/* Total Stock Quantity (NEW) */}
                                 <div className="flex justify-between items-center border-b pb-2">
-                                    <div className="text-lg text-gray-600">Stock Quantity</div>
-                                    <span className="inline-flex items-center px-3 py-1 text-sm font-semibold bg-green-100 text-green-800 rounded-full">
-                                        {product.stock || 0} units
+                                    <div className="text-lg text-gray-600">Total Stock Quantity</div>
+                                    <span className="inline-flex items-center px-3 py-1 text-lg font-bold bg-indigo-100 text-indigo-800 rounded-full">
+                                        {totalStock} units
                                     </span>
                                 </div>
 
+                                {/* Stock Status (NEW) */}
                                 <div className="flex justify-between items-center">
-                                    <div className="text-lg text-gray-600">Stock Status</div>
-                                    {product.stock > 10 ? (
+                                    <div className="text-lg text-gray-600">Overall Stock Status</div>
+                                    {totalStock > 10 ? (
                                         <span className="inline-flex items-center px-3 py-1 text-sm font-semibold bg-green-500 text-white rounded-full">
-                                            In Stock
+                                            High Stock
                                         </span>
-                                    ) : product.stock > 0 ? (
+                                    ) : totalStock > 0 ? (
                                         <span className="inline-flex items-center px-3 py-1 text-sm font-semibold bg-yellow-500 text-white rounded-full">
                                             Low Stock
                                         </span>
@@ -615,7 +701,7 @@ const IntegratedProductView = ({ productId, onClose, navigate }) => {
                         </div>
                     </div>
                     
-                    {/* Description and Identification/Classification Cards */}
+                    {/* Description and Identification/Classification Cards (UNCHANGED) */}
                     <div className="border-b pb-6 mb-6">
                          <h3 className="text-2xl font-semibold text-gray-900 mb-4">Product Overview</h3>
                          <p className="text-gray-700 bg-indigo-50 p-4 rounded-lg italic">
@@ -626,19 +712,19 @@ const IntegratedProductView = ({ productId, onClose, navigate }) => {
                     {/* Technical Specifications - Organized using the DetailCard component */}
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 pt-6">
                         
-                        {/* Detail Card 1: Identification */}
+                        {/* Detail Card 1: Identification (UNCHANGED) */}
                         <DetailCard 
                             icon={TagIcon} 
                             title="Product Identification" 
                             values={[
                                 ['SKU', product.sku || 'N/A'],
                                 ['HSN Code', product.hsnCode || 'N/A'],
-                                ['Seller ID', product.sellerId || 'N/A'], // Assuming sellerId is a field
+                                ['Seller ID', product.sellerId || 'N/A'], 
                                 ['Status', product.status || 'N/A'],
                             ]}
                         />
 
-                        {/* Detail Card 2: Classification */}
+                        {/* Detail Card 2: Classification (UNCHANGED) */}
                         <DetailCard 
                             icon={ArchiveBoxIcon} 
                             title="Classification" 
@@ -649,17 +735,18 @@ const IntegratedProductView = ({ productId, onClose, navigate }) => {
                             ]}
                         />
 
-                        {/* Detail Card 3: Variants */}
+                        {/* ✨ UPDATED Detail Card 3: Variants */}
                         <DetailCard 
                             icon={PhotoIcon} 
-                            title="Variants" 
+                            title="Unique Variants" 
                             values={[
-                                ['Colors', formatVariants(product.colorVariants)],
-                                ['Sizes/Storage', formatVariants(product.sizeVariants)]
+                                // Now using the unique attributes extracted from the variants array
+                                ['Colors', formatVariants(colorVariants)],
+                                ['Sizes/Storage', formatVariants(sizeVariants)]
                             ]}
                         />
 
-                        {/* Detail Card 4: Timestamps */}
+                        {/* Detail Card 4: Timestamps (UNCHANGED) */}
                         <DetailCard 
                             icon={ClockIcon} 
                             title="Timeline" 
@@ -669,6 +756,43 @@ const IntegratedProductView = ({ productId, onClose, navigate }) => {
                             ]}
                         />
                     </div>
+                    
+                    {/* Optional: Detailed Variants Table (Add this if you want to show ALL variants) */}
+                    {product.variants && product.variants.length > 0 && (
+                        <div className="mt-8">
+                             <h3 className="flex items-center text-xl font-semibold text-gray-800 mb-4 border-b pb-2">
+                                <CubeIcon className="h-5 w-5 mr-2 text-indigo-500" />
+                                All Individual Variants ({product.variants.length})
+                            </h3>
+                            <div className="overflow-x-auto rounded-lg border border-gray-200 shadow-sm">
+                                <table className="min-w-full divide-y divide-gray-200">
+                                    <thead className="bg-gray-50">
+                                        <tr>
+                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Color</th>
+                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Size</th>
+                                            <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Regular Price (₹)</th>
+                                            <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Offer Price (₹)</th>
+                                            <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Stock</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="bg-white divide-y divide-gray-100">
+                                        {product.variants.map((v, i) => (
+                                            <tr key={v.variantId || i} className="hover:bg-gray-50">
+                                                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{v.color || 'N/A'}</td>
+                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{v.size || 'N/A'}</td>
+                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-right">{Number(v.price || 0).toFixed(2)}</td>
+                                                <td className={`px-6 py-4 whitespace-nowrap text-sm text-right ${v.offerPrice ? 'text-red-600 font-semibold' : 'text-gray-400'}`}>
+                                                    {v.offerPrice ? Number(v.offerPrice).toFixed(2) : '-'}
+                                                </td>
+                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">{v.stock || 0}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    )}
+
                 </div>
             </div>
         </div>
