@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   collection,
   addDoc,
@@ -6,6 +6,8 @@ import {
   updateDoc,
   deleteDoc,
   doc,
+  query, // ADDED: For creating Firestore queries
+  where, // ADDED: For filtering documents
 } from "firebase/firestore";
 import {
   FiEdit2,
@@ -35,36 +37,54 @@ const ManageSubcategories = () => {
   const [subcategories, setSubcategories] = useState([]);
   const [categoriesList, setCategoriesList] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [loadingCategories, setLoadingCategories] = useState(true);
+  const [loadingCategories, setLoadingCategories] = useState(false); // Changed initial state to false
 
   // Hardcoded labels
-  const LABELS = ["E-Market", "Local Market"];
+  const LABELS = ['E-Store', 'Local Market', "Printing","Oldee"];
 
-  // 1. --- FETCH CATEGORIES FROM FIRESTORE ---
-  const fetchCategories = async () => {
+  // 1. --- FETCH CATEGORIES FROM FIRESTORE (MODIFIED WITH FILTERING) ---
+  const fetchCategories = useCallback(async (currentLabel) => {
+    if (!currentLabel) {
+        setCategoriesList([]);
+        setCategory("");
+        setCategoryName("");
+        return;
+    }
+    
     setLoadingCategories(true);
     try {
-      const querySnapshot = await getDocs(collection(db, "categories"));
+      // CORE CHANGE: Apply 'where' clause to filter categories by the selected label
+      const categoriesQuery = query(
+        collection(db, "categories"),
+        where("label", "==", currentLabel)
+      );
+      
+      const querySnapshot = await getDocs(categoriesQuery);
       const data = querySnapshot.docs.map((doc) => ({
         id: doc.id,
         name: doc.data().name,
       }));
+      
       setCategoriesList(data);
 
-      // Set the default category ID and Name for the form
-      if (data.length > 0 && !category) {
+      // Set the default category ID and Name for the form from the filtered list
+      if (data.length > 0) {
         setCategory(data[0].id);
         setCategoryName(data[0].name);
+      } else {
+        setCategory("");
+        setCategoryName("");
       }
+      
     } catch (error) {
       console.error("Error fetching categories:", error);
     } finally {
       setLoadingCategories(false);
     }
-  };
+  }, [db]); // Added db to dependency array
 
   // 2. --- FETCH SUBCATEGORIES FROM FIRESTORE ---
-  const fetchSubcategories = async () => {
+  const fetchSubcategories = useCallback(async () => {
     setLoading(true);
     try {
       const querySnapshot = await getDocs(collection(db, "subcategories"));
@@ -80,13 +100,19 @@ const ManageSubcategories = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [db]); // Added db to dependency array
 
   // Run initial fetches
   useEffect(() => {
-    fetchCategories();
+    // 1. Fetch subcategories once on mount (independent of label)
     fetchSubcategories();
-  }, []);
+  }, [fetchSubcategories]);
+  
+  useEffect(() => {
+    // 2. Fetch categories whenever the selected 'label' changes
+    fetchCategories(label);
+  }, [label, fetchCategories]);
+
 
   // Handler for category dropdown change
   const handleCategoryChange = (e) => {
@@ -114,7 +140,7 @@ const ManageSubcategories = () => {
       const subcategoryData = {
         label,
         category: categoryNameToSave, // Category Name for display/legacy
-        categoryId: category,         // Category Document ID (essential for filtering)
+        categoryId: category,         // Category Document ID (essential for filtering)
         subcategory,
         commission: commission ? Number(commission) : 0,
         updatedAt: new Date(),
@@ -166,21 +192,19 @@ const ManageSubcategories = () => {
     setEditId(item.id);
 
     // Set the category ID and Name from the existing subcategory item
+    // The useEffect will trigger a new category fetch based on the new label state
     setCategory(item.categoryId || categoriesList[0]?.id || "");
     setCategoryName(item.category || categoriesList[0]?.name || "");
   };
 
   // Reset form
   const resetForm = () => {
-    setLabel("");
+    setLabel(""); // Clear the label selection
     setSubcategory("");
     setCommission("");
     setEditId(null);
     
-    // Reset to the first fetched category ID/Name
-    const defaultCat = categoriesList.length > 0 ? categoriesList[0] : { id: "", name: "" };
-    setCategory(defaultCat.id);
-    setCategoryName(defaultCat.name);
+    // The useEffect listening to 'label' will clear/reset category states
   };
 
   // Filter subcategories based on search 
@@ -269,12 +293,15 @@ const ManageSubcategories = () => {
                   className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all duration-200"
                   value={category}
                   onChange={handleCategoryChange} // Use new handler
-                  disabled={isFormDisabled}
+                  // Disable category selection if no label is selected or categories are loading
+                  disabled={isFormDisabled || !label || categoriesList.length === 0} 
                 >
-                  {loadingCategories ? (
+                  {!label ? (
+                    <option value="">Select a Label first</option>
+                  ) : loadingCategories ? (
                     <option value="">Loading...</option>
                   ) : categoriesList.length === 0 ? (
-                    <option value="">No Categories Found</option>
+                    <option value="">No Categories Found for "{label}"</option>
                   ) : (
                     <>
                       <option value="">Select Category...</option>

@@ -34,7 +34,7 @@ const ManageCategories = () => {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
 
-  const LABELS = ['E-Market', 'MARKET NEWS', 'Local Market'];
+  const LABELS = ['E-Store', 'Local Market', "Printing","Oldee"];
 
   // Fetch categories from Firebase
   const fetchCategories = async () => {

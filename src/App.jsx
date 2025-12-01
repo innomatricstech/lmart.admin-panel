@@ -29,7 +29,7 @@ import BulkUploadPage from "./components/BulkUploadPage";
 import NotificationsPage from "./components/NotificationsPage";
 
 // Sellers
-import ViewProductsPage from "./components/Seller/ViewProductsPage";
+import ViewProductsPage from "./components/Seller/ViewSellerPage";
 import DeletedSellersTable from "./components/Seller/DeletedSellersTable";
 
 // Products
