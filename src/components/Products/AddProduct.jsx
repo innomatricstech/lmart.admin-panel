@@ -83,7 +83,7 @@ const generateSearchKeywords = (product) => {
 // List of available product tags/labels
 const PRODUCT_TAG_OPTIONS = [
     { value: '', label: 'Select Product Label (Required)' },
-    { value: 'E-Store', label: 'E-Store' }, // <-- Corrected case to E-Store
+    { value: 'E-Store', label: 'E-Store' }, 
     { value: 'Local Market', label: 'Local Market' },
     { value: 'Printing', label: 'Printing' },
     { value: 'Oldee', label: 'Oldee' },
@@ -555,8 +555,6 @@ const AddProductPage = () => {
                                     />
                                 </div>
                                 
-                                {/* PRODUCT LABEL (Tag) Dropdown */}
-                               
                                 
                                 {/* Placeholder to fill the grid if needed */}
                                 <div className="hidden md:block"></div> 
@@ -617,14 +615,16 @@ const AddProductPage = () => {
                             </div>
                         </div>
 
-                        {/* CATEGORY SELECTION (UPDATED to use filteredCategories) */}
+                        {/* CATEGORY SELECTION (MODIFIED: Three dropdowns in a single grid row for md/lg screens) */}
                         <div className="space-y-4">
                             <h3 className="text-xl font-semibold text-gray-800 flex items-center">
                                 <FiLayers className="w-6 h-6 mr-3 text-green-600" />
                                 Category Selection
                             </h3>
 
-                             <div className="relative">
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                {/* 1. Product Label Select */}
+                                <div className="relative">
                                     <FiTag className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
                                     <FiChevronDown className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5 pointer-events-none" />
                                     <select
@@ -641,13 +641,10 @@ const AddProductPage = () => {
                                             </option>
                                         ))}
                                     </select>
-                                </div>  
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                {/* Category Select */}
+                                </div>
                                 
+                                {/* 2. Category Select */}
                                 <div className="relative">
-
-                                  
                                     <FiChevronDown className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5 pointer-events-none" />
                                     <select
                                         name="category"
@@ -668,7 +665,7 @@ const AddProductPage = () => {
                                     {productData.productTag && filteredCategories.length === 0 && <p className='text-xs text-red-500 mt-1'>No categories found for "{productData.productTag}".</p>}
                                 </div>
                                 
-                                {/* SubCategory Select (Uses logic dependent on productData.category, which is now filtered) */}
+                                {/* 3. SubCategory Select (Uses logic dependent on productData.category, which is now filtered) */}
                                 <div className="relative">
                                     <FiChevronDown className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5 pointer-events-none" />
                                     <select
@@ -685,7 +682,6 @@ const AddProductPage = () => {
                                         ))}
                                     </select>
                                     {productData.category && filteredSubcategories.length === 0 && <p className='text-xs text-red-500 mt-1'>No subcategories found for this category.</p>}
-
                                 </div>
                             </div>
                         </div>

@@ -17,6 +17,7 @@ import {
   FiUser,
   FiZap,
   FiLink,
+  FiEdit, // Added FiEdit for the variant edit button
 } from 'react-icons/fi';
 import { useParams, useNavigate } from 'react-router-dom';
 
@@ -110,6 +111,8 @@ const EditProductPage = () => {
     offerPrice: '',
     stock: '',
   });
+  // ⭐️ NEW STATE: Tracks which variant is being edited
+  const [editingVariantId, setEditingVariantId] = useState(null); 
 
   // --- IMAGE MANAGEMENT STATE (Refactored for Edit Page) ---
   // Tracks existing images loaded from Firestore
@@ -220,13 +223,97 @@ const EditProductPage = () => {
   };
 
 
-  // --- VARIANT LOGIC (Copied from AddProduct) ---
+  // --- VARIANT LOGIC (Modified for Edit) ---
   const handleNewVariantChange = (e) => {
     const { name, value } = e.target;
     setNewVariant(prev => ({ ...prev, [name]: value }));
   };
+  
+  // ⭐️ NEW FUNCTION: Loads variant data into the input fields for editing
+  const handleEditVariant = (variant) => {
+      // Load existing variant data into the input fields
+      setNewVariant({
+          color: variant.color,
+          size: variant.size,
+          // Convert numbers back to string for input fields
+          price: variant.price.toString(),
+          offerPrice: variant.offerPrice ? variant.offerPrice.toString() : '',
+          stock: variant.stock.toString(),
+      });
+      // Set the ID of the variant being edited
+      setEditingVariantId(variant.variantId);
+      setMessage(`✏️ Editing variant: ${variant.color} - ${variant.size}. Click 'Update' below to save changes.`);
+  };
+
+  // ⭐️ NEW FUNCTION: Updates the variant list with the edited data
+  const handleUpdateVariant = () => {
+    const { color, size, price, offerPrice, stock } = newVariant;
+    const cleanColor = color.trim();
+    const cleanSize = size.trim().toUpperCase();
+    const cleanPrice = parseFloat(price);
+    const cleanOfferPrice = offerPrice ? parseFloat(offerPrice) : null;
+    const cleanStock = parseInt(stock, 10);
+
+    // Basic Validation (same as Add)
+    if (!cleanColor || !cleanSize || isNaN(cleanPrice) || isNaN(cleanStock) || cleanStock < 0) {
+        setMessage("❌ Please fill out valid Color, Size, Price, and Stock for the variant.");
+        return;
+    }
+    if (cleanOfferPrice !== null && cleanOfferPrice >= cleanPrice) {
+        setMessage("❌ Variant Offer Price cannot be greater than or equal to the regular Price.");
+        return;
+    }
+
+    // Check for duplicate variant (same color/size, excluding the one being edited)
+    const exists = productData.variants.some(
+        v => v.variantId !== editingVariantId && 
+             v.color.toLowerCase() === cleanColor.toLowerCase() && 
+             v.size.toLowerCase() === cleanSize.toLowerCase()
+    );
+
+    if (exists) {
+        setMessage("❌ Another variant with this Color and Size already exists.");
+        return;
+    }
+
+    const updatedVariantObject = {
+        variantId: editingVariantId, // Maintain the original ID
+        color: cleanColor,
+        size: cleanSize,
+        price: cleanPrice,
+        offerPrice: cleanOfferPrice,
+        stock: cleanStock,
+    };
+
+    setProductData(prev => ({
+        ...prev,
+        // Map over variants and replace the one matching the editingVariantId
+        variants: prev.variants.map(v => 
+            v.variantId === editingVariantId ? updatedVariantObject : v
+        ),
+    }));
+
+    // Reset state after update
+    setNewVariant({ color: '', size: '', price: '', offerPrice: '', stock: '' });
+    setEditingVariantId(null);
+    setMessage(`✅ Variant updated to ${cleanColor} - ${cleanSize}. Remember to save the product.`);
+  };
+
+  // ⭐️ NEW FUNCTION: Clears the edit mode
+  const cancelEdit = () => {
+      setNewVariant({ color: '', size: '', price: '', offerPrice: '', stock: '' });
+      setEditingVariantId(null);
+      setMessage("📝 Variant edit cancelled. You can add a new one or click edit again.");
+  };
 
   const handleAddVariant = () => {
+    // ⭐️ Check if we are in edit mode. If so, call update instead.
+    if (editingVariantId) {
+        handleUpdateVariant();
+        return;
+    }
+    
+    // --- ADD LOGIC ---
     const { color, size, price, offerPrice, stock } = newVariant;
     const cleanColor = color.trim();
     const cleanSize = size.trim().toUpperCase();
@@ -278,7 +365,12 @@ const EditProductPage = () => {
       ...prev,
       variants: prev.variants.filter(v => v.variantId !== variantId),
     }));
-    setMessage("✅ Variant removed. Remember to save the product.");
+    // Also cancel edit if the variant being edited is removed
+    if (editingVariantId === variantId) {
+        cancelEdit();
+    } else {
+        setMessage("✅ Variant removed. Remember to save the product.");
+    }
   };
   
   // List of all unique colors currently available in variants
@@ -419,7 +511,11 @@ const EditProductPage = () => {
     e.preventDefault();
     setMessage('');
     
-    // ... (Validation and loading setup) ...
+    // Reset variant editing mode before submit, just in case
+    if (editingVariantId) {
+        cancelEdit();
+    }
+
     if (loadingData) return;
     if (!productData.name || !productData.category || !productData.sellerId) {
       setMessage("❌ Please fill out Name, Category, and Seller ID fields.");
@@ -515,6 +611,7 @@ const EditProductPage = () => {
 
   const isFormDisabled = loading || loadingData;
   const isSuccess = message.startsWith("✅");
+  const isEditing = editingVariantId !== null;
   const messageClass = isSuccess
     ? "bg-gradient-to-r from-green-50 to-green-100 border-l-4 border-green-500 text-green-700"
     : "bg-gradient-to-r from-red-50 to-red-100 border-l-4 border-red-500 text-red-700";
@@ -748,15 +845,39 @@ const EditProductPage = () => {
                     className="px-3 py-2 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-orange-500"
                     disabled={isFormDisabled}
                   />
-                  <button
-                    type="button"
-                    onClick={handleAddVariant}
-                    className="px-3 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors disabled:opacity-50 flex items-center justify-center space-x-1"
-                    disabled={isFormDisabled}
-                  >
-                    <FiPlus className="w-4 h-4" />
-                    <span className="hidden md:inline">Add</span>
-                  </button>
+                  {/* ⭐️ CONDITIONAL BUTTONS for ADD or UPDATE/CANCEL */}
+                  {isEditing ? (
+                      <div className="flex space-x-1 col-span-2 md:col-span-1">
+                          <button
+                              type="button"
+                              onClick={handleUpdateVariant}
+                              className="w-1/2 px-2 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors disabled:opacity-50 flex items-center justify-center space-x-1 text-sm"
+                              disabled={isFormDisabled}
+                          >
+                              <FiCheck className="w-4 h-4" />
+                              <span className="hidden md:inline">Update</span>
+                          </button>
+                          <button
+                              type="button"
+                              onClick={cancelEdit}
+                              className="w-1/2 px-2 py-2 bg-gray-400 text-white rounded-lg hover:bg-gray-500 transition-colors disabled:opacity-50 flex items-center justify-center space-x-1 text-sm"
+                              disabled={isFormDisabled}
+                          >
+                              <FiX className="w-4 h-4" />
+                              <span className="hidden md:inline">Cancel</span>
+                          </button>
+                      </div>
+                  ) : (
+                      <button
+                          type="button"
+                          onClick={handleAddVariant}
+                          className="px-3 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors disabled:opacity-50 flex items-center justify-center space-x-1"
+                          disabled={isFormDisabled}
+                      >
+                          <FiPlus className="w-4 h-4" />
+                          <span className="hidden md:inline">Add</span>
+                      </button>
+                  )}
                 </div>
                 
                 {/* Variant List */}
@@ -773,18 +894,29 @@ const EditProductPage = () => {
                           <span className="col-span-1 text-right">Action</span>
                       </div>
                       {productData.variants.map((v) => (
-                          <div key={v.variantId} className="grid grid-cols-5 md:grid-cols-6 text-sm p-2 border-t border-gray-200 hover:bg-white transition-colors items-center">
+                          <div key={v.variantId} className={`grid grid-cols-5 md:grid-cols-6 text-sm p-2 border-t border-gray-200 transition-colors items-center ${v.variantId === editingVariantId ? 'bg-yellow-50 font-bold' : 'hover:bg-white'}`}>
                               <span className="col-span-1 font-medium">{v.color}</span>
                               <span className="col-span-1 font-medium">{v.size}</span>
                               <span className="col-span-1">₹{v.price.toFixed(2)}</span>
                               <span className="col-span-1 text-red-600">{v.offerPrice ? `₹${v.offerPrice.toFixed(2)}` : '-'}</span>
                               <span className="col-span-1">{v.stock}</span>
-                              <span className="col-span-1 text-right">
+                              <span className="col-span-1 text-right flex justify-end space-x-2">
+                                  {/* ⭐️ EDIT BUTTON */}
+                                  <button
+                                      type="button"
+                                      onClick={() => handleEditVariant(v)}
+                                      className="text-blue-500 hover:text-blue-700 p-1 rounded disabled:opacity-50"
+                                      disabled={isFormDisabled || isEditing} // Disable if already editing or form disabled
+                                      title="Edit Variant"
+                                  >
+                                      <FiEdit className="w-4 h-4" /> 
+                                  </button>
                                   <button
                                       type="button"
                                       onClick={() => removeVariant(v.variantId)}
                                       className="text-red-500 hover:text-red-700 p-1 rounded disabled:opacity-50"
                                       disabled={isFormDisabled}
+                                      title="Remove Variant"
                                   >
                                       <FiX className="w-4 h-4" />
                                   </button>
