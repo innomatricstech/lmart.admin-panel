@@ -1,4 +1,3 @@
-// App.jsx
 import React, { useState, useEffect } from "react";
 import { BrowserRouter as Router, Routes, Route, Navigate, Outlet, useNavigate } from "react-router-dom";
 
@@ -28,9 +27,14 @@ import RecentOrdersTable from "./components/RecentOrdersTable";
 import BulkUploadPage from "./components/BulkUploadPage";
 import NotificationsPage from "./components/NotificationsPage";
 
-// Sellers
-import ViewProductsPage from "./components/Seller/ViewSellerPage";
+// Sellers Components
+// NOTE: Renamed ViewProductsPage (which was in ViewSeller.jsx) to ViewSellersPage for clarity
+import ViewSellersPage from "./components/Seller/ViewSeller"; 
 import DeletedSellersTable from "./components/Seller/DeletedSellersTable";
+// 🚨 NEW IMPORTS for CRUD functionality
+import EditSellerPage from "./components/Seller/EditSellerPage";
+// Using Placeholder for AddSeller until the component is created
+// import AddSellerPage from "./components/Seller/AddSellerPage";
 
 // Products
 import Products from "./components/Products/Products";
@@ -44,12 +48,12 @@ import AddNewsToday from "./components/Products/AddNews";
 // Login
 import LoginPage from "./components/LoginPage";
 
-// Placeholder Component
+// Placeholder Component (kept for un-implemented routes)
 const Placeholder = ({ title }) => (
-  <div className="p-6 bg-white rounded-lg shadow">
-    <h1 className="text-2xl font-bold">{title}</h1>
-    <p className="mt-2 text-gray-600">This is a placeholder page.</p>
-  </div>
+    <div className="p-6 bg-white rounded-lg shadow">
+        <h1 className="text-2xl font-bold">{title}</h1>
+        <p className="mt-2 text-gray-600">This is a placeholder page.</p>
+    </div>
 );
 
 
@@ -57,36 +61,36 @@ const Placeholder = ({ title }) => (
 // DASHBOARD LAYOUT
 // ----------------------
 const DashboardLayout = ({ sidebarOpen, setSidebarOpen, toggleSidebar, onLogout }) => {
-  return (
-    <div className="flex h-screen bg-gray-50">
+    return (
+        <div className="flex h-screen bg-gray-50">
 
-      {/* Sidebar */}
-      <div
-        className={`
-          ${sidebarOpen ? "fixed inset-y-0 left-0 z-30" : "hidden"}
-          lg:block lg:static
-        `}
-      >
-        <Sidebar onCloseSidebar={() => setSidebarOpen(false)} onLogout={onLogout} />
-      </div>
+            {/* Sidebar */}
+            <div
+                className={`
+                    ${sidebarOpen ? "fixed inset-y-0 left-0 z-30" : "hidden"}
+                    lg:block lg:static
+                `}
+            >
+                <Sidebar onCloseSidebar={() => setSidebarOpen(false)} onLogout={onLogout} />
+            </div>
 
-      {/* Mobile overlay */}
-      {sidebarOpen && (
-        <div
-          className="fixed inset-0 bg-black bg-opacity-50 z-20 lg:hidden"
-          onClick={() => setSidebarOpen(false)}
-        />
-      )}
+            {/* Mobile overlay */}
+            {sidebarOpen && (
+                <div
+                    className="fixed inset-0 bg-black bg-opacity-50 z-20 lg:hidden"
+                    onClick={() => setSidebarOpen(false)}
+                />
+            )}
 
-      {/* Content */}
-      <div className="flex-1 flex flex-col overflow-hidden">
-        <Header onToggleSidebar={toggleSidebar} />
-        <main className="flex-1 overflow-y-auto p-4 md:p-6">
-          <Outlet />
-        </main>
-      </div>
-    </div>
-  );
+            {/* Content */}
+            <div className="flex-1 flex flex-col overflow-hidden">
+                <Header onToggleSidebar={toggleSidebar} />
+                <main className="flex-1 overflow-y-auto p-4 md:p-6">
+                    <Outlet />
+                </main>
+            </div>
+        </div>
+    );
 };
 
 
@@ -94,110 +98,115 @@ const DashboardLayout = ({ sidebarOpen, setSidebarOpen, toggleSidebar, onLogout 
 // MAIN APP COMPONENT
 // ----------------------
 function App() {
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+    const [sidebarOpen, setSidebarOpen] = useState(false);
 
-  // IMPORTANT: Persisted login check
-  const [isLoggedIn, setIsLoggedIn] = useState(
-    !!localStorage.getItem("adminUser")   // TRUE if user exists in localStorage
-  );
+    // IMPORTANT: Persisted login check
+    const [isLoggedIn, setIsLoggedIn] = useState(
+        !!localStorage.getItem("adminUser")    // TRUE if user exists in localStorage
+    );
 
-  // Ensure React state syncs with localStorage login
-  useEffect(() => {
-    if (localStorage.getItem("adminUser")) {
-      setIsLoggedIn(true);
-    }
-  }, []);
+    // Ensure React state syncs with localStorage login
+    useEffect(() => {
+        if (localStorage.getItem("adminUser")) {
+            setIsLoggedIn(true);
+        }
+    }, []);
 
-  // Sidebar toggle for mobile
-  const toggleSidebar = () => setSidebarOpen(!sidebarOpen);
+    // Sidebar toggle for mobile
+    const toggleSidebar = () => setSidebarOpen(!sidebarOpen);
 
-  // Authentication handlers
-  const handleLogin = () => {
-    setIsLoggedIn(true);   // persist handled by LoginPage already
-  };
+    // Authentication handlers
+    const handleLogin = () => {
+        setIsLoggedIn(true);    // persist handled by LoginPage already
+    };
 
-  const handleLogout = () => {
-    localStorage.removeItem("adminUser");
-    setIsLoggedIn(false);
-  };
-
-
-  return (
-    <Router>
-      <Routes>
-
-        {/* PUBLIC ROUTES */}
-        <Route path="/login" element={
-          isLoggedIn ? <Navigate to="/" replace /> : <LoginPage onLogin={handleLogin} />
-        } />
-
-        <Route path="/forgot-password" element={<Placeholder title="Forgot Password" />} />
+    const handleLogout = () => {
+        localStorage.removeItem("adminUser");
+        setIsLoggedIn(false);
+    };
 
 
-        {/* PROTECTED ROUTES */}
-        <Route
-          path="/"
-          element={
-            isLoggedIn ? (
-              <DashboardLayout
-                sidebarOpen={sidebarOpen}
-                setSidebarOpen={setSidebarOpen}
-                toggleSidebar={toggleSidebar}
-                onLogout={handleLogout}
-              />
-            ) : (
-              <Navigate to="/login" replace />
-            )
-          }
-        >
+    return (
+        <Router>
+            <Routes>
 
-          {/* Dashboard Home */}
-          <Route index element={<Dashboard />} />
-          <Route path="dashboard" element={<Dashboard />} />
+                {/* PUBLIC ROUTES */}
+                <Route path="/login" element={
+                    isLoggedIn ? <Navigate to="/" replace /> : <LoginPage onLogin={handleLogin} />
+                } />
 
-          {/* Customers */}
-          <Route path="customers" element={<CustomerDirectory />} />
+                <Route path="/forgot-password" element={<Placeholder title="Forgot Password" />} />
 
-          {/* Orders */}
-          <Route path="orders/all" element={<OrdersTable />} />
-          <Route path="orders/pending" element={<PendingOrdersTable />} />
-          <Route path="orders/processing" element={<ProcessingOrdersTable />} />
-          <Route path="orders/shipped" element={<ShippedOrdersTable />} />
-          <Route path="orders/delivered" element={<DeliveredOrdersTable />} />
-          <Route path="orders/cancelled" element={<CancelledOrdersTable />} />
-          <Route path="return-orders" element={<ReturnOrdersTable />} />
-          <Route path="recent-orders" element={<RecentOrdersTable />} />
 
-          {/* Financial */}
-          <Route path="earnings" element={<EarningsPage />} />
-          <Route path="files" element={<FilesPage />} />
-          <Route path="posters" element={<PostersPage />} />
-          <Route path="banner" element={<BannerPage />} />
-          <Route path="bulk-upload" element={<BulkUploadPage />} />
-          <Route path="notifications" element={<NotificationsPage />} />
+                {/* PROTECTED ROUTES */}
+                <Route
+                    path="/"
+                    element={
+                        isLoggedIn ? (
+                            <DashboardLayout
+                                sidebarOpen={sidebarOpen}
+                                setSidebarOpen={setSidebarOpen}
+                                toggleSidebar={toggleSidebar}
+                                onLogout={handleLogout}
+                            />
+                        ) : (
+                            <Navigate to="/login" replace />
+                        )
+                    }
+                >
 
-          {/* Sellers */}
-          <Route path="sellers/all" element={<ViewProductsPage />} />
-          <Route path="sellers/delete" element={<DeletedSellersTable />} />
-          <Route path="sellers/add" element={<Placeholder title="Add Seller" />} />
+                    {/* Dashboard Home */}
+                    <Route index element={<Dashboard />} />
+                    <Route path="dashboard" element={<Dashboard />} />
 
-          {/* Products */}
-          <Route path="products" element={<Navigate to="view" replace />} />
-          <Route path="products/view" element={<Products />} />
-          <Route path="products/add" element={<AddProductPage />} />
-          <Route path="products/edit/:productId" element={<EditProductPage />} />
-          <Route path="products/subcategories" element={<ManageSubcategories />} />
-          <Route path="products/categories" element={<ManageCategories />} />
-          <Route path="products/news" element={<ViewNews />} />
-          <Route path="products/news/add" element={<AddNewsToday />} />
+                    {/* Customers */}
+                    <Route path="customers" element={<CustomerDirectory />} />
 
-          {/* 404 inside protected area */}
-          <Route path="*" element={<Placeholder title="404 — Page not found" />} />
-        </Route>
+                    {/* Orders */}
+                    <Route path="orders/all" element={<OrdersTable />} />
+                    <Route path="orders/pending" element={<PendingOrdersTable />} />
+                    <Route path="orders/processing" element={<ProcessingOrdersTable />} />
+                    <Route path="orders/shipped" element={<ShippedOrdersTable />} />
+                    <Route path="orders/delivered" element={<DeliveredOrdersTable />} />
+                    <Route path="orders/cancelled" element={<CancelledOrdersTable />} />
+                    <Route path="return-orders" element={<ReturnOrdersTable />} />
+                    <Route path="recent-orders" element={<RecentOrdersTable />} />
 
-      </Routes>
-    </Router>
-  );
+                    {/* Financial */}
+                    <Route path="earnings" element={<EarningsPage />} />
+                    <Route path="files" element={<FilesPage />} />
+                    <Route path="posters" element={<PostersPage />} />
+                    <Route path="banner" element={<BannerPage />} />
+                    <Route path="bulk-upload" element={<BulkUploadPage />} />
+                    <Route path="notifications" element={<NotificationsPage />} />
+
+                    {/* Sellers Management Routes */}
+                    <Route path="sellers/all" element={<ViewSellersPage />} />
+                    <Route path="sellers/delete" element={<DeletedSellersTable />} />
+                    
+                    {/* 👇 Updated to use the correct Edit/View component */}
+                    <Route path="sellers/add" element={<Placeholder title="Add Seller" />} />
+                    <Route path="sellers/view/:id" element={<EditSellerPage />} />
+                    <Route path="sellers/edit/:id" element={<EditSellerPage />} />
+                    {/* 👆 End of Seller Updates */}
+
+                    {/* Products */}
+                    <Route path="products" element={<Navigate to="view" replace />} />
+                    <Route path="products/view" element={<Products />} />
+                    <Route path="products/add" element={<AddProductPage />} />
+                    <Route path="products/edit/:productId" element={<EditProductPage />} />
+                    <Route path="products/subcategories" element={<ManageSubcategories />} />
+                    <Route path="products/categories" element={<ManageCategories />} />
+                    <Route path="products/news" element={<ViewNews />} />
+                    <Route path="products/news/add" element={<AddNewsToday />} />
+
+                    {/* 404 inside protected area */}
+                    <Route path="*" element={<Placeholder title="404 — Page not found" />} />
+                </Route>
+
+            </Routes> 
+        </Router>
+    );
 }
 
 export default App;
