@@ -229,7 +229,7 @@ const EditProductPage = () => {
     setNewVariant(prev => ({ ...prev, [name]: value }));
   };
   
-  // ⭐️ NEW FUNCTION: Loads variant data into the input fields for editing
+  // ⭐️ Loads variant data into the input fields for editing
   const handleEditVariant = (variant) => {
       // Load existing variant data into the input fields
       setNewVariant({
@@ -242,10 +242,10 @@ const EditProductPage = () => {
       });
       // Set the ID of the variant being edited
       setEditingVariantId(variant.variantId);
-      setMessage(`✏️ Editing variant: ${variant.color} - ${variant.size}. Click 'Update' below to save changes.`);
+      setMessage(`✏️ Editing variant: ${variant.color} - ${variant.size}. Click 'Update' to save changes to the list.`);
   };
 
-  // ⭐️ NEW FUNCTION: Updates the variant list with the edited data
+  // ⭐️ Updates the variant list with the edited data (LOCAL STATE ONLY)
   const handleUpdateVariant = () => {
     const { color, size, price, offerPrice, stock } = newVariant;
     const cleanColor = color.trim();
@@ -296,10 +296,10 @@ const EditProductPage = () => {
     // Reset state after update
     setNewVariant({ color: '', size: '', price: '', offerPrice: '', stock: '' });
     setEditingVariantId(null);
-    setMessage(`✅ Variant updated to ${cleanColor} - ${cleanSize}. Remember to save the product.`);
+    setMessage(`✅ Variant updated to ${cleanColor} - ${cleanSize}. SCROLL DOWN AND CLICK 'SAVE CHANGES' TO UPDATE FIREBASE.`);
   };
 
-  // ⭐️ NEW FUNCTION: Clears the edit mode
+  // ⭐️ Clears the edit mode
   const cancelEdit = () => {
       setNewVariant({ color: '', size: '', price: '', offerPrice: '', stock: '' });
       setEditingVariantId(null);
@@ -357,7 +357,7 @@ const EditProductPage = () => {
     }));
 
     setNewVariant({ color: '', size: '', price: '', offerPrice: '', stock: '' });
-    setMessage("✅ New variant added successfully. Remember to save the product.");
+    setMessage("✅ New variant added successfully. SCROLL DOWN AND CLICK 'SAVE CHANGES' TO UPDATE FIREBASE.");
   };
 
   const removeVariant = (variantId) => {
@@ -369,7 +369,7 @@ const EditProductPage = () => {
     if (editingVariantId === variantId) {
         cancelEdit();
     } else {
-        setMessage("✅ Variant removed. Remember to save the product.");
+        setMessage("✅ Variant removed. SCROLL DOWN AND CLICK 'SAVE CHANGES' TO UPDATE FIREBASE.");
     }
   };
   
@@ -439,7 +439,7 @@ const EditProductPage = () => {
         }));
     }
 
-    setMessage(`✅ Image assigned to color: ${color} and isMain: ${isMain}. Remember to save.`);
+    setMessage(`✅ Image assigned to color: ${color} and isMain: ${isMain}. SCROLL DOWN AND CLICK 'SAVE CHANGES' TO UPDATE FIREBASE.`);
     setIsColorSelectionModalOpen(false);
     setCurrentImageFileToAssign(null);
     setTempColorAssignment('');
@@ -467,13 +467,13 @@ const EditProductPage = () => {
           setMessage("⚠️ The main image was removed. Please mark an existing or new image as main before saving.");
       }
       setExistingImageUrls(prev => prev.filter(img => img.url !== imageObject.url));
-      setMessage("✅ Existing image removed. Remember to save.");
+      setMessage("✅ Existing image removed. SCROLL DOWN AND CLICK 'SAVE CHANGES' TO UPDATE FIREBASE.");
   };
 
   // Removes a newly selected file (not yet uploaded)
   const removeNewImage = (fileToRemove) => {
       setNewImageFiles(prevFiles => prevFiles.filter(p => p.file !== fileToRemove));
-      setMessage("✅ New image file discarded. Remember to save.");
+      setMessage("✅ New image file discarded. SCROLL DOWN AND CLICK 'SAVE CHANGES' TO UPDATE FIREBASE.");
   };
 
   // Function to set an *existing* image as the main image
@@ -486,7 +486,7 @@ const EditProductPage = () => {
       setExistingImageUrls(prev => prev.map(img => 
           img.url === imageObject.url ? { ...img, isMain: true } : img
       ));
-      setMessage(`✅ Image assigned as NEW MAIN for color ${imageObject.color}. Remember to save.`);
+      setMessage(`✅ Image assigned as NEW MAIN for color ${imageObject.color}. SCROLL DOWN AND CLICK 'SAVE CHANGES' TO UPDATE FIREBASE.`);
   }
 
   // Function to set a *new file* image as the main image
@@ -499,14 +499,14 @@ const EditProductPage = () => {
       setNewImageFiles(prev => prev.map(img =>
           img.file === imageObject.file ? { ...img, isMain: true } : img
       ));
-      setMessage(`✅ New file assigned as MAIN for color ${imageObject.color}. Remember to save.`);
+      setMessage(`✅ New file assigned as MAIN for color ${imageObject.color}. SCROLL DOWN AND CLICK 'SAVE CHANGES' TO UPDATE FIREBASE.`);
   }
 
   const allImages = [...existingImageUrls, ...newImageFiles];
   const mainImage = allImages.find(img => img.isMain);
 
 
-  // 3. --- SUBMIT HANDLER (Refactored) ---
+  // 3. --- SUBMIT HANDLER (THE ONLY FUNCTION THAT TALKS TO FIREBASE) ---
   const handleSubmit = async (e) => {
     e.preventDefault();
     setMessage('');
@@ -583,7 +583,7 @@ const EditProductPage = () => {
         category: tempProductForKeywords.category, 
         subCategory: tempProductForKeywords.subCategory,
         sellerId: productData.sellerId,
-        variants: productData.variants, // Save the new/updated variants
+        variants: productData.variants, // ⭐️ THIS IS WHERE THE UPDATED VARIANT STATE IS INCLUDED
         
         imageUrls: finalImageUrls, // Save the combined, updated image list
         mainImageUrl: currentMainImageUrl, // Single field for quick lookup
@@ -593,17 +593,18 @@ const EditProductPage = () => {
 
       // Update the document
       const productDocRef = doc(db, "products", productId);
-      await updateDoc(productDocRef, productToUpdate);
+      // ⭐️ CRITICAL STEP: SENDING DATA TO FIRESTORE
+      await updateDoc(productDocRef, productToUpdate); 
 
       // --- 3. CLEANUP AND SUCCESS ---
-      setMessage(`✅ Product "${productData.name}" updated successfully!`);
+      setMessage(`✅ Product "${productData.name}" updated successfully in Firebase!`);
       // Update state to reflect newly uploaded files as 'existing'
       setExistingImageUrls(finalImageUrls);
       setNewImageFiles([]); 
 
     } catch (error) {
       console.error("Firebase update error:", error);
-      setMessage(`❌ Failed to update product: ${error.message}`);
+      setMessage(`❌ Failed to update product in Firebase: ${error.message}. Check your console for details.`);
     } finally {
       setLoading(false);
     }

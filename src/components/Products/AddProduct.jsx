@@ -82,15 +82,16 @@ const generateSearchKeywords = (product) => {
 
 // List of available product tags/labels
 const PRODUCT_TAG_OPTIONS = [
-    { value: '', label: 'Select Product Label (Required)' },
-    { value: 'E-Store', label: 'E-Store' }, 
+    { value: '', label: 'Select Product Label' }, // Removed (Required)
+    { value: 'E-Store', label: 'E-Store' }, // <-- Corrected case to E-Store
     { value: 'Local Market', label: 'Local Market' },
     { value: 'Printing', label: 'Printing' },
     { value: 'Oldee', label: 'Oldee' },
   
 ];
 
-
+// *** NEW IMAGE OBJECT STRUCTURE ***
+// { file: File, url: string (local preview URL), color: string, name: string (file name), id: string (unique ID) }
 
 const AddProductPage = () => {
     // --- STATE FOR FETCHED DATA ---
@@ -120,15 +121,12 @@ const AddProductPage = () => {
         stock: '',
     });
 
-    // --- IMAGE MANAGEMENT STATE (UNMODIFIED) ---
-    const [mainImageFile, setMainImageFile] = useState({ file: null, url: '', color: '', name: '' });
+    // --- IMAGE MANAGEMENT STATE (MODIFIED) ---
+    // Stores the main image object. Color is initially an empty string.
+    const [mainImageFile, setMainImageFile] = useState(null); 
+    // Array of objects. Color is initially an empty string.
     const [galleryFiles, setGalleryFiles] = useState([]); 
 
-    // --- COLOR ASSIGNMENT MODAL STATES (UNMODIFIED) ---
-    const [isColorSelectionModalOpen, setIsColorSelectionModalOpen] = useState(false);
-    const [currentImageFileToAssign, setCurrentImageFileToAssign] = useState(null); 
-    const [tempColorAssignment, setTempColorAssignment] = useState(''); 
-    
     // --- OTHER UTILITY STATES (UNMODIFIED) ---
     const [loading, setLoading] = useState(false); 
     const [loadingData, setLoadingData] = useState(false); 
@@ -136,9 +134,10 @@ const AddProductPage = () => {
 
     
     // 🚨 STEP 1: CALCULATE FILTERED CATEGORIES (Case-Insensitive Filter)
+    // Categories are only filtered if a productTag is selected
     const filteredCategories = categoriesList.filter(cat => 
-        // Convert both sides to lowercase for robust comparison
-        cat.label && productData.productTag && cat.label.toLowerCase() === productData.productTag.toLowerCase()
+        // Only filter if productTag is set
+        !productData.productTag || (cat.label && cat.label.toLowerCase() === productData.productTag.toLowerCase())
     );
 
     // --- FETCH CATEGORIES AND SUBCATEGORIES ---
@@ -176,10 +175,11 @@ const AddProductPage = () => {
     // 🚨 STEP 2: CALCULATE FILTERED SUBCATEGORIES (Case-Insensitive Label Filter + Category ID Filter)
     const filteredSubcategories = subcategoriesList
         .filter(sub => 
-            // Case-insensitive Label filter
-            sub.label && productData.productTag && sub.label.toLowerCase() === productData.productTag.toLowerCase()
+            // Case-insensitive Label filter (only filter if productTag is set)
+            !productData.productTag || (sub.label && sub.label.toLowerCase() === productData.productTag.toLowerCase())
         ) 
-        .filter(sub => sub.categoryId === productData.category); // Category ID filter
+        // Only filter by category if a category is selected
+        .filter(sub => !productData.category || sub.categoryId === productData.category);
 
 
     // --- PRODUCT & CATEGORY CHANGE HANDLER (UPDATED for productTag) ---
@@ -205,7 +205,7 @@ const AddProductPage = () => {
             
             // 2. Further filter by the current productTag (Label) - Now case-insensitive
             const subsByCatAndLabel = subsByCat.filter(sub => 
-                sub.label && productData.productTag && sub.label.toLowerCase() === productData.productTag.toLowerCase()
+                !productData.productTag || (sub.label && productData.productTag && sub.label.toLowerCase() === productData.productTag.toLowerCase())
             );
             
             // Set the first available subcategory as the default, or empty
@@ -221,7 +221,7 @@ const AddProductPage = () => {
         }
     };
 
-    // --- VARIANT LOGIC (UNMODIFIED) ---
+    // --- VARIANT LOGIC (UPDATED: Removed mandatory validation) ---
     const handleNewVariantChange = (e) => {
         const { name, value } = e.target;
         setNewVariant(prev => ({ ...prev, [name]: value }));
@@ -231,35 +231,38 @@ const AddProductPage = () => {
         const { color, size, price, offerPrice, stock } = newVariant;
         const cleanColor = color.trim();
         const cleanSize = size.trim().toUpperCase();
-        const cleanPrice = parseFloat(price);
+        // Allow empty values since mandatory is removed, but use 0 for number fields if empty
+        const cleanPrice = price ? parseFloat(price) : 0;
         const cleanOfferPrice = offerPrice ? parseFloat(offerPrice) : null;
-        const cleanStock = parseInt(stock, 10);
+        const cleanStock = stock ? parseInt(stock, 10) : 0;
 
-        // Basic Validation
-        if (!cleanColor || !cleanSize || isNaN(cleanPrice) || isNaN(cleanStock) || cleanStock < 0) {
-            setMessage("❌ Please fill out valid Color, Size, Price, and Stock for the variant.");
-            return;
-        }
-
-        if (cleanOfferPrice !== null && cleanOfferPrice >= cleanPrice) {
+        // Simplified Validation (Only checking for impossible states)
+        if (cleanOfferPrice !== null && cleanOfferPrice > 0 && cleanOfferPrice >= cleanPrice) {
             setMessage("❌ Variant Offer Price cannot be greater than or equal to the regular Price.");
             return;
         }
-        
-        // Check for duplicate variant (same color and size)
+
+        // Check for duplicate variant (same color and size) - Still good to keep this
         const exists = productData.variants.some(
             v => v.color.toLowerCase() === cleanColor.toLowerCase() && v.size.toLowerCase() === cleanSize.toLowerCase()
         );
 
-        if (exists) {
+        if (exists && cleanColor && cleanSize) { // Only check if both are provided
             setMessage("❌ A variant with this Color and Size already exists.");
             return;
         }
 
+        // Check if at least Color or Size is provided before adding
+        if (!cleanColor && !cleanSize && cleanPrice === 0 && cleanStock === 0) {
+            setMessage("❌ Please provide at least Color, Size, Price, or Stock to add a variant.");
+            return;
+        }
+
+
         const newVariantObject = {
             variantId: Date.now().toString(), // Simple unique ID
-            color: cleanColor,
-            size: cleanSize,
+            color: cleanColor || 'N/A', // Set to N/A if empty
+            size: cleanSize || 'N/A', // Set to N/A if empty
             price: cleanPrice,
             offerPrice: cleanOfferPrice,
             stock: cleanStock,
@@ -283,133 +286,131 @@ const AddProductPage = () => {
     };
     
     // List of all unique colors currently available in variants
-    const availableColors = Array.from(new Set(productData.variants.map(v => v.color)));
-
+    const availableColors = Array.from(new Set(productData.variants.map(v => v.color))).filter(c => c.trim() !== '' && c.trim() !== 'N/A');
 
     // --- IMAGE MANAGEMENT LOGIC (UNMODIFIED) ---
-    const openColorModal = (file) => {
-        setCurrentImageFileToAssign(file);
-        // Try to pre-select the first available color
-        setTempColorAssignment(availableColors.length > 0 ? availableColors[0] : '');
-        setIsColorSelectionModalOpen(true);
-    };
-
-    const handleModalSubmit = () => {
-        const file = currentImageFileToAssign;
-        const color = tempColorAssignment.trim();
-
-        if (!color) {
-            setMessage("❌ Please select or enter a color to assign to the image.");
-            return;
-        }
-        
-        const imageObject = {
-            file: file,
-            color: color,
-            url: URL.createObjectURL(file), // Local preview URL
-            name: file.name,
-        };
-
-        // Check if the file is the main image file
-        if (mainImageFile.file === file) {
-            setMainImageFile(imageObject);
-        } else {
-            // Check for duplicates before adding to gallery (based on File object identity)
-            const isDuplicate = galleryFiles.some(img => img.file === file);
-            if (!isDuplicate) {
-                setGalleryFiles(prev => [...prev, imageObject]);
-            }
-        }
-        
-        // Automatically add a placeholder variant if the color is new
-        if (!productData.variants.some(v => v.color.toLowerCase() === color.toLowerCase())) {
-            const placeholderVariant = {
-                variantId: `ph-${Date.now()}`,
-                color: color,
-                size: 'N/A', 
-                price: 0,
-                offerPrice: null,
-                stock: 0,
-            };
-            setProductData(prev => ({
-                ...prev,
-                variants: [...prev.variants, placeholderVariant],
-            }));
-        }
-
-        setMessage(`✅ Image assigned to color: ${color}. Ready for upload.`);
-        setIsColorSelectionModalOpen(false);
-        setCurrentImageFileToAssign(null);
-        setTempColorAssignment('');
-    };
-
+    
+    // Handles Main Image upload (stores File and creates local URL)
     const handleMainImageChange = (e) => {
         const file = e.target.files ? e.target.files[0] : null;
         if (file) {
-            // Set the raw file object to state first
-            setMainImageFile(prev => ({ ...prev, file: file })); 
-            openColorModal(file); 
+            setMainImageFile({
+                file: file,
+                url: URL.createObjectURL(file), 
+                color: '', // Initially no color assigned
+                name: file.name,
+                id: `main-${Date.now()}` // Unique ID for tracking
+            }); 
+            setMessage(`✅ Main Image uploaded: ${file.name}.`); // Removed: Please assign a color
+        } else {
+            setMainImageFile(null); 
         }
         e.target.value = null; // Reset input
     };
     
+    // Handles Gallery Images upload (allows multiple selection)
     const handleGalleryImageChange = (e) => {
         const files = Array.from(e.target.files || []);
-        files.forEach(file => openColorModal(file)); 
+        
+        const newImages = files.map(file => ({
+            file: file,
+            url: URL.createObjectURL(file), 
+            color: '', // Initially no color assigned
+            name: file.name,
+            id: `gallery-${Date.now()}-${Math.random()}` // Unique ID for tracking
+        }));
+
+        // Prevent adding files that are already in the gallery list
+        const uniqueNewImages = newImages.filter(newImg => 
+            !galleryFiles.some(existingImg => existingImg.name === newImg.name && existingImg.file.size === newImg.file.size)
+        );
+
+        setGalleryFiles(prev => [...prev, ...uniqueNewImages]);
+        setMessage(`✅ Added ${uniqueNewImages.length} gallery image(s).`); // Removed: Please assign colors.
         e.target.value = null; 
     };
 
+    // New handler for updating color on image preview
+    const handleColorChangeOnImage = (id, newColor) => {
+        // Check if it's the main image
+        if (mainImageFile && mainImageFile.id === id) {
+            setMainImageFile(prev => ({
+                ...prev,
+                color: newColor
+            }));
+        } else {
+            // Check gallery images
+            setGalleryFiles(prev => 
+                prev.map(img => 
+                    img.id === id ? { ...img, color: newColor } : img
+                )
+            );
+        }
+    };
+
+
+    // Removes the Main Image
     const removeMainImage = () => {
-        setMainImageFile({ file: null, url: '', color: '', name: '' });
+        // Clean up the object URL to free memory (optional but good practice)
+        if (mainImageFile && mainImageFile.url) URL.revokeObjectURL(mainImageFile.url);
+        setMainImageFile(null);
         if (document.getElementById("mainImageFile")) document.getElementById("mainImageFile").value = "";
+        setMessage("✅ Main Image removed.");
     };
 
-    const removeGalleryImage = (fileToRemove) => {
-        setGalleryFiles(prevFiles => prevFiles.filter(p => p.file !== fileToRemove));
+    // Removes a Gallery Image
+    const removeGalleryImage = (idToRemove) => {
+        const imageObject = galleryFiles.find(p => p.id === idToRemove);
+        if (imageObject && imageObject.url) URL.revokeObjectURL(imageObject.url); // Clean up
+        setGalleryFiles(prevFiles => prevFiles.filter(p => p.id !== idToRemove));
+        setMessage("✅ Gallery image removed.");
     };
 
-    // --- SUBMIT HANDLER (UNMODIFIED) ---
+    // --- SUBMIT HANDLER (UPDATED for non-mandatory fields) ---
     const handleSubmit = async (e) => {
         e.preventDefault();
         setMessage('');
 
-        // 1. Basic Validation
-        if (!productData.name || !productData.category || !productData.sellerId || !productData.productTag) {
-            setMessage("❌ Please fill out Name, Category, Seller ID, and **Product Label** fields.");
-            return;
-        }
-        if (productData.variants.length === 0) {
-            setMessage("❌ Please add at least one Product Variant (Color/Size/Price/Stock).");
-            return;
-        }
-        if (!mainImageFile.file) {
-            setMessage("❌ Please upload and assign a color to the Main Image.");
-            return;
-        }
+        // 1. Basic Validation (Simplified: No required fields)
+        // Leaving Name empty might cause issues, but for now, no hard requirement.
+        
+        // Check for required images only if variants/images are added (Removed)
+        // const allImages = [mainImageFile, ...galleryFiles];
+
+        // 2. Color Assignment Validation (Removed)
+        // const unassignedImage = allImages.find(img => !img.color || img.color.trim() === '');
+        // if (unassignedImage) {
+        //     setMessage(`❌ Image "${unassignedImage.name}" must have a Color assigned from the variants list.`);
+        //     return;
+        // }
+
 
         setLoading(true);
 
         try {
-            // --- 2. UPLOAD IMAGES ---
+            // --- 3. UPLOAD IMAGES ---
             let imageUrls = [];
+            let mainDownloadURL = '';
 
-            // A. Main Image Upload
-            const mainFile = mainImageFile.file;
-            const mainFileName = `products/${Date.now()}_main_${mainFile.name}`;
-            const mainStorageRef = ref(storage, mainFileName);
-            await uploadBytes(mainStorageRef, mainFile);
-            const mainDownloadURL = await getDownloadURL(mainStorageRef);
+            // A. Main Image Upload (Only if file exists)
+            if (mainImageFile) {
+                const mainFile = mainImageFile.file;
+                const mainFileName = `products/${Date.now()}_main_${mainFile.name}`;
+                const mainStorageRef = ref(storage, mainFileName);
+                await uploadBytes(mainStorageRef, mainFile);
+                mainDownloadURL = await getDownloadURL(mainStorageRef);
 
-            imageUrls.push({
-                url: mainDownloadURL,
-                name: mainFile.name,
-                path: mainFileName,
-                type: 'file',
-                isMain: true,
-                color: mainImageFile.color,
-            });
+                imageUrls.push({
+                    url: mainDownloadURL,
+                    name: mainFile.name,
+                    path: mainFileName,
+                    type: 'file',
+                    isMain: true,
+                    color: mainImageFile.color, // Color assigned from state (can be empty)
+                });
+            }
 
-            // B. Gallery Images Upload
+            // B. Gallery Images Upload (Only if files exist)
             for (const imageObject of galleryFiles) {
                 const galleryFile = imageObject.file;
                 const galleryFileName = `products/${Date.now()}_gallery_${galleryFile.name}`;
@@ -423,11 +424,11 @@ const AddProductPage = () => {
                     path: galleryFileName,
                     type: 'file',
                     isMain: false,
-                    color: imageObject.color,
+                    color: imageObject.color, // Color assigned from state (can be empty)
                 });
             }
 
-            // --- 3. PREPARE DATA FOR FIRESTORE ---
+            // --- 4. PREPARE DATA FOR FIRESTORE ---
             // Use the globally fetched list for finding category/subcategory details
             const selectedCategory = categoriesList.find(cat => cat.id === productData.category);
             const selectedSubCategory = subcategoriesList.find(sub => sub.id === productData.subCategory);
@@ -435,7 +436,7 @@ const AddProductPage = () => {
             const tempProductForKeywords = {
                 ...productData,
                 category: {
-                    id: productData.category,
+                    id: productData.category || '', // Use empty string if not selected
                     name: selectedCategory ? selectedCategory.name : 'Unknown',
                 },
                 subCategory: productData.subCategory ? {
@@ -445,19 +446,19 @@ const AddProductPage = () => {
             };
 
             const productToSave = {
-                name: productData.name,
-                description: productData.description,
-                sku: productData.sku,
-                hsnCode: productData.hsnCode,
-                brand: productData.brand,
+                name: productData.name || '', // Not mandatory
+                description: productData.description || '',
+                sku: productData.sku || '',
+                hsnCode: productData.hsnCode || '',
+                brand: productData.brand || '',
                 category: tempProductForKeywords.category,
                 subCategory: tempProductForKeywords.subCategory,
-                sellerId: productData.sellerId,
-                productTag: productData.productTag, 
+                sellerId: productData.sellerId || '', // Not mandatory
+                productTag: productData.productTag || '', // Not mandatory
                 variants: productData.variants,
                 
                 imageUrls: imageUrls,
-                mainImageUrl: mainDownloadURL, 
+                mainImageUrl: mainDownloadURL, // Will be empty string if no main image uploaded
                 
                 searchKeywords: generateSearchKeywords(tempProductForKeywords),
                 createdAt: new Date(),
@@ -465,11 +466,11 @@ const AddProductPage = () => {
                 status: 'Active', 
             };
 
-            // --- 4. SAVE TO FIRESTORE ---
+            // --- 5. SAVE TO FIRESTORE ---
             const docRef = await addDoc(collection(db, "products"), productToSave);
 
-            // --- 5. CLEANUP AND SUCCESS ---
-            setMessage(`✅ Product "${productData.name}" added successfully with ID: ${docRef.id}`);
+            // --- 6. CLEANUP AND SUCCESS ---
+            setMessage(`✅ Product "${productData.name || 'Untitled Product'}" added successfully with ID: ${docRef.id}`);
 
         } catch (error) {
             console.error("Firebase submission error:", error);
@@ -486,8 +487,9 @@ const AddProductPage = () => {
         ? "bg-gradient-to-r from-green-50 to-green-100 border-l-4 border-green-500 text-green-700"
         : "bg-gradient-to-r from-red-50 to-red-100 border-l-4 border-red-500 text-red-700";
 
+    // Combine all images for preview display
     const allImages = [
-        ...(mainImageFile.file ? [{ ...mainImageFile, isMain: true }] : []),
+        ...(mainImageFile ? [{ ...mainImageFile, isMain: true }] : []),
         ...galleryFiles.map(img => ({ ...img, isMain: false }))
     ];
 
@@ -536,8 +538,8 @@ const AddProductPage = () => {
                                     name="name"
                                     value={productData.name}
                                     onChange={handleChange}
-                                    required
-                                    placeholder="Product Name *"
+                                    // *** REMOVED: required ***
+                                    placeholder="Product Name" 
                                     className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 text-lg"
                                     disabled={isFormDisabled}
                                 />
@@ -548,20 +550,18 @@ const AddProductPage = () => {
                                         name="sellerId"
                                         value={productData.sellerId}
                                         onChange={handleChange}
-                                        required
-                                        placeholder="Seller ID *"
+                                        // *** REMOVED: required ***
+                                        placeholder="Seller ID" 
                                         className="w-full pl-10 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all duration-200"
                                         disabled={isFormDisabled}
                                     />
                                 </div>
                                 
-                                
-                                {/* Placeholder to fill the grid if needed */}
                                 <div className="hidden md:block"></div> 
                             </div>
                         </div>
                         
-                        {/* PRODUCT DESCRIPTION (UNMODIFIED) */}
+                        {/* PRODUCT DESCRIPTION */}
                         <div className="space-y-4">
                             <h3 className="text-xl font-semibold text-gray-800 flex items-center">
                                 <FiFileText className="w-6 h-6 mr-3 text-red-600" />
@@ -578,7 +578,7 @@ const AddProductPage = () => {
                             />
                         </div>
 
-                        {/* PRODUCT DETAILS (IDENTIFIERS) (UNMODIFIED) */}
+                        {/* PRODUCT DETAILS (IDENTIFIERS) */}
                         <div className="space-y-4">
                             <h3 className="text-xl font-semibold text-gray-800 flex items-center">
                                 <FiTag className="w-6 h-6 mr-3 text-purple-600" />
@@ -615,14 +615,16 @@ const AddProductPage = () => {
                             </div>
                         </div>
 
-                        {/* CATEGORY SELECTION (MODIFIED: Three dropdowns in a single grid row for md/lg screens) */}
+                        {/* CATEGORY SELECTION (MODIFIED FOR SINGLE LINE) */}
                         <div className="space-y-4">
                             <h3 className="text-xl font-semibold text-gray-800 flex items-center">
                                 <FiLayers className="w-6 h-6 mr-3 text-green-600" />
                                 Category Selection
                             </h3>
 
+                            {/* *** START: Single Line Dropdowns *** */}
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                
                                 {/* 1. Product Label Select */}
                                 <div className="relative">
                                     <FiTag className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
@@ -631,12 +633,12 @@ const AddProductPage = () => {
                                         name="productTag"
                                         value={productData.productTag}
                                         onChange={handleChange}
-                                        required
+                                        // *** REMOVED: required ***
                                         className="appearance-none w-full pl-10 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-pink-500 focus:border-pink-500 transition-all duration-200"
                                         disabled={isFormDisabled}
                                     >
                                         {PRODUCT_TAG_OPTIONS.map(option => (
-                                            <option key={option.value} value={option.value} disabled={option.value === ''}>
+                                            <option key={option.value} value={option.value} disabled={false}> 
                                                 {option.label}
                                             </option>
                                         ))}
@@ -650,22 +652,20 @@ const AddProductPage = () => {
                                         name="category"
                                         value={productData.category}
                                         onChange={handleChange}
-                                        required
+                                        // *** REMOVED: required ***
                                         className="appearance-none w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all duration-200"
-                                        // Disable if no label selected or if categories are loading
-                                        disabled={isFormDisabled || !productData.productTag || filteredCategories.length === 0}
+                                        disabled={isFormDisabled || filteredCategories.length === 0}
                                     >
-                                        <option value="" disabled>Select Category *</option>
+                                        <option value="">Select Category</option> 
                                         {/* Use filteredCategories (Label-filtered) */}
                                         {filteredCategories.map(cat => (
                                             <option key={cat.id} value={cat.id}>{cat.name}</option>
                                         ))}
                                     </select>
-                                    {!productData.productTag && <p className='text-xs text-red-500 mt-1'>Select a **Product Label** first.</p>}
-                                    {productData.productTag && filteredCategories.length === 0 && <p className='text-xs text-red-500 mt-1'>No categories found for "{productData.productTag}".</p>}
+                                    {/* Removed conditional messages below inputs to save space */}
                                 </div>
                                 
-                                {/* 3. SubCategory Select (Uses logic dependent on productData.category, which is now filtered) */}
+                                {/* 3. SubCategory Select */}
                                 <div className="relative">
                                     <FiChevronDown className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5 pointer-events-none" />
                                     <select
@@ -673,25 +673,26 @@ const AddProductPage = () => {
                                         value={productData.subCategory}
                                         onChange={handleChange}
                                         className="appearance-none w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all duration-200"
-                                        disabled={isFormDisabled || !productData.category || filteredSubcategories.length === 0}
+                                        disabled={isFormDisabled || filteredSubcategories.length === 0}
                                     >
-                                        <option value="">Select Subcategory (Optional)</option>
+                                        <option value="">Select Subcategory</option>
                                         {/* Use filteredSubcategories (Label AND Category ID filtered) */}
                                         {filteredSubcategories.map(subCat => (
                                             <option key={subCat.id} value={subCat.id}>{subCat.name}</option>
                                         ))}
                                     </select>
-                                    {productData.category && filteredSubcategories.length === 0 && <p className='text-xs text-red-500 mt-1'>No subcategories found for this category.</p>}
+                                    {/* Removed conditional messages below inputs to save space */}
                                 </div>
                             </div>
+                            {/* *** END: Single Line Dropdowns *** */}
                         </div>
 
 
-                        {/* --- PRODUCT VARIANT MANAGEMENT (Color/Size/Price/Stock) (UNMODIFIED) --- */}
+                        {/* --- PRODUCT VARIANT MANAGEMENT (Color/Size/Price/Stock) (MODIFIED: Removed required markers) --- */}
                         <div className="space-y-6 border p-6 rounded-xl bg-orange-50 border-orange-200">
                             <h3 className="text-xl font-semibold text-gray-800 flex items-center">
                               <FiDroplet className="w-6 h-6 mr-3 text-orange-600" />
-                              Product Variants (Color, Size, Price, Stock) *
+                              Product Variants (Color, Size, Price, Stock)
                             </h3>
                             
                             {/* Variant Input Form */}
@@ -701,7 +702,7 @@ const AddProductPage = () => {
                                 name="color"
                                 value={newVariant.color}
                                 onChange={handleNewVariantChange}
-                                placeholder="Color *"
+                                placeholder="Color"
                                 className="px-3 py-2 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-orange-500"
                                 disabled={isFormDisabled}
                               />
@@ -710,7 +711,7 @@ const AddProductPage = () => {
                                 name="size"
                                 value={newVariant.size}
                                 onChange={handleNewVariantChange}
-                                placeholder="Size *"
+                                placeholder="Size" // Removed *
                                 className="px-3 py-2 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-orange-500"
                                 disabled={isFormDisabled}
                               />
@@ -721,7 +722,7 @@ const AddProductPage = () => {
                                   name="price"
                                   value={newVariant.price}
                                   onChange={handleNewVariantChange}
-                                  placeholder="Price (₹) *"
+                                  placeholder="Price (₹)" // Removed *
                                   min="0"
                                   step="0.01"
                                   className="w-full pl-8 pr-3 py-2 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-orange-500"
@@ -747,7 +748,7 @@ const AddProductPage = () => {
                                 name="stock"
                                 value={newVariant.stock}
                                 onChange={handleNewVariantChange}
-                                placeholder="Stock *"
+                                placeholder="Stock" // Removed *
                                 min="0"
                                 className="px-3 py-2 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-orange-500"
                                 disabled={isFormDisabled}
@@ -801,12 +802,19 @@ const AddProductPage = () => {
                           </div>
 
 
-                        {/* --- IMAGE UPLOAD SECTION (WITH COLOR ASSOCIATION) (UNMODIFIED) --- */}
+                        {/* --- IMAGE UPLOAD SECTION (MODIFIED: Removed required markers) --- */}
                         <div className="space-y-6 border p-6 rounded-xl bg-pink-50 border-pink-200">
                             <h3 className="text-xl font-semibold text-gray-800 flex items-center">
                                 <FiCamera className="w-6 h-6 mr-3 text-pink-600" />
-                                Image Upload & Color Assignment *
+                                Image Upload & Color Assignment
                             </h3>
+                            
+                            {availableColors.length === 0 && (
+                                <div className="p-3 bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700">
+                                    <p className="font-semibold">ℹ️ Note:</p>
+                                    <p className="text-sm">Adding a **Color** to a **Product Variant** will enable the color assignment dropdown for images.</p>
+                                </div>
+                            )}
 
                             {/* Main Image Control */}
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -814,7 +822,7 @@ const AddProductPage = () => {
                                     <FiUpload className="w-6 h-6 text-pink-400 mx-auto mb-2" />
                                     <label htmlFor="mainImageFile" className="cursor-pointer">
                                         <span className="text-md font-medium text-gray-700 block mb-1">Upload Main Product Image</span>
-                                        <p className="text-gray-500 text-xs">(Requires color assignment)</p>
+                                        <p className="text-gray-500 text-xs">(Optional Color Assignment)</p>
                                         <input 
                                             type="file"
                                             id="mainImageFile"
@@ -830,8 +838,8 @@ const AddProductPage = () => {
                                 <div className="border-2 border-dashed border-blue-300 rounded-xl p-4 text-center hover:border-blue-500 transition-colors duration-200 bg-white">
                                     <FiCamera className="w-6 h-6 text-blue-400 mx-auto mb-2" />
                                     <label htmlFor="galleryImages" className="cursor-pointer">
-                                        <span className="text-md font-medium text-gray-700 block mb-1">Upload Gallery Images</span>
-                                        <p className="text-gray-500 text-xs">(Assign color to each)</p>
+                                        <span className="text-md font-medium text-gray-700 block mb-1">Upload Gallery Images (N number)</span>
+                                        <p className="text-gray-500 text-xs">(Optional Color Assignment)</p>
                                         <input 
                                             type="file"
                                             id="galleryImages"
@@ -845,39 +853,59 @@ const AddProductPage = () => {
                                 </div>
                             </div>
 
-                            {/* Image Previews */}
+                            {/* Image Previews with Dropdown Color Assignment */}
                             {allImages.length > 0 && (
                                 <div className="mt-4 p-4 border border-gray-300 rounded-lg bg-white">
                                     <p className="text-sm font-bold text-gray-700 mb-3">Image Previews ({allImages.length}):</p>
                                     <div className="grid grid-cols-3 md:grid-cols-6 gap-4">
-                                        {allImages.map((image, index) => (
+                                        {allImages.map((image) => (
                                             <div 
-                                                key={image.url} 
-                                                className={`relative rounded-lg overflow-hidden shadow-md group border-2 ${image.isMain ? 'border-yellow-500 ring-2 ring-yellow-300' : 'border-gray-200'}`}
+                                                key={image.id} 
+                                                className={`relative rounded-lg overflow-hidden shadow-md group border-2 ${image.isMain ? 'border-yellow-500 ring-2 ring-yellow-300' : (image.color ? 'border-green-500' : 'border-gray-300')}`}
                                             >
                                                 <img
                                                     src={image.url}
-                                                    alt={`Image ${index + 1}`}
+                                                    alt={image.name}
                                                     className="w-full h-20 object-cover"
                                                 />
                                                 
                                                 <span className={`absolute top-0 left-0 text-white text-xs font-bold px-2 py-1 rounded-br-lg z-10 ${image.isMain ? 'bg-yellow-600' : 'bg-pink-600'}`}>
                                                     {image.isMain ? 'MAIN' : 'GALLERY'}
                                                 </span>
-                                                <span className="absolute bottom-0 right-0 bg-gray-800 text-white text-xs font-bold px-2 py-1 rounded-tl-lg z-10">{image.color}</span>
-
+                                                
                                                 <button
                                                     type="button"
-                                                    onClick={() => image.isMain ? removeMainImage() : removeGalleryImage(image.file)}
+                                                    onClick={() => image.isMain ? removeMainImage() : removeGalleryImage(image.id)}
                                                     className="absolute top-1 right-1 bg-red-500 text-white w-5 h-5 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity disabled:opacity-50 z-20"
                                                     title="Remove Image"
                                                     disabled={isFormDisabled}
                                                 >
                                                     <FiX className="w-3 h-3" />
                                                 </button>
-                                                <p className="text-xs text-gray-600 truncate p-1 bg-gray-50 font-medium" title={image.name}>
-                                                  {image.name}
-                                                </p>
+                                                
+                                                {/* Color Assignment Dropdown */}
+                                                <div className="p-1 bg-gray-50 border-t border-gray-200">
+                                                    <div className="relative">
+                                                        <FiChevronDown className="absolute right-1 top-1/2 transform -translate-y-1/2 text-gray-400 w-3 h-3 pointer-events-none" />
+                                                        <select
+                                                            value={image.color || ''}
+                                                            onChange={(e) => handleColorChangeOnImage(image.id, e.target.value)}
+                                                            className={`appearance-none w-full text-xs py-1 pl-1 pr-4 border rounded ${image.color ? 'border-green-400 text-green-700' : 'border-gray-400 text-gray-700'}`}
+                                                            disabled={isFormDisabled || availableColors.length === 0}
+                                                            title={image.color ? `Color: ${image.color}` : 'Assign Color'}
+                                                        >
+                                                            <option value="">-- Assign Color (Optional) --</option>
+                                                            {availableColors.map(color => (
+                                                                <option key={color} value={color}>
+                                                                    {color}
+                                                                </option>
+                                                            ))}
+                                                        </select>
+                                                    </div>
+                                                    <p className="text-xs text-gray-600 truncate pt-1 font-medium" title={image.name}>
+                                                      {image.name}
+                                                    </p>
+                                                </div>
                                             </div>
                                         ))}
                                     </div>
@@ -908,74 +936,7 @@ const AddProductPage = () => {
                 </div>
             </div>
 
-            {/* --- COLOR SELECTION MODAL (UNMODIFIED) --- */}
-            {isColorSelectionModalOpen && (
-                <div className="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center z-50 p-4">
-                    <div className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-md space-y-4">
-                        <h3 className="text-xl font-bold text-gray-800 flex items-center">
-                            <FiCamera className="w-5 h-5 mr-2 text-pink-600" />
-                            Assign Color to New Image
-                        </h3>
-                        <p className="text-sm text-gray-600">
-                            Please select the color variant this image belongs to.
-                        </p>
-                        
-                        {availableColors.length > 0 && (
-                            <div className="space-y-2">
-                                <label className="block text-sm font-medium text-gray-700">Choose from existing variant colors:</label>
-                                <select
-                                    value={tempColorAssignment}
-                                    onChange={(e) => setTempColorAssignment(e.target.value)}
-                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
-                                >
-                                    <option value="" disabled>Select a color...</option>
-                                    {availableColors.map(color => (
-                                        <option key={color} value={color}>{color}</option>
-                                    ))}
-                                </select>
-                            </div>
-                        )}
-                        
-                        <div className="space-y-2">
-                            <label className="block text-sm font-medium text-gray-700">Or enter a new color:</label>
-                            <input
-                                type="text"
-                                placeholder="Enter Color Name"
-                                value={tempColorAssignment}
-                                onChange={(e) => setTempColorAssignment(e.target.value)}
-                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
-                            />
-                        </div>
-                        
-                        <div className="flex justify-end space-x-3">
-                            <button
-                                type="button"
-                                onClick={() => {
-                                    setIsColorSelectionModalOpen(false);
-                                    setCurrentImageFileToAssign(null);
-                                    setTempColorAssignment('');
-                                    // If the file was for the main image, clear the input so the user must re-select
-                                    if (currentImageFileToAssign === mainImageFile.file && document.getElementById("mainImageFile")) {
-                                        document.getElementById("mainImageFile").value = "";
-                                        setMainImageFile({ file: null, url: '', color: '', name: '' });
-                                    }
-                                }}
-                                className="px-4 py-2 text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-100 transition-colors"
-                            >
-                                Cancel
-                            </button>
-                            <button
-                                type="button"
-                                onClick={handleModalSubmit}
-                                disabled={!tempColorAssignment.trim()}
-                                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
-                            >
-                                Assign Color
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
+            
         </div>
     );
   };
