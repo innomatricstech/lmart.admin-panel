@@ -2,51 +2,50 @@ import React, { useState, useEffect } from "react";
 import { BrowserRouter as Router, Routes, Route, Navigate, Outlet, useNavigate } from "react-router-dom";
 
 // Layout components
-import Sidebar from "./components/Sidebar";
-import Header from "./components/Header";
-import Dashboard from "./components/Dashboard";
+// FIX: Added .jsx extension to resolve file path issues
+import Sidebar from "./components/Sidebar.jsx";
+import Header from "./components/Header.jsx";
+import Dashboard from "./components/Dashboard.jsx";
 
 // Customers
-import CustomerDirectory from "./components/Customer";
+import CustomerDirectory from "./components/Customer.jsx";
 
 // Orders
-import OrdersTable from "./components/Orders/OrdersTable";
-import PendingOrdersTable from "./components/Orders/PendingOrdersTable";
-import ProcessingOrdersTable from "./components/Orders/ProcessingOrdersTable";
-import ShippedOrdersTable from "./components/Orders/ShippedOrdersTable";
-import DeliveredOrdersTable from "./components/Orders/DeliveredOrdersTable";
-import CancelledOrdersTable from "./components/Orders/CancelledOrdersTable";
-import ReturnOrdersTable from "./components/ReturnOrdersTable";
+// FIX: Added .jsx extension
+import { OrdersTable, OrderDetail } from "./components/Orders/OrdersTable.jsx"; 
+import PendingOrdersTable from "./components/Orders/PendingOrdersTable.jsx";
+import ProcessingOrdersTable from "./components/Orders/ProcessingOrdersTable.jsx";
+import ShippedOrdersTable from "./components/Orders/ShippedOrdersTable.jsx";
+import DeliveredOrdersTable from "./components/Orders/DeliveredOrdersTable.jsx";
+import CancelledOrdersTable from "./components/Orders/CancelledOrdersTable.jsx";
+import ReturnOrdersTable from "./components/ReturnOrdersTable.jsx";
 
 // Others
-import EarningsPage from "./components/EarningsPage";
-import FilesPage from "./components/FilesPage";
-import PostersPage from "./components/PostersPage";
-import BannerPage from "./components/BannerPage";
-import RecentOrdersTable from "./components/RecentOrdersTable";
-import BulkUploadPage from "./components/BulkUploadPage";
-import NotificationsPage from "./components/NotificationsPage";
+import EarningsPage from "./components/EarningsPage.jsx";
+import FilesPage from "./components/FilesPage.jsx";
+import PostersPage from "./components/PostersPage.jsx";
+import BannerPage from "./components/BannerPage.jsx";
+import RecentOrdersTable from "./components/RecentOrdersTable.jsx";
+import BulkUploadPage from "./components/BulkUploadPage.jsx";
+import NotificationsPage from "./components/NotificationsPage.jsx";
 
 // Sellers Components
-// NOTE: Renamed ViewProductsPage (which was in ViewSeller.jsx) to ViewSellersPage for clarity
-import ViewSellersPage from "./components/Seller/ViewSeller"; 
-import DeletedSellersTable from "./components/Seller/DeletedSellersTable";
-// 🚨 NEW IMPORTS for CRUD functionality
-import EditSellerPage from "./components/Seller/EditSellerPage";
-// Using Placeholder for AddSeller until the component is created
+import ViewSellersPage from "./components/Seller/ViewSeller.jsx"; 
+import DeletedSellersTable from "./components/Seller/DeletedSellersTable.jsx";
+import EditSellerPage from "./components/Seller/EditSellerPage.jsx";
 // import AddSellerPage from "./components/Seller/AddSellerPage";
 
 // Products
-import Products from "./components/Products/Products";
-import AddProductPage from "./components/Products/AddProduct";
-import EditProductPage from "./components/Products/EditProduct";
-import ManageSubcategories from "./components/Products/ManageSubcategories";
-import ManageCategories from "./components/Products/ManageCategories";
-import ViewNews from "./components/Products/ViewNews";
-import AddNewsToday from "./components/Products/AddNews";
+import Products from "./components/Products/Products.jsx";
+import AddProductPage from "./components/Products/AddProduct.jsx";
+import EditProductPage from "./components/Products/EditProduct.jsx";
+import ManageSubcategories from "./components/Products/ManageSubcategories.jsx";
+import ManageCategories from "./components/Products/ManageCategories.jsx";
+import ViewNews from "./components/Products/ViewNews.jsx";
+import AddNewsToday from "./components/Products/AddNews.jsx";
 
 // Login
-import LoginPage from "./components/LoginPage";
+import LoginPage from "./components/LoginPage.jsx";
 
 // Placeholder Component (kept for un-implemented routes)
 const Placeholder = ({ title }) => (
@@ -102,7 +101,7 @@ function App() {
 
     // IMPORTANT: Persisted login check
     const [isLoggedIn, setIsLoggedIn] = useState(
-        !!localStorage.getItem("adminUser")    // TRUE if user exists in localStorage
+        !!localStorage.getItem("adminUser")      // TRUE if user exists in localStorage
     );
 
     // Ensure React state syncs with localStorage login
@@ -117,7 +116,7 @@ function App() {
 
     // Authentication handlers
     const handleLogin = () => {
-        setIsLoggedIn(true);    // persist handled by LoginPage already
+        setIsLoggedIn(true);     // persist handled by LoginPage already
     };
 
     const handleLogout = () => {
@@ -163,7 +162,13 @@ function App() {
                     <Route path="customers" element={<CustomerDirectory />} />
 
                     {/* Orders */}
+                    {/* Base orders route redirects to the 'all' view */}
+                    <Route path="orders" element={<Navigate to="all" replace />} /> 
+                    {/* Route for all orders table */}
                     <Route path="orders/all" element={<OrdersTable />} />
+                    {/* Dynamic route for single order detail */}
+                    <Route path="orders/:orderId" element={<OrderDetail />} />
+                    
                     <Route path="orders/pending" element={<PendingOrdersTable />} />
                     <Route path="orders/processing" element={<ProcessingOrdersTable />} />
                     <Route path="orders/shipped" element={<ShippedOrdersTable />} />
@@ -184,11 +189,9 @@ function App() {
                     <Route path="sellers/all" element={<ViewSellersPage />} />
                     <Route path="sellers/delete" element={<DeletedSellersTable />} />
                     
-                    {/* 👇 Updated to use the correct Edit/View component */}
                     <Route path="sellers/add" element={<Placeholder title="Add Seller" />} />
                     <Route path="sellers/view/:id" element={<EditSellerPage />} />
                     <Route path="sellers/edit/:id" element={<EditSellerPage />} />
-                    {/* 👆 End of Seller Updates */}
 
                     {/* Products */}
                     <Route path="products" element={<Navigate to="view" replace />} />
