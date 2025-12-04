@@ -1,13 +1,22 @@
 import React, { useState, useEffect } from 'react';
-import { Link, useParams } from 'react-router-dom';
-import { FiSearch, FiShoppingBag, FiUser, FiMail, FiPhone, FiMapPin, FiCalendar } from 'react-icons/fi';
-import { collection, getDocs, doc, getDoc } from 'firebase/firestore';
+import { Link, useParams, useNavigate } from 'react-router-dom';
+import { FiSearch, FiShoppingBag, FiUser, FiMail, FiPhone, FiMapPin, FiCalendar, FiArrowLeft, FiEdit } from 'react-icons/fi';
+import { 
+    collection, 
+    getDocs, 
+    doc, 
+    getDoc, 
+    collectionGroup, 
+    query, 
+    updateDoc 
+} from 'firebase/firestore'; 
 import { db } from '../../../firerbase'; 
 
-// Helper to format currency 
+
+// --- Helper Functions ---
+
 const formatAmount = (amount) => `₹${Number(amount).toLocaleString('en-IN')}`;
 
-// Helper to format timestamp
 const formatFirestoreTimestamp = (timestamp) => {
   if (!timestamp) return 'N/A';
   if (timestamp.toDate) {
@@ -27,13 +36,9 @@ const formatOrderItems = (items) => {
   if (!items) {
     return 'No items listed.';
   }
-
-  // Case 1: If it's the old string format 
   if (typeof items === 'string') {
     return items;
   }
-
-  // Case 2: If it's an Array of item objects
   if (Array.isArray(items)) {
     if (items.length === 0) return 'No items listed.';
     return items.map((item, index) => {
@@ -51,33 +56,67 @@ const formatOrderItems = (items) => {
         item.selectedRam
       ].filter(v => v && v.trim() !== '').join(', ');
 
-      const lineItem = item.lineItemKey ? `\n   Line Item: ${item.lineItemKey}` : '';
       const description = item.description ? `\n   Desc: ${item.description}` : '';
       
-      return `${index + 1}. ${name} (x${quantity}) - ${price}${originalPrice ? ` was ${originalPrice}${discount}` : ''}\n   ${variant ? `[${variant}]` : 'No variant'}${lineItem}${description}`;
+      return `${index + 1}. ${name} (x${quantity}) - ${price}${originalPrice ? ` was ${originalPrice}${discount}` : ''}\n   ${variant ? `[${variant}]` : 'No variant'}${description}`;
     }).join('\n');
   }
-
-  // Case 3: If it's a generic Object
   if (typeof items === 'object' && items !== null) {
+    // Fallback for poorly structured item data
     return JSON.stringify(items, null, 2);
   }
-  
   return 'Data structure for items is unexpected.';
 };
 
+
+// ----------------------------------------------------------------------
+// --- OrderDetail Component (View Details) ---
+// ----------------------------------------------------------------------
+
 export const OrderDetail = () => {
-  const { orderId } = useParams(); 
+  const { userId, orderId } = useParams(); 
+  const navigate = useNavigate(); // Added for navigation
   
   const [order, setOrder] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  
+  // Array of valid order statuses
+  const ORDER_STATUSES = ['Pending', 'Processing', 'Shipped', 'Delivered', 'Cancelled', 'Refunded'];
+  const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
+
+  // Function to update order status in Firestore and local state
+  const updateOrderStatus = async (newStatus) => {
+      if (!userId || !orderId || newStatus === order.status) return;
+
+      setIsUpdatingStatus(true);
+      try {
+          // 1. Optimistically update local state
+          setOrder(prevOrder => prevOrder ? { ...prevOrder, status: newStatus } : null);
+
+          // 2. Update Firestore
+          const orderRef = doc(db, 'users', userId, 'orders', orderId);
+          await updateDoc(orderRef, {
+              status: newStatus,
+              updatedAt: new Date()
+          });
+          
+          console.log(`Order ${orderId} status updated to: ${newStatus}`);
+      } catch (err) {
+          console.error("Error updating order status:", err);
+          // 3. Rollback local state if update fails (optional but good practice)
+          alert("Failed to update status. Please check Firestore connection/permissions.");
+      } finally {
+          setIsUpdatingStatus(false);
+      }
+  };
+
 
   useEffect(() => {
     const fetchOrder = async () => {
-      if (!orderId) {
+      if (!orderId || !userId || db === null) {
         setLoading(false);
-        setError("No Order ID provided in the URL.");
+        setError("Configuration Error: Missing Order ID, User ID, or Firebase DB instance.");
         return;
       }
 
@@ -85,37 +124,46 @@ export const OrderDetail = () => {
       setError(null);
       
       try {
-        const orderRef = doc(db, 'orders', orderId); 
+        // Correctly reference the subcollection path: 'users/{userId}/orders/{orderId}'
+        const orderRef = doc(db, 'users', userId, 'orders', orderId); 
         const docSnap = await getDoc(orderRef);
 
         if (docSnap.exists()) {
           const orderData = docSnap.data();
-          // Extract data from customerInfo object if it exists
           const customerInfo = orderData.customerInfo || {};
           setOrder({ 
             id: docSnap.id, 
+            userId: userId, 
             ...orderData,
-            // Map customerInfo fields to root level for backward compatibility
             customer: orderData.customer || customerInfo.name || 'N/A',
             email: orderData.email || customerInfo.email || 'N/A',
             phone: orderData.phone || customerInfo.phone || 'N/A',
-            // Build address from customerInfo
             address: orderData.address || 
               `${customerInfo.address || ''}, ${customerInfo.city || ''} - ${customerInfo.pincode || ''}`.replace(/^,\s*/, '')
           });
         } else {
-          setError(`No order found with ID: ${orderId}`);
+          setError(`No order found with ID: ${orderId} for user ${userId}`);
         }
       } catch (err) {
         console.error("Error fetching order:", err);
-        setError("Failed to load order details. Please check your Firebase connection and permissions.");
+        setError("Failed to load order details. Please check your Firebase connection, permissions, and routing.");
       } finally {
         setLoading(false);
       }
     };
 
     fetchOrder();
-  }, [orderId]); 
+  }, [userId, orderId]); 
+  
+  // Function to handle printing/downloading the invoice
+  const handlePrintInvoice = () => {
+      window.print();
+  };
+
+  // Function to go back to orders list
+  const handleBackToList = () => {
+    navigate('/orders/all');
+  };
 
   if (loading) {
     return (
@@ -131,20 +179,25 @@ export const OrderDetail = () => {
       <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative max-w-4xl mx-auto mt-10">
         <strong className="font-bold">Error!</strong>
         <span className="block sm:inline ml-2">{error}</span>
+        <button 
+          onClick={handleBackToList}
+          className="ml-4 text-red-500 underline"
+        >
+          Back to list
+        </button>
       </div>
     );
   }
   
   if (!order) return null;
 
-  // Calculate total original price and discount
   const totalOriginalPrice = order.items?.reduce((sum, item) => sum + (item.originalPrice || item.price || 0) * (item.quantity || 1), 0) || 0;
   const totalDiscountedPrice = order.amount || 0;
   const totalDiscount = totalOriginalPrice - totalDiscountedPrice;
 
   return (
-    <div className="p-6 lg:p-8 bg-white min-h-screen">
-      <div className="max-w-6xl mx-auto bg-gray-50 rounded-xl shadow-2xl p-8 border border-gray-200">
+    <div className="p-6 lg:p-8 bg-gray-100 min-h-screen">
+      <div className="max-w-6xl mx-auto bg-white rounded-xl shadow-2xl p-8 border border-gray-200">
         
         {/* Header with Order ID and Status */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center border-b pb-6 mb-6">
@@ -157,10 +210,26 @@ export const OrderDetail = () => {
               Payment ID: <span className="font-mono">{order.paymentId || 'N/A'}</span>
             </p>
           </div>
-          <div className="mt-4 md:mt-0">
-            <span className={`px-4 py-2 text-sm font-semibold rounded-full ${order.status === 'success' ? 'bg-green-100 text-green-700 border border-green-300' : 'bg-red-100 text-red-700 border border-red-300'}`}>
-              {order.status === 'success' ? '✅ Payment Successful' : order.status || 'Processing'}
-            </span>
+          
+          {/* Status Dropdown/Display */}
+          <div className="mt-4 md:mt-0 flex items-center gap-3">
+              <FiEdit className="w-5 h-5 text-gray-400" />
+              <select
+                  value={order.status || 'Pending'}
+                  onChange={(e) => updateOrderStatus(e.target.value)}
+                  disabled={isUpdatingStatus}
+                  className={`px-4 py-2 text-sm font-semibold rounded-lg border shadow-sm cursor-pointer transition-colors
+                      ${order.status === 'Delivered' ? 'bg-green-100 border-green-300 text-green-700' : 
+                        order.status === 'Cancelled' ? 'bg-red-100 border-red-300 text-red-700' : 
+                        'bg-yellow-100 border-yellow-300 text-yellow-700'}
+                  `}
+              >
+                  {ORDER_STATUSES.map(status => (
+                      <option key={status} value={status}>
+                          {status} {isUpdatingStatus && status === order.status ? '(Updating...)' : ''}
+                      </option>
+                  ))}
+              </select>
           </div>
         </div>
 
@@ -168,7 +237,7 @@ export const OrderDetail = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
           
           {/* Customer Info Card */}
-          <div className="p-5 bg-white rounded-lg border border-gray-200 shadow-sm">
+          <div className="p-5 bg-white rounded-lg border border-gray-200 shadow-md">
             <h2 className="text-xl font-semibold text-gray-900 flex items-center mb-4">
               <FiUser className="w-5 h-5 mr-2 text-red-500" /> Customer Info
             </h2>
@@ -192,10 +261,15 @@ export const OrderDetail = () => {
                 </div>
               </p>
             </div>
+            {order.userId && order.userId !== 'unknown_user' && (
+              <p className="text-gray-700 mt-2 text-xs border-t pt-2">
+                <span className="font-medium text-gray-900">User ID:</span> {order.userId}
+              </p>
+            )}
           </div>
 
           {/* Order Summary Card */}
-          <div className="p-5 bg-white rounded-lg border border-gray-200 shadow-sm">
+          <div className="p-5 bg-white rounded-lg border border-gray-200 shadow-md">
             <h2 className="text-xl font-semibold text-gray-900 flex items-center mb-4">
               <FiShoppingBag className="w-5 h-5 mr-2 text-red-500" /> Order Summary
             </h2>
@@ -218,7 +292,7 @@ export const OrderDetail = () => {
               </p>
               {totalDiscount > 0 && (
                 <p className="text-gray-700">
-                  <span className="font-medium text-gray-900 block text-sm">Discount:</span> 
+                  <span className="font-medium text-gray-900 block text-sm">Discount Saved:</span> 
                   <span className="text-red-500 font-semibold">- {formatAmount(totalDiscount)}</span>
                 </p>
               )}
@@ -226,7 +300,7 @@ export const OrderDetail = () => {
           </div>
 
           {/* Shipping Address Card */}
-          <div className="p-5 bg-white rounded-lg border border-gray-200 shadow-sm">
+          <div className="p-5 bg-white rounded-lg border border-gray-200 shadow-md">
             <h2 className="text-xl font-semibold text-gray-900 flex items-center mb-4">
               <FiMapPin className="w-5 h-5 mr-2 text-red-500" /> Shipping Address
             </h2>
@@ -246,34 +320,34 @@ export const OrderDetail = () => {
                 </p>
               </div>
             </div>
+            {order.customerInfo?.latitude && order.customerInfo?.longitude && (
+                  <p className="text-gray-700 mt-2 text-xs border-t pt-2">
+                    <span className="font-medium text-gray-900">GPS Coords:</span> 
+                    {order.customerInfo.latitude.toFixed(4)}, {order.customerInfo.longitude.toFixed(4)}
+                  </p>
+            )}
           </div>
         </div>
 
         {/* Items Ordered */}
-        <div className="mb-8 p-5 bg-white rounded-lg border border-gray-200 shadow-sm">
+        <div className="mb-8 p-5 bg-white rounded-lg border border-gray-200 shadow-md">
           <h2 className="text-xl font-semibold text-gray-900 flex items-center mb-4">
             📦 Items Ordered ({order.items?.length || 0} items)
           </h2>
-          <div className="bg-gray-50 p-4 rounded-lg">
+          <div className="bg-gray-50 p-4 rounded-lg border border-gray-100">
             <pre className="text-sm text-gray-800 whitespace-pre-wrap font-mono overflow-auto">
               {formatOrderItems(order.items)}
             </pre>
           </div>
           
           {/* Additional Order Information */}
-          {(order.createdAt || order.customerInfo?.latitude) && (
+          {(order.createdAt) && (
             <div className="mt-6 pt-6 border-t border-gray-200">
-              <h3 className="text-lg font-semibold text-gray-900 mb-3">Additional Information</h3>
+              <h3 className="text-lg font-semibold text-gray-900 mb-3">Timestamps</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {order.createdAt && (
                   <p className="text-gray-700">
-                    <span className="font-medium text-gray-900">Created:</span> {formatFirestoreTimestamp(order.createdAt)}
-                  </p>
-                )}
-                {order.customerInfo?.latitude && order.customerInfo?.longitude && (
-                  <p className="text-gray-700">
-                    <span className="font-medium text-gray-900">Location:</span> 
-                    {order.customerInfo.latitude}, {order.customerInfo.longitude}
+                    <span className="font-medium text-gray-900">Created At:</span> {formatFirestoreTimestamp(order.createdAt)}
                   </p>
                 )}
               </div>
@@ -283,18 +357,21 @@ export const OrderDetail = () => {
 
         <div className="mt-8 flex flex-col sm:flex-row justify-center gap-4">
           {/* Back Button */}
-          <Link 
-            to="/orders" 
-            className="px-6 py-3 bg-gray-300 hover:bg-gray-400 text-gray-900 rounded-lg font-semibold transition-colors inline-flex items-center justify-center"
+          <button 
+            onClick={handleBackToList}
+            className="px-6 py-3 bg-gray-300 hover:bg-gray-400 text-gray-900 rounded-lg font-semibold transition-colors inline-flex items-center justify-center shadow-md"
           >
-            ← Back to Orders List
-          </Link>
-          
-          {/* Action Buttons */}
-          <button className="px-6 py-3 bg-red-600 hover:bg-red-700 text-white rounded-lg font-semibold transition-colors">
-            Print Invoice
+            <FiArrowLeft className="w-5 h-5 mr-2" /> Back to Orders List
           </button>
-          <button className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold transition-colors">
+          
+          {/* Print Invoice Button */}
+          <button 
+            onClick={handlePrintInvoice}
+            className="px-6 py-3 bg-red-600 hover:bg-red-700 text-white rounded-lg font-semibold transition-colors shadow-md"
+          >
+            Print/Download Invoice
+          </button>
+          <button className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold transition-colors shadow-md">
             Contact Customer
           </button>
         </div>
@@ -303,26 +380,89 @@ export const OrderDetail = () => {
   );
 };
 
+
+// ----------------------------------------------------------------------
+// --- OrdersTable Component (List View) ---
+// ----------------------------------------------------------------------
+
 export const OrdersTable = () => {
   const [orders, setOrders] = useState([]);
   const [filteredOrders, setFilteredOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
 
+  // Array of valid order statuses
+  const ORDER_STATUSES = ['Pending', 'Processing', 'Shipped', 'Delivered', 'Cancelled', 'Refunded'];
+
+  // Function to handle Firebase update for the order status
+  const updateOrderStatus = async (userId, orderId, newStatus) => {
+      try {
+          // Optimistically update the local state 
+          setOrders(prevOrders => 
+              prevOrders.map(order => 
+                  order.id === orderId && order.userId === userId 
+                      ? { ...order, status: newStatus } 
+                      : order
+              )
+          );
+          setFilteredOrders(prevFiltered => 
+              prevFiltered.map(order => 
+                  order.id === orderId && order.userId === userId 
+                      ? { ...order, status: newStatus } 
+                      : order
+              )
+          );
+          
+          const orderRef = doc(db, 'users', userId, 'orders', orderId);
+          await updateDoc(orderRef, {
+              status: newStatus,
+              updatedAt: new Date()
+          });
+          
+          console.log(`Order ${orderId} status updated to: ${newStatus}`);
+      } catch (error) {
+          console.error("Error updating order status:", error);
+          alert("Failed to update status. Check console for details."); 
+      }
+  };
+
+
   useEffect(() => {
     const fetchOrders = async () => {
+      if (db === null) {
+          console.error("Firebase DB is not initialized.");
+          setLoading(false);
+          return;
+      }
+      
       try {
-        const querySnapshot = await getDocs(collection(db, 'orders'));
-        const ordersList = querySnapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data(),
-          // Extract customer name from customerInfo for table display
-          customer: doc.data().customer || doc.data().customerInfo?.name || 'Unknown Customer',
-          email: doc.data().email || doc.data().customerInfo?.email || 'N/A',
-          phone: doc.data().phone || doc.data().customerInfo?.phone || 'N/A',
-          address: doc.data().address || 
-            `${doc.data().customerInfo?.address || ''}, ${doc.data().customerInfo?.city || ''}`.replace(/^,\s*/, '')
-        }));
+        // Use collectionGroup to query all 'orders' subcollections across all 'users'
+        const ordersGroupRef = collectionGroup(db, 'orders');
+        const querySnapshot = await getDocs(ordersGroupRef);
+        
+        const ordersList = querySnapshot.docs.map(doc => {
+          
+          // Extract userId from the document reference path
+          const pathSegments = doc.ref.path.split('/');
+          // pathSegments should be ['users', '{userId}', 'orders', '{orderId}']
+          const userId = pathSegments[1] || 'unknown_user';
+          
+          const orderData = doc.data();
+          const customerInfo = orderData.customerInfo || {};
+          
+          return {
+            id: doc.id,
+            userId: userId, 
+            // FIXED: Updated the link to match the new route structure
+            linkToDetail: `/orders/${userId}/${doc.id}`, 
+            ...orderData,
+            customer: orderData.customer || customerInfo.name || 'Unknown Customer',
+            email: orderData.email || customerInfo.email || 'N/A',
+            phone: orderData.phone || customerInfo.phone || 'N/A',
+            address: orderData.address || 
+              `${customerInfo.address || ''}, ${customerInfo.city || ''}`.replace(/^,\s*/, '')
+          };
+        });
         setOrders(ordersList);
         setFilteredOrders(ordersList);
       } catch (error) {
@@ -349,7 +489,6 @@ export const OrdersTable = () => {
       const address = order.address || '';
       const orderId = order.orderId || order.id || '';
       
-      // Search in customerInfo fields
       const customerInfoName = order.customerInfo?.name || '';
       const customerInfoCity = order.customerInfo?.city || '';
       const customerInfoPincode = order.customerInfo?.pincode || '';
@@ -377,18 +516,23 @@ export const OrdersTable = () => {
     const contactInfo = `${order.email || 'N/A'}\n${order.phone || 'N/A'}`;
     const avatarColor = ['#d946ef', '#10b981', '#3b82f6'][order.id.length % 3]; 
 
-    // Handle items display
     const itemsDisplay = order.items 
       ? (Array.isArray(order.items) 
           ? `${order.items.length} item(s)` 
           : (typeof order.items === 'string' ? order.items.substring(0, 50) + '...' : 'View Details'))
       : 'No items';
 
-    // Format date
     const displayDate = order.date || order.createdAt;
     const formattedDate = displayDate 
       ? formatFirestoreTimestamp(displayDate) 
       : 'N/A';
+    
+    // Handler for status change dropdown
+    const handleStatusChange = (e) => {
+        const newStatus = e.target.value;
+        // Call the update function defined above
+        updateOrderStatus(order.userId, order.id, newStatus); 
+    };
 
     return (
       <tr className="border-b hover:bg-gray-50 transition-colors">
@@ -402,7 +546,14 @@ export const OrdersTable = () => {
           <div>
             <div>{order.customer}</div>
             {order.orderId && (
-              <div className="text-xs text-gray-500 font-mono mt-1">#{order.orderId}</div>
+              <div className="text-xs text-gray-500 font-mono mt-1">
+                ID: #{order.orderId}
+              </div>
+            )}
+            {order.userId && order.userId !== 'unknown_user' && (
+              <div className="text-xs text-gray-400 font-mono italic">
+                User: {order.userId.substring(0, 6)}...
+              </div>
             )}
           </div>
         </td>
@@ -425,18 +576,27 @@ export const OrdersTable = () => {
         <td className="p-4 text-xs text-gray-600">
           {itemsDisplay}
         </td>
+        
+        {/* Status Dropdown */}
+        <td className="p-4 text-xs text-gray-600">
+            <select
+                value={order.status || 'Pending'}
+                onChange={handleStatusChange}
+                className={`p-1 text-sm border rounded shadow-sm focus:ring-red-500 focus:border-red-500 cursor-pointer 
+                    ${order.status === 'Delivered' ? 'bg-green-50 border-green-300 text-green-700' : 
+                      order.status === 'Cancelled' ? 'bg-red-50 border-red-300 text-red-700' : 
+                      'bg-yellow-50 border-yellow-300 text-yellow-700'}`}
+            >
+                {ORDER_STATUSES.map(status => (
+                    <option key={status} value={status}>
+                        {status}
+                    </option>
+                ))}
+            </select>
+        </td>
 
         <td className="p-4 font-bold text-green-600 text-sm">
           {formatAmount(order.amount || 0)}
-          {order.status && (
-            <div className={`text-xs mt-1 px-2 py-0.5 rounded-full inline-block ${
-              order.status === 'success' 
-                ? 'bg-green-100 text-green-700' 
-                : 'bg-yellow-100 text-yellow-700'
-            }`}>
-              {order.status}
-            </div>
-          )}
         </td>
 
         <td className="p-4 text-xs text-gray-500">
@@ -444,12 +604,14 @@ export const OrdersTable = () => {
         </td>
 
         <td className="p-4">
+          {/* View Details link - uses the dynamically created linkToDetail path */}
           <Link 
-            to={`/orders/${order.id}`} 
+            to={order.linkToDetail || `/orders/${order.id}`} 
             className="px-3 py-1 text-xs font-semibold bg-red-600 hover:bg-red-700 text-white rounded transition-colors shadow-md inline-block text-center"
           >
             View Details
           </Link>
+          
         </td>
       </tr>
     );
@@ -465,7 +627,7 @@ export const OrdersTable = () => {
   }
 
   return (
-    <div className="flex-1 p-6 lg:p-8 bg-white min-h-screen">
+    <div className="flex-1 p-6 lg:p-8 bg-gray-100 min-h-screen">
       <div className="orders-container bg-white rounded-lg shadow-xl p-6 border border-gray-200">
         
         <div className="flex justify-between items-center pb-4 border-b border-gray-100">
@@ -493,7 +655,7 @@ export const OrdersTable = () => {
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-100">
               <tr>
-                {['CUSTOMER', 'CONTACT', 'ADDRESS', 'ITEMS', 'AMOUNT', 'DATE', 'ACTIONS'].map(header => (
+                {['CUSTOMER', 'CONTACT', 'ADDRESS', 'ITEMS', 'STATUS', 'AMOUNT', 'DATE', 'ACTIONS'].map(header => (
                   <th
                     key={header}
                     className="px-4 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider"
@@ -505,10 +667,10 @@ export const OrdersTable = () => {
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
               {filteredOrders.length > 0 ? (
-                filteredOrders.map(order => <OrderRow key={order.id} order={order} />)
+                filteredOrders.map(order => <OrderRow key={`${order.userId}-${order.id}`} order={order} />)
               ) : (
                 <tr>
-                  <td colSpan="7" className="p-6 text-center text-gray-500">
+                  <td colSpan="8" className="p-6 text-center text-gray-500">
                     <FiShoppingBag className="w-8 h-8 mx-auto text-gray-400 mb-2" />
                     <p>
                       {searchTerm 

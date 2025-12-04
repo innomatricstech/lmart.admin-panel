@@ -392,104 +392,11 @@ function AdminDashboardContent() {
         <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-blue-50/30 font-sans antialiased">
             <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 lg:py-8 space-y-8">
                 {/* Header */}
-                <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6">
-                    <div className="flex-1">
-                        <div className="flex items-center space-x-3 mb-2">
-                            <div className="p-2 bg-gradient-to-r from-purple-500 to-pink-500 rounded-xl shadow-lg">
-                                <BarChart3 className="w-6 h-6 text-white" />
-                            </div>
-                            <h1 className="text-3xl lg:text-4xl font-bold bg-gradient-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent">
-                                Dashboard Overview
-                            </h1>
-                        </div>
-                        <p className="text-gray-600 max-w-2xl">
-                            Welcome back! Track your store performance, monitor recent activities, and manage your business efficiently.
-                        </p>
-                    </div>
-                    
-                    <div className="flex items-center space-x-3">
-                        <div className="flex items-center space-x-2 bg-white px-4 py-2 rounded-xl shadow-lg border border-gray-100">
-                            <Sparkles className="w-5 h-5 text-yellow-500" />
-                            <span className="text-sm font-medium text-gray-700">Live Updates</span>
-                            <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                        </div>
-                        <button className="p-3 bg-white rounded-xl shadow-lg hover:shadow-xl transition-shadow border border-gray-100">
-                            <RefreshCw className="w-5 h-5 text-gray-600" />
-                        </button>
-                    </div>
-                </div>
-
+              
                 {/* Stats Grid */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6">
-                    <StatCard 
-                        title="Total Customers"
-                        value={dashboardData.totalCustomers}
-                        icon={Users}
-                        bgColor="bg-gradient-to-br from-blue-500 to-cyan-400"
-                        textColor="text-white"
-                        trend="up"
-                        percentage={dashboardData.customerGrowth}
-                        loading={statsLoading}
-                    />
-                    <StatCard 
-                        title="Total Orders"
-                        value={dashboardData.totalOrders}
-                        icon={ShoppingCart}
-                        bgColor="bg-gradient-to-br from-green-500 to-emerald-400"
-                        textColor="text-white"
-                        trend="up"
-                        percentage={dashboardData.orderGrowth}
-                        loading={statsLoading}
-                    />
-                    <StatCard 
-                        title="Total Revenue"
-                        value={dashboardData.totalRevenue}
-                        icon={DollarSign}
-                        bgColor="bg-gradient-to-br from-purple-500 to-pink-400"
-                        textColor="text-white"
-                        trend="up"
-                        percentage={dashboardData.revenueGrowth}
-                        loading={statsLoading}
-                        isCurrency={true}
-                    />
-                    <StatCard 
-                        title="Pending Orders"
-                        value={dashboardData.pendingOrders}
-                        icon={Clock}
-                        bgColor="bg-gradient-to-br from-orange-500 to-yellow-400"
-                        textColor="text-white"
-                        trend="down"
-                        percentage={-5.2}
-                        loading={statsLoading}
-                    />
-                    <StatCard 
-                        title="Total Products"
-                        value={dashboardData.totalProducts}
-                        icon={Package}
-                        bgColor="bg-gradient-to-br from-indigo-500 to-blue-400"
-                        textColor="text-white"
-                        trend="up"
-                        percentage={3.8}
-                        loading={statsLoading}
-                    />
-                </div>
-
+             
                 {/* Time Filter Tabs */}
-                <div className="flex items-center space-x-2 bg-white p-1 rounded-xl shadow-lg border border-gray-100 inline-flex">
-                    {['today', 'week', 'month', 'quarter', 'year'].map((period) => (
-                        <button
-                            key={period}
-                            onClick={() => setTimeFilter(period)}
-                            className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
-                                timeFilter === period
-                                    ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow'
-                                    : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
-                            }`}
-                        >
-                            {period.charAt(0).toUpperCase() + period.slice(1)}
-                        </button>
-                    ))}
-                </div>
+                
 
                 {/* Quick Actions */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -642,55 +549,10 @@ function AdminDashboardContent() {
                 </section>
 
                 {/* Performance Summary */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    <div className="bg-white p-6 rounded-2xl shadow-lg border border-gray-100">
-                        <div className="flex items-center justify-between mb-4">
-                            <h3 className="font-bold text-gray-800">Revenue Trend</h3>
-                            <TrendingUp className="w-5 h-5 text-green-500" />
-                        </div>
-                        <div className="h-2 bg-gray-100 rounded-full overflow-hidden mb-2">
-                            <div className="h-full bg-gradient-to-r from-green-400 to-emerald-500 rounded-full" style={{ width: '75%' }}></div>
-                        </div>
-                        <div className="flex justify-between text-sm text-gray-600">
-                            <span>This month</span>
-                            <span className="font-semibold text-green-600">+{dashboardData.revenueGrowth}%</span>
-                        </div>
-                    </div>
-                    
-                    <div className="bg-white p-6 rounded-2xl shadow-lg border border-gray-100">
-                        <div className="flex items-center justify-between mb-4">
-                            <h3 className="font-bold text-gray-800">Order Conversion</h3>
-                            <ShoppingCart className="w-5 h-5 text-blue-500" />
-                        </div>
-                        <div className="h-2 bg-gray-100 rounded-full overflow-hidden mb-2">
-                            <div className="h-full bg-gradient-to-r from-blue-400 to-cyan-500 rounded-full" style={{ width: '65%' }}></div>
-                        </div>
-                        <div className="flex justify-between text-sm text-gray-600">
-                            <span>Rate</span>
-                            <span className="font-semibold text-blue-600">4.8%</span>
-                        </div>
-                    </div>
-                    
-                    <div className="bg-white p-6 rounded-2xl shadow-lg border border-gray-100">
-                        <div className="flex items-center justify-between mb-4">
-                            <h3 className="font-bold text-gray-800">Customer Satisfaction</h3>
-                            <Users className="w-5 h-5 text-purple-500" />
-                        </div>
-                        <div className="h-2 bg-gray-100 rounded-full overflow-hidden mb-2">
-                            <div className="h-full bg-gradient-to-r from-purple-400 to-pink-500 rounded-full" style={{ width: '92%' }}></div>
-                        </div>
-                        <div className="flex justify-between text-sm text-gray-600">
-                            <span>Rating</span>
-                            <span className="font-semibold text-purple-600">4.9/5.0</span>
-                        </div>
-                    </div>
-                </div>
+               
 
                 {/* Footer */}
-                <div className="text-center text-sm text-gray-400 py-6 border-t border-gray-200">
-                    <p className="mb-2">Dashboard updated in real-time • Powered by Firebase</p>
-                    <p>Need help? <a href="#" className="text-purple-500 hover:text-purple-600 transition-colors">Contact support</a> or check our <a href="#" className="text-purple-500 hover:text-purple-600 transition-colors">documentation</a>.</p>
-                </div>
+               
             </main>
         </div>
     );

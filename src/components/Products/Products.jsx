@@ -7,7 +7,7 @@ import {
     query,
     orderBy,
     onSnapshot,
-    deleteDoc, // ✨ NEW: Import deleteDoc for deletion
+    deleteDoc,
 } from "firebase/firestore";
 
 // Icon imports
@@ -25,53 +25,56 @@ import {
     ArchiveBoxIcon,
     ArrowLeftIcon,
     ClockIcon,
-    TrashIcon, // ✨ NEW: TrashIcon for delete button
-    ExclamationTriangleIcon // Icon for the modal
+    TrashIcon,
+    ExclamationTriangleIcon
 } from '@heroicons/react/20/solid';
 
-// IMPORTANT: Adjust this path to the correct location of your Firebase config file
 import { db } from "../../../firerbase";
 
 // ==========================================================
-// UTILITY FUNCTIONS TO HANDLE VARIANTS
+// UTILITY FUNCTIONS
 // ==========================================================
 
 // Helper function to aggregate variant data for the list view
 const getVariantSummary = (variants) => {
     if (!variants || variants.length === 0) {
         return {
-            displayPrice: null, // Indicates no price found
+            displayPrice: null,
             totalStock: 0,
             hasOffer: false,
+            validPrices: [],
         };
     }
 
     let minPrice = Infinity;
     let totalStock = 0;
     let hasOffer = false;
+    let validPrices = [];
 
     variants.forEach(variant => {
-        // Calculate the lowest effective price (using offer price if available)
         const effectivePrice = (variant.offerPrice && Number(variant.offerPrice) > 0)
             ? Number(variant.offerPrice)
             : Number(variant.price);
 
-        if (effectivePrice < minPrice) {
-            minPrice = effectivePrice;
+        if (effectivePrice > 0) {
+            if (effectivePrice < minPrice) {
+                minPrice = effectivePrice;
+            }
+            validPrices.push(effectivePrice);
         }
 
         if (variant.offerPrice && Number(variant.offerPrice) > 0) {
             hasOffer = true;
         }
 
-        // Sum the stock
         totalStock += (Number(variant.stock) || 0);
     });
 
     return {
-        displayPrice: minPrice === Infinity ? 0 : minPrice,
+        displayPrice: minPrice === Infinity ? null : minPrice,
         totalStock,
-        hasOffer
+        hasOffer,
+        validPrices
     };
 };
 
@@ -93,21 +96,61 @@ const getUniqueVariantAttributes = (variants) => {
     };
 };
 
+// Helper to fetch brand name
+const fetchBrandName = async (brandId) => {
+    if (!brandId) return 'N/A';
+    
+    try {
+        const brandRef = doc(db, "brands", brandId);
+        const brandDoc = await getDoc(brandRef);
+        if (brandDoc.exists()) {
+            return brandDoc.data().name || brandId;
+        }
+    } catch (error) {
+        console.error("Error fetching brand name:", error);
+    }
+    return brandId;
+};
+
+// Helper function to fetch category/sub-category names
+const fetchCategoryNames = async (categoryId, subCategoryId) => {
+    let categoryName = categoryId || 'N/A';
+    let subCategoryName = subCategoryId || 'N/A';
+    
+    try {
+        // Fetch category name
+        if (categoryId) {
+            const categoryRef = doc(db, "categories", categoryId);
+            const categoryDoc = await getDoc(categoryRef);
+            if (categoryDoc.exists()) {
+                categoryName = categoryDoc.data().name || categoryId;
+            }
+        }
+        
+        // Fetch sub-category name
+        if (subCategoryId) {
+            const subCategoryRef = doc(db, "subcategories", subCategoryId);
+            const subCategoryDoc = await getDoc(subCategoryRef);
+            if (subCategoryDoc.exists()) {
+                subCategoryName = subCategoryDoc.data().name || subCategoryId;
+            }
+        }
+    } catch (error) {
+        console.error("Error fetching category names:", error);
+    }
+    
+    return { categoryName, subCategoryName };
+};
 
 // ==========================================================
 // 1. PRODUCT LIST COMPONENT (Products)
 // ==========================================================
 
-const initialProducts = [];
-
 const Products = () => {
-    // Tracks the ID of the product currently selected for viewing
     const [selectedProductId, setSelectedProductId] = useState(null);
-
-    // ✨ NEW STATE: To manage the confirmation for deletion
     const [productToDelete, setProductToDelete] = useState(null);
-
-    const [products, setProducts] = useState(initialProducts);
+    const [products, setProducts] = useState([]);
+    const [productsWithNames, setProductsWithNames] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [searchTerm, setSearchTerm] = useState('');
@@ -122,12 +165,52 @@ const Products = () => {
                 orderBy("createdAt", "desc")
             );
 
-            const unsubscribe = onSnapshot(productsQuery, (snapshot) => {
+            const unsubscribe = onSnapshot(productsQuery, async (snapshot) => {
                 const productsList = snapshot.docs.map((doc) => ({
                     id: doc.id,
                     ...doc.data(),
                 }));
+                
+                // Fetch names for all products
+                const productsWithFetchedNames = await Promise.all(
+                    productsList.map(async (product) => {
+                        let brandName = 'N/A';
+                        let categoryName = 'N/A';
+                        let subCategoryName = 'N/A';
+                        
+                        // Fetch brand name
+                        if (product.brandId) {
+                            brandName = await fetchBrandName(product.brandId);
+                        } else if (product.brand?.name) {
+                            brandName = product.brand.name;
+                        } else if (product.brand && typeof product.brand === 'string') {
+                            brandName = product.brand;
+                        }
+                        
+                        // Fetch category and sub-category names
+                        if (product.categoryId || product.subCategoryId) {
+                            const { categoryName: catName, subCategoryName: subCatName } = 
+                                await fetchCategoryNames(product.categoryId, product.subCategoryId);
+                            categoryName = catName;
+                            subCategoryName = subCatName;
+                        } else if (product.category?.name || product.subCategory?.name) {
+                            categoryName = product.category?.name || 'N/A';
+                            subCategoryName = product.subCategory?.name || 'N/A';
+                        } else if (product.category && typeof product.category === 'string') {
+                            categoryName = product.category;
+                        }
+                        
+                        return {
+                            ...product,
+                            brandDisplayName: brandName,
+                            categoryDisplayName: categoryName,
+                            subCategoryDisplayName: subCategoryName
+                        };
+                    })
+                );
+                
                 setProducts(productsList);
+                setProductsWithNames(productsWithFetchedNames);
                 setLoading(false);
             },
             (err) => {
@@ -146,11 +229,10 @@ const Products = () => {
     }, []);
 
     // --- Filtering & Handlers ---
-    const filteredProducts = products.filter(product =>
+    const filteredProducts = productsWithNames.filter(product =>
         product.name && product.name.toLowerCase().includes(searchTerm.toLowerCase())
     );
 
-    // NOTE: This utility function is now mainly used to format the variant lists for display
     const formatVariants = (variants) => {
         if (!variants || variants.length === 0) {
             return <span className="text-gray-400 italic text-sm">N/A</span>;
@@ -160,32 +242,22 @@ const Products = () => {
     };
 
     const handleAddProduct = () => navigate("/products/add");
-
-    // Sets the state to show the detail view on the same page
     const handleViewProduct = (productId) => setSelectedProductId(productId);
-
     const handleEditProduct = (productId) => navigate(`/products/edit/${productId}`);
     const handleDownloadExcel = () => alert("Functionality to download Excel is pending...");
-
-    // Handler to close the detail view and return to the list
     const handleCloseView = () => setSelectedProductId(null);
 
-    // ✨ NEW: Handler to open the delete confirmation modal
     const handleDeleteProduct = (product) => {
         setProductToDelete(product);
     };
 
-    // ✨ NEW: Handler to confirm and execute the deletion
     const confirmDelete = async () => {
         if (productToDelete) {
             try {
-                // Execute Firebase deletion
                 const productRef = doc(db, "products", productToDelete.id);
                 await deleteDoc(productRef);
-
-                // Close the modal and reset state
                 setProductToDelete(null);
-                setSelectedProductId(null); // Ensure detail view is closed if active
+                setSelectedProductId(null);
                 alert(`Product '${productToDelete.name}' deleted successfully.`);
             } catch (err) {
                 console.error("Error deleting product:", err);
@@ -194,9 +266,7 @@ const Products = () => {
         }
     };
 
-    // Get first product image or placeholder
     const getProductImage = (product) => {
-        // Use mainImageUrl if available, otherwise fallback to the first image in imageUrls
         if (product.mainImageUrl) return product.mainImageUrl;
         if (product.imageUrls && product.imageUrls.length > 0 && product.imageUrls[0].url) {
             return product.imageUrls[0].url;
@@ -244,7 +314,7 @@ const Products = () => {
                 productId={selectedProductId}
                 onClose={handleCloseView}
                 navigate={navigate}
-                onDelete={handleDeleteProduct} // ✨ Pass the delete handler
+                onDelete={handleDeleteProduct}
             />
         );
     }
@@ -268,19 +338,15 @@ const Products = () => {
                 {/* Stats and Actions Card */}
                 <div className="bg-white rounded-2xl shadow-xl border border-gray-100 p-8 mb-8">
                     <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center space-y-6 lg:space-y-0">
-                        {/* Stats - NOTE: These stats still rely on the old `product.stock` field or need total stock calculation */}
+                        {/* Stats */}
                         <div className="flex items-center space-x-6">
                             <div className="text-center">
                                 <div className="text-3xl font-bold text-indigo-600">{products.length}</div>
                                 <div className="text-sm text-gray-500">Total Products</div>
                             </div>
-                            {/* The stock stats below are APPROXIMATE as they use the old 'stock' field.
-                                For accuracy, you would need to calculate total stock for every product,
-                                but we'll adapt the list view to use the calculated total stock. */}
-                             <div className="h-12 w-px bg-gray-200"></div>
+                            <div className="h-12 w-px bg-gray-200"></div>
                             <div className="text-center">
                                 <div className="text-3xl font-bold text-green-600">
-                                    {/* Quick calculation: Count products where total stock is > 10 */}
                                     {products.filter(p => getVariantSummary(p.variants).totalStock > 10).length}
                                 </div>
                                 <div className="text-sm text-gray-500">Total High Stock</div>
@@ -288,7 +354,6 @@ const Products = () => {
                             <div className="h-12 w-px bg-gray-200"></div>
                             <div className="text-center">
                                 <div className="text-3xl font-bold text-yellow-600">
-                                    {/* Quick calculation: Count products where total stock is between 1 and 10 */}
                                     {products.filter(p => {
                                         const stock = getVariantSummary(p.variants).totalStock;
                                         return stock > 0 && stock <= 10;
@@ -365,7 +430,6 @@ const Products = () => {
 
                             <tbody className="bg-white divide-y divide-gray-100">
                                 {filteredProducts.map((product) => {
-                                    // Calculate summary from variants array
                                     const { displayPrice, totalStock, hasOffer } = getVariantSummary(product.variants);
                                     const { colorVariants, sizeVariants } = getUniqueVariantAttributes(product.variants);
 
@@ -384,7 +448,7 @@ const Products = () => {
                                                 </div>
                                                 <div className="flex-1 min-w-0">
                                                     <div className="font-semibold text-gray-900 text-lg hover:text-indigo-600 cursor-pointer transition-colors"
-                                                         onClick={() => handleViewProduct(product.id)} // Added view handler on name click too
+                                                         onClick={() => handleViewProduct(product.id)}
                                                     >
                                                         {product.name || 'Untitled Product'}
                                                     </div>
@@ -395,7 +459,7 @@ const Products = () => {
                                             </div>
                                         </td>
 
-                                        {/* DETAILS COLUMN (UNCHANGED) */}
+                                        {/* DETAILS COLUMN - UPDATED TO USE DISPLAY NAMES */}
                                         <td className="px-6 py-4">
                                             <div className="space-y-2">
                                                 <div className="flex items-center text-sm text-gray-600">
@@ -404,16 +468,18 @@ const Products = () => {
                                                 </div>
                                                 <div className="flex items-center text-sm text-gray-600">
                                                     <BuildingStorefrontIcon className="h-4 w-4 mr-2 text-green-500" />
-                                                    <span>{product.brand?.name || product.brand || '-'}</span>
+                                                    {/* UPDATED: Use brandDisplayName instead of brand */}
+                                                    <span>{product.brandDisplayName || product.brand || '-'}</span>
                                                 </div>
                                                 <div className="flex items-center text-sm text-gray-600">
                                                     <ArchiveBoxIcon className="h-4 w-4 mr-2 text-purple-500" />
-                                                    <span>{product.category?.name || product.category || '-'}</span>
+                                                    {/* UPDATED: Use categoryDisplayName instead of category */}
+                                                    <span>{product.categoryDisplayName || product.category || '-'}</span>
                                                 </div>
                                             </div>
                                         </td>
 
-                                        {/* UPDATED PRICING COLUMN */}
+                                        {/* PRICING COLUMN */}
                                         <td className="px-6 py-4">
                                             <div className="flex items-center text-lg font-bold text-green-700">
                                                 <CurrencyRupeeIcon className="h-5 w-5 mr-1" />
@@ -422,7 +488,7 @@ const Products = () => {
                                             </div>
                                         </td>
 
-                                        {/* UPDATED STOCK COLUMN */}
+                                        {/* STOCK COLUMN */}
                                         <td className="px-6 py-4 text-center">
                                             {totalStock > 10 ? (
                                                 <span className="inline-flex items-center px-3 py-1.5 text-sm font-semibold bg-green-100 text-green-800 rounded-full border border-green-200">
@@ -442,7 +508,7 @@ const Products = () => {
                                             )}
                                         </td>
 
-                                        {/* UPDATED VARIANTS COLUMN */}
+                                        {/* VARIANTS COLUMN */}
                                         <td className="px-6 py-4">
                                             <div className="space-y-1">
                                                 <div className="text-sm text-gray-700">
@@ -454,7 +520,7 @@ const Products = () => {
                                             </div>
                                         </td>
 
-                                        {/* ACTIONS COLUMN ✨ UPDATED with Delete Button */}
+                                        {/* ACTIONS COLUMN */}
                                         <td className="px-6 py-4">
                                             <div className="flex justify-center space-x-2">
                                                 <button
@@ -475,7 +541,6 @@ const Products = () => {
                                                     <span>Edit</span>
                                                 </button>
 
-                                                {/* ✨ NEW: Delete Button */}
                                                 <button
                                                     onClick={() => handleDeleteProduct(product)}
                                                     className="flex items-center space-x-1 bg-red-50 text-red-600 hover:bg-red-100 px-3 py-2 rounded-lg transition-colors duration-200 font-medium text-sm"
@@ -492,7 +557,7 @@ const Products = () => {
                         </table>
                     </div>
 
-                    {/* Empty State (UNCHANGED) */}
+                    {/* Empty State */}
                     {filteredProducts.length === 0 && (
                         <div className="text-center p-16 border-t border-gray-200">
                             <div className="w-24 h-24 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-6">
@@ -519,7 +584,7 @@ const Products = () => {
                 </div>
             </div>
 
-            {/* ✨ NEW: Deletion Confirmation Modal */}
+            {/* Deletion Confirmation Modal */}
             {productToDelete && (
                 <DeleteConfirmationModal
                     productName={productToDelete.name}
@@ -532,7 +597,7 @@ const Products = () => {
 };
 
 // ==========================================================
-// 2. DETAIL CARD UTILITY COMPONENT (UNCHANGED)
+// 2. DETAIL CARD UTILITY COMPONENT
 // ==========================================================
 
 const DetailCard = ({ icon: Icon, title, values }) => (
@@ -552,14 +617,13 @@ const DetailCard = ({ icon: Icon, title, values }) => (
     </div>
 );
 
-
 // ==========================================================
 // 3. INTEGRATED PRODUCT VIEW COMPONENT (UPDATED)
 // ==========================================================
-// ✨ Added onDelete prop
 const IntegratedProductView = ({ productId, onClose, navigate, onDelete }) => {
-
     const [product, setProduct] = useState(null);
+    const [categoryNames, setCategoryNames] = useState({ categoryName: 'N/A', subCategoryName: 'N/A' });
+    const [brandName, setBrandName] = useState('N/A');
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
 
@@ -571,13 +635,40 @@ const IntegratedProductView = ({ productId, onClose, navigate, onDelete }) => {
             return;
         }
 
-        const fetchProduct = async () => {
+        const fetchProductData = async () => {
             try {
                 const docRef = doc(db, "products", productId);
                 const docSnap = await getDoc(docRef);
 
                 if (docSnap.exists()) {
-                    setProduct({ id: docSnap.id, ...docSnap.data() });
+                    const productData = { id: docSnap.id, ...docSnap.data() };
+                    setProduct(productData);
+                    
+                    // Fetch brand name
+                    if (productData.brandId) {
+                        const brand = await fetchBrandName(productData.brandId);
+                        setBrandName(brand);
+                    } else if (productData.brand?.name) {
+                        setBrandName(productData.brand.name);
+                    } else if (productData.brand && typeof productData.brand === 'string') {
+                        setBrandName(productData.brand);
+                    }
+                    
+                    // Fetch category names
+                    if (productData.categoryId || productData.subCategoryId) {
+                        const names = await fetchCategoryNames(productData.categoryId, productData.subCategoryId);
+                        setCategoryNames(names);
+                    } else if (productData.category?.name || productData.subCategory?.name) {
+                        setCategoryNames({
+                            categoryName: productData.category?.name || 'N/A',
+                            subCategoryName: productData.subCategory?.name || 'N/A'
+                        });
+                    } else if (productData.category && typeof productData.category === 'string') {
+                        setCategoryNames({
+                            categoryName: productData.category,
+                            subCategoryName: 'N/A'
+                        });
+                    }
                 } else {
                     setError(`Product with ID ${productId} not found.`);
                 }
@@ -591,15 +682,15 @@ const IntegratedProductView = ({ productId, onClose, navigate, onDelete }) => {
 
         // Reset state before fetching new product details
         setProduct(null);
+        setCategoryNames({ categoryName: 'N/A', subCategoryName: 'N/A' });
+        setBrandName('N/A');
         setLoading(true);
         setError(null);
 
-        fetchProduct();
+        fetchProductData();
     }, [productId]);
 
     // --- Utility Functions ---
-    // NOTE: This utility function is used for DetailCard display,
-    // it just formats the array of strings returned by getUniqueVariantAttributes
     const formatVariants = (variants) => {
         if (!variants || variants.length === 0) {
             return 'None';
@@ -610,7 +701,6 @@ const IntegratedProductView = ({ productId, onClose, navigate, onDelete }) => {
     const formatDate = (timestamp) => {
         if (!timestamp) return 'N/A';
         try {
-            // Converts Firestore Timestamp object to readable date string
             const date = timestamp.toDate();
             return date.toLocaleString();
         } catch (e) {
@@ -635,7 +725,7 @@ const IntegratedProductView = ({ productId, onClose, navigate, onDelete }) => {
                 <h3 className="font-bold text-xl mb-2">Error</h3>
                 <p>{error || "Product data is missing or inaccessible."}</p>
                 <button
-                    onClick={onClose} // Use the prop to go back to the list
+                    onClick={onClose}
                     className="mt-4 bg-indigo-500 text-white px-4 py-2 rounded-lg hover:bg-indigo-600 transition-colors"
                 >
                     Back to Products List
@@ -644,8 +734,8 @@ const IntegratedProductView = ({ productId, onClose, navigate, onDelete }) => {
         );
     }
 
-    // NEW: Calculate summary from variants array
-    const { displayPrice, totalStock, hasOffer } = getVariantSummary(product.variants);
+    // Calculate summary from variants array
+    const { displayPrice, totalStock, hasOffer, validPrices } = getVariantSummary(product.variants);
     const { colorVariants, sizeVariants } = getUniqueVariantAttributes(product.variants);
 
     // --- UI: Main Component Render ---
@@ -653,10 +743,10 @@ const IntegratedProductView = ({ productId, onClose, navigate, onDelete }) => {
         <div className="p-8 bg-gradient-to-br from-gray-50 to-blue-50 min-h-screen">
             <div className="max-w-6xl mx-auto">
 
-                {/* Header and Actions (UPDATED with Delete Button) */}
+                {/* Header and Actions */}
                 <div className="flex justify-between items-center mb-6">
                     <button
-                        onClick={onClose} // Use the prop to go back to the list
+                        onClick={onClose}
                         className="flex items-center text-indigo-600 hover:text-indigo-800 transition duration-150"
                     >
                         <ArrowLeftIcon className="h-5 w-5 mr-1" />
@@ -664,7 +754,7 @@ const IntegratedProductView = ({ productId, onClose, navigate, onDelete }) => {
                     </button>
                     <div className="flex space-x-3">
                          <button
-                            onClick={() => onDelete(product)} // ✨ Use the passed delete handler
+                            onClick={() => onDelete(product)}
                             className="flex items-center space-x-2 bg-red-500 text-white px-4 py-2 rounded-xl font-semibold shadow-md hover:bg-red-600 transition"
                         >
                             <TrashIcon className="h-5 w-5" />
@@ -682,10 +772,10 @@ const IntegratedProductView = ({ productId, onClose, navigate, onDelete }) => {
 
                 <div className="bg-white rounded-2xl shadow-2xl p-8 border border-gray-100">
 
-                    {/* Main Product Info and Image (Image section mostly unchanged) */}
+                    {/* Main Product Info and Image */}
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 border-b pb-6 mb-6">
 
-                        {/* Image Gallery (UNCHANGED) */}
+                        {/* Image Gallery */}
                         <div className="lg:col-span-1">
                             <h3 className="flex items-center text-xl font-semibold text-gray-800 mb-4">
                                 <PhotoIcon className="h-6 w-6 mr-2 text-indigo-500" />
@@ -713,35 +803,44 @@ const IntegratedProductView = ({ productId, onClose, navigate, onDelete }) => {
                             </div>
                         </div>
 
-                        {/* UPDATED Pricing & Inventory Card */}
+                        {/* Pricing & Inventory Card */}
                         <div className="lg:col-span-2 p-6 bg-gray-50 rounded-xl border border-gray-200 shadow-sm">
-                             <h3 className="flex items-center text-xl font-semibold text-gray-800 mb-6 border-b pb-3">
+                            <h3 className="flex items-center text-xl font-semibold text-gray-800 mb-6 border-b pb-3">
                                 <CurrencyRupeeIcon className="h-6 w-6 mr-2 text-green-600" />
                                 Pricing & Inventory Summary
                             </h3>
 
                             <div className="space-y-4">
-
-                                {/* Min. Effective Price (NEW) */}
-                                <div className="flex justify-between items-center border-b pb-2">
-                                    <div className="text-lg text-gray-600">Min. Effective Price</div>
-                                    <div className="text-2xl font-bold text-green-700 flex items-center">
-                                        <CurrencyRupeeIcon className="h-5 w-5 mr-0.5" />
-                                        {displayPrice === null ? 'N/A' : displayPrice.toFixed(2)}
-                                        {hasOffer && <TagIcon className="h-5 w-5 ml-2 text-red-500" title="Offer Price Available" />}
+                                {/* Min. Effective Price */}
+                                <div>
+                                    <div className="flex justify-between items-center pb-2">
+                                        <div className="text-lg text-gray-600">Min. Effective Price</div>
+                                        <div className="text-2xl font-bold text-green-700 flex items-center">
+                                            <CurrencyRupeeIcon className="h-5 w-5 mr-0.5" />
+                                            {displayPrice === null ? 'N/A' : displayPrice.toFixed(2)}
+                                            {hasOffer && <TagIcon className="h-5 w-5 ml-2 text-red-500" title="Offer Price Available" />}
+                                        </div>
                                     </div>
+                                    {validPrices.length > 0 && (
+                                        <div className="text-xs text-gray-500 mt-1 italic bg-gray-100 p-2 rounded">
+                                            Calculated as the minimum of all non-zero variant prices ({validPrices.length} valid prices).
+                                            Prices considered: {validPrices.map((price, i) => 
+                                                `₹${price}` + (i < validPrices.length - 1 ? ', ' : '.')
+                                            )}
+                                        </div>
+                                    )}
                                 </div>
 
-                                {/* Total Stock Quantity (NEW) */}
-                                <div className="flex justify-between items-center border-b pb-2">
+                                {/* Total Stock Quantity */}
+                                <div className="flex justify-between items-center border-t pt-2">
                                     <div className="text-lg text-gray-600">Total Stock Quantity</div>
                                     <span className="inline-flex items-center px-3 py-1 text-lg font-bold bg-indigo-100 text-indigo-800 rounded-full">
                                         {totalStock} units
                                     </span>
                                 </div>
 
-                                {/* Stock Status (NEW) */}
-                                <div className="flex justify-between items-center">
+                                {/* Stock Status */}
+                                <div className="flex justify-between items-center border-t pt-2">
                                     <div className="text-lg text-gray-600">Overall Stock Status</div>
                                     {totalStock > 10 ? (
                                         <span className="inline-flex items-center px-3 py-1 text-sm font-semibold bg-green-500 text-white rounded-full">
@@ -761,7 +860,7 @@ const IntegratedProductView = ({ productId, onClose, navigate, onDelete }) => {
                         </div>
                     </div>
 
-                    {/* Description and Identification/Classification Cards (UNCHANGED) */}
+                    {/* Description */}
                     <div className="border-b pb-6 mb-6">
                          <h3 className="text-2xl font-semibold text-gray-900 mb-4">Product Overview</h3>
                          <p className="text-gray-700 bg-indigo-50 p-4 rounded-lg italic">
@@ -769,10 +868,10 @@ const IntegratedProductView = ({ productId, onClose, navigate, onDelete }) => {
                          </p>
                     </div>
 
-                    {/* Technical Specifications - Organized using the DetailCard component */}
+                    {/* Technical Specifications */}
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 pt-6">
 
-                        {/* Detail Card 1: Identification (UNCHANGED) */}
+                        {/* Detail Card 1: Identification */}
                         <DetailCard
                             icon={TagIcon}
                             title="Product Identification"
@@ -784,29 +883,30 @@ const IntegratedProductView = ({ productId, onClose, navigate, onDelete }) => {
                             ]}
                         />
 
-                        {/* Detail Card 2: Classification (UNCHANGED) */}
+                        {/* Detail Card 2: Classification - UPDATED TO USE FETCHED NAMES */}
                         <DetailCard
                             icon={ArchiveBoxIcon}
                             title="Classification"
                             values={[
-                                ['Brand', product.brand?.name || product.brand || 'N/A'],
-                                ['Category', product.category?.name || 'N/A'],
-                                ['Sub-Category', product.subCategory?.name || 'N/A'],
+                                // UPDATED: Use fetched brandName instead of brand
+                                ['Brand', brandName],
+                                // UPDATED: Use fetched categoryNames instead of IDs
+                                ['Category', categoryNames.categoryName],
+                                ['Sub-Category', categoryNames.subCategoryName],
                             ]}
                         />
 
-                        {/* UPDATED Detail Card 3: Variants */}
+                        {/* Detail Card 3: Variants */}
                         <DetailCard
                             icon={PhotoIcon}
                             title="Unique Variants"
                             values={[
-                                // Now using the unique attributes extracted from the variants array
                                 ['Colors', formatVariants(colorVariants)],
                                 ['Sizes/Storage', formatVariants(sizeVariants)]
                             ]}
                         />
 
-                        {/* Detail Card 4: Timestamps (UNCHANGED) */}
+                        {/* Detail Card 4: Timestamps */}
                         <DetailCard
                             icon={ClockIcon}
                             title="Timeline"
@@ -817,7 +917,7 @@ const IntegratedProductView = ({ productId, onClose, navigate, onDelete }) => {
                         />
                     </div>
 
-                    {/* Optional: Detailed Variants Table (Add this if you want to show ALL variants) */}
+                    {/* Detailed Variants Table */}
                     {product.variants && product.variants.length > 0 && (
                         <div className="mt-8">
                              <h3 className="flex items-center text-xl font-semibold text-gray-800 mb-4 border-b pb-2">
@@ -836,17 +936,28 @@ const IntegratedProductView = ({ productId, onClose, navigate, onDelete }) => {
                                         </tr>
                                     </thead>
                                     <tbody className="bg-white divide-y divide-gray-100">
-                                        {product.variants.map((v, i) => (
-                                            <tr key={v.variantId || i} className="hover:bg-gray-50">
-                                                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{v.color || 'N/A'}</td>
-                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{v.size || 'N/A'}</td>
-                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-right">{Number(v.price || 0).toFixed(2)}</td>
-                                                <td className={`px-6 py-4 whitespace-nowrap text-sm text-right ${v.offerPrice ? 'text-red-600 font-semibold' : 'text-gray-400'}`}>
-                                                    {v.offerPrice ? Number(v.offerPrice).toFixed(2) : '-'}
-                                                </td>
-                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">{v.stock || 0}</td>
-                                            </tr>
-                                        ))}
+                                        {product.variants.map((v, i) => {
+                                            const effectivePrice = (v.offerPrice && Number(v.offerPrice) > 0)
+                                                ? Number(v.offerPrice)
+                                                : Number(v.price);
+                                            const isZeroPrice = effectivePrice <= 0;
+                                            
+                                            return (
+                                                <tr key={v.variantId || i} className="hover:bg-gray-50">
+                                                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{v.color || 'N/A'}</td>
+                                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{v.size || 'N/A'}</td>
+                                                    <td className={`px-6 py-4 whitespace-nowrap text-sm text-right ${isZeroPrice ? 'text-gray-400 italic' : 'text-gray-900'}`}>
+                                                        {Number(v.price || 0).toFixed(2)}
+                                                        {isZeroPrice && <span className="ml-1 text-xs">(skipped)</span>}
+                                                    </td>
+                                                    <td className={`px-6 py-4 whitespace-nowrap text-sm text-right ${v.offerPrice ? 'text-red-600 font-semibold' : 'text-gray-400'}`}>
+                                                        {v.offerPrice ? Number(v.offerPrice).toFixed(2) : '-'}
+                                                        {v.offerPrice && Number(v.offerPrice) <= 0 && <span className="ml-1 text-xs">(skipped)</span>}
+                                                    </td>
+                                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">{v.stock || 0}</td>
+                                                </tr>
+                                            );
+                                        })}
                                     </tbody>
                                 </table>
                             </div>
@@ -859,9 +970,8 @@ const IntegratedProductView = ({ productId, onClose, navigate, onDelete }) => {
     );
 };
 
-
 // ==========================================================
-// 4. DELETE CONFIRMATION MODAL COMPONENT (NEW)
+// 4. DELETE CONFIRMATION MODAL COMPONENT
 // ==========================================================
 const DeleteConfirmationModal = ({ productName, onConfirm, onCancel }) => (
     <div className="fixed inset-0 bg-gray-600 bg-opacity-75 overflow-y-auto h-full w-full z-50 flex justify-center items-center">
@@ -898,6 +1008,4 @@ const DeleteConfirmationModal = ({ productName, onConfirm, onCancel }) => (
     </div>
 );
 
-
-// Default export remains the Products list component
 export default Products;

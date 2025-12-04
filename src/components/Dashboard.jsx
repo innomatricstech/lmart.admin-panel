@@ -29,7 +29,9 @@ import { Link } from 'react-router-dom';
 import { collection, getDocs, query, orderBy, limit } from 'firebase/firestore';
 import { db } from '../../firerbase';
 
-// ErrorBoundary remains unchanged
+// ===================================
+// FIX: ErrorBoundary Definition
+// ===================================
 class ErrorBoundary extends React.Component {
     constructor(props) {
         super(props);
@@ -66,50 +68,97 @@ class ErrorBoundary extends React.Component {
     }
 }
 
-// Enhanced StatCard with animations and better styling
-const StatCard = ({ title, value, icon: Icon, bgColor, textColor, trend, percentage, loading, isCurrency = false }) => (
-    <div className={`relative p-6 rounded-2xl shadow-lg transition-all duration-300 hover:shadow-xl hover:-translate-y-1 group ${bgColor} ${loading ? 'animate-pulse' : ''} overflow-hidden`}>
-        {/* Background decoration */}
-        <div className="absolute top-0 right-0 w-32 h-32 opacity-10 group-hover:opacity-20 transition-opacity duration-300">
-            <Icon className="w-full h-full transform rotate-12" />
-        </div>
-        
-        {/* Glow effect */}
-        <div className={`absolute inset-0 bg-gradient-to-br ${bgColor.replace('bg-', 'from-')} to-transparent opacity-0 group-hover:opacity-30 transition-opacity duration-300 rounded-2xl`}></div>
-        
-        {loading ? (
-            <div className="space-y-3">
-                <div className="h-4 bg-white/30 rounded w-3/4"></div>
-                <div className="h-10 bg-white/30 rounded w-1/2"></div>
-                <div className="h-3 bg-white/30 rounded w-1/3"></div>
+// Attractive StatCard with modern design
+const StatCard = ({ title, value, icon: Icon, trend, percentage, loading, isCurrency = false, subtitle, color = "blue" }) => {
+    const colorConfigs = {
+        blue: {
+            gradient: "from-blue-500 to-cyan-500",
+            bg: "bg-gradient-to-br from-blue-50 to-cyan-50",
+            iconBg: "bg-gradient-to-br from-blue-500 to-cyan-500",
+            text: "text-blue-700",
+            border: "border-blue-100"
+        },
+        green: {
+            gradient: "from-green-500 to-emerald-500",
+            bg: "bg-gradient-to-br from-green-50 to-emerald-50",
+            iconBg: "bg-gradient-to-br from-green-500 to-emerald-500",
+            text: "text-green-700",
+            border: "border-green-100"
+        },
+        purple: {
+            gradient: "from-purple-500 to-pink-500",
+            bg: "bg-gradient-to-br from-purple-50 to-pink-50",
+            iconBg: "bg-gradient-to-br from-purple-500 to-pink-500",
+            text: "text-purple-700",
+            border: "border-purple-100"
+        },
+        orange: {
+            gradient: "from-orange-500 to-amber-500",
+            bg: "bg-gradient-to-br from-orange-50 to-amber-50",
+            iconBg: "bg-gradient-to-br from-orange-500 to-amber-500",
+            text: "text-orange-700",
+            border: "border-orange-100"
+        },
+        indigo: {
+            gradient: "from-indigo-500 to-blue-500",
+            bg: "bg-gradient-to-br from-indigo-50 to-blue-50",
+            iconBg: "bg-gradient-to-br from-indigo-500 to-blue-500",
+            text: "text-indigo-700",
+            border: "border-indigo-100"
+        }
+    };
+
+    const config = colorConfigs[color];
+
+    return (
+        <div className={`relative p-6 rounded-2xl ${config.bg} border ${config.border} transition-all duration-300 hover:shadow-xl hover:-translate-y-1 group overflow-hidden ${loading ? 'animate-pulse' : ''}`}>
+            {/* Animated background element */}
+            <div className="absolute -right-8 -top-8 w-32 h-32 opacity-10 group-hover:opacity-20 transition-opacity duration-500">
+                <div className={`w-full h-full rounded-full bg-gradient-to-br ${config.gradient}`}></div>
             </div>
-        ) : (
-            <>
-                <div className="flex justify-between items-start mb-4">
-                    <div>
-                        <p className={`text-sm ${textColor} font-medium opacity-80`}>{title}</p>
-                        <p className="text-4xl font-bold mt-2 text-white">
-                            {isCurrency ? `₹${Number(value).toLocaleString('en-IN')}` : value}
-                        </p>
-                    </div>
-                    <div className={`p-3 rounded-xl ${textColor.replace('text-', 'bg-')} bg-opacity-20 backdrop-blur-sm transform group-hover:scale-110 transition-transform duration-300`}>
-                        <Icon className={`w-7 h-7 ${textColor}`} />
-                    </div>
+            
+            {loading ? (
+                <div className="space-y-3">
+                    <div className="h-4 bg-white/50 rounded w-3/4"></div>
+                    <div className="h-10 bg-white/50 rounded w-1/2"></div>
+                    <div className="h-3 bg-white/50 rounded w-1/3"></div>
                 </div>
-                
-                {trend && percentage && (
-                    <div className="flex items-center justify-between mt-6 pt-4 border-t border-white/20">
-                        <div className={`flex items-center space-x-1 ${trend === 'up' ? 'text-green-200' : 'text-red-200'}`}>
-                            {trend === 'up' ? <TrendingUp className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />}
-                            <span className="text-sm font-semibold">{percentage}%</span>
+            ) : (
+                <>
+                    <div className="flex justify-between items-start mb-4 relative z-10">
+                        <div>
+                            <p className="text-sm font-semibold text-gray-500 uppercase tracking-wider">{title}</p>
+                            <p className="text-3xl font-bold mt-2 text-gray-900">
+                                {isCurrency ? `₹${Number(value).toLocaleString('en-IN')}` : value}
+                            </p>
                         </div>
-                        <span className="text-xs text-white/70">vs last month</span>
+                        <div className={`p-3 rounded-xl ${config.iconBg} shadow-lg transform group-hover:scale-110 transition-transform duration-300`}>
+                            <Icon className="w-6 h-6 text-white" />
+                        </div>
                     </div>
-                )}
-            </>
-        )}
-    </div>
-);
+                    
+                    {subtitle && (
+                        <div className="flex items-center space-x-2 text-sm text-gray-500 mb-3">
+                            <span>{subtitle}</span>
+                        </div>
+                    )}
+                    
+                    {trend && percentage && (
+                        <div className="flex items-center justify-between mt-4 pt-4 border-t border-gray-100">
+                            <div className={`flex items-center space-x-2 ${trend === 'up' ? 'text-green-600' : 'text-red-600'}`}>
+                                <div className={`p-1.5 rounded-lg ${trend === 'up' ? 'bg-green-100' : 'bg-red-100'}`}>
+                                    {trend === 'up' ? <TrendingUp className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />}
+                                </div>
+                                <span className="text-sm font-semibold">{percentage}%</span>
+                            </div>
+                            <span className="text-xs text-gray-400">vs last month</span>
+                        </div>
+                    )}
+                </>
+            )}
+        </div>
+    );
+};
 
 // Enhanced OrderRow with better styling
 const OrderRow = ({ order, index }) => {
@@ -148,7 +197,7 @@ const OrderRow = ({ order, index }) => {
     const avatarColor = getAvatarColor(order.id);
 
     return (
-        <tr className="border-b border-gray-100 last:border-b-0 hover:bg-gradient-to-r from-gray-50 to-white transition-all duration-300 transform hover:scale-[1.002] group">
+        <tr className="border-b border-gray-100 last:border-b-0 hover:bg-gradient-to-r from-gray-50 to-white transition-all duration-300 group">
             <td className="py-4 px-6">
                 <div className="flex items-center space-x-4">
                     <div className="relative">
@@ -229,11 +278,11 @@ const LoadingSkeleton = () => (
             <div className="h-4 bg-gradient-to-r from-gray-200 to-gray-300 rounded w-96"></div>
         </div>
         
-        {/* Stats Grid with shimmer */}
+        {/* Stats Grid */}
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-6 mb-8">
             {[...Array(5)].map((_, i) => (
                 <div key={i} className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-gray-200 to-gray-300 h-32 shadow-lg">
-                    <div className="absolute inset-0 -translate-x-full animate-[shimmer_1.5s_infinite] bg-gradient-to-r from-transparent via-white/20 to-transparent"></div>
+                    <div className="absolute inset-0 -translate-x-full animate-[shimmer_1.5s_infinite] bg-gradient-to-r from-transparent via-gray-100/30 to-transparent"></div>
                 </div>
             ))}
         </div>
@@ -278,8 +327,9 @@ function AdminDashboardContent() {
         const fetchDashboardData = async () => {
             try {
                 setStatsLoading(true);
-                
-                // Fetch Total Customers Count
+                const ordersRef = collection(db, 'orders');
+
+                // 1. Fetch Total Customers Count
                 let totalCustomers = 0;
                 try {
                     const usersSnapshot = await getDocs(collection(db, 'users'));
@@ -288,17 +338,28 @@ function AdminDashboardContent() {
                     console.log('Using fallback for customers count');
                     totalCustomers = 12; // Fallback
                 }
+                
+                // 2. Fetch FULL Orders Snapshot (For accurate TOTALS, REVENUE, and PENDING)
+                // This fetches all documents to get the true totals.
+                const allOrdersSnapshot = await getDocs(ordersRef);
 
-                // Fetch Recent Orders
-                const ordersRef = collection(db, 'orders');
-                const ordersQuery = query(
+                // Calculate ALL statistics from the FULL snapshot
+                const totalOrders = allOrdersSnapshot.size;
+                const totalRevenue = allOrdersSnapshot.docs.reduce((sum, doc) => sum + (doc.data().amount || 0), 0);
+                const pendingOrders = allOrdersSnapshot.docs.filter(doc => {
+                    const status = doc.data().status;
+                    return !status || status.toLowerCase() === 'pending' || status.toLowerCase() === 'processing';
+                }).length;
+
+                // 3. Fetch RECENT Orders Snapshot (Limited to 10 for the "Recent Orders" table display)
+                const recentOrdersQuery = query(
                     ordersRef, 
                     orderBy('createdAt', 'desc'),
                     limit(10)
                 );
                 
-                const ordersSnapshot = await getDocs(ordersQuery);
-                const ordersList = ordersSnapshot.docs.map(doc => {
+                const recentOrdersSnapshot = await getDocs(recentOrdersQuery);
+                const ordersList = recentOrdersSnapshot.docs.map(doc => {
                     const data = doc.data();
                     const dateTimestamp = data.createdAt || data.date;
                     
@@ -329,16 +390,8 @@ function AdminDashboardContent() {
                         status: data.status || 'pending'
                     };
                 });
-
-                // Calculate statistics
-                const totalOrders = ordersSnapshot.size;
-                const totalRevenue = ordersSnapshot.docs.reduce((sum, doc) => sum + (doc.data().amount || 0), 0);
-                const pendingOrders = ordersSnapshot.docs.filter(doc => {
-                    const status = doc.data().status;
-                    return !status || status.toLowerCase() === 'pending' || status.toLowerCase() === 'processing';
-                }).length;
-
-                // Fetch Total Products Count
+                
+                // 4. Fetch Total Products Count
                 let totalProducts = 0;
                 try {
                     const productsSnapshot = await getDocs(collection(db, 'products'));
@@ -350,11 +403,11 @@ function AdminDashboardContent() {
                 setDashboardData(prev => ({
                     ...prev,
                     totalCustomers,
-                    totalOrders,
-                    totalRevenue,
-                    pendingOrders,
+                    totalOrders,         // <-- Now uses the full count
+                    totalRevenue,        // <-- Now uses the full revenue
+                    pendingOrders,       // <-- Now uses the full count
                     totalProducts,
-                    recentOrders: ordersList
+                    recentOrders: ordersList // <-- Still uses the limited list for the table
                 }));
 
                 setFilteredOrders(ordersList);
@@ -402,142 +455,119 @@ function AdminDashboardContent() {
                                 Dashboard Overview
                             </h1>
                         </div>
-                        <p className="text-gray-600 max-w-2xl">
-                            Welcome back! Track your store performance, monitor recent activities, and manage your business efficiently.
-                        </p>
+                        <p className="text-gray-600 max-w-2xl">Welcome back! Here's what's happening with your store today. Track performance, manage orders, and monitor growth.</p>
                     </div>
                     
                     <div className="flex items-center space-x-3">
-                        <div className="flex items-center space-x-2 bg-white px-4 py-2 rounded-xl shadow-lg border border-gray-100">
-                            <Sparkles className="w-5 h-5 text-yellow-500" />
-                            <span className="text-sm font-medium text-gray-700">Live Updates</span>
-                            <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                        </div>
-                        <button className="p-3 bg-white rounded-xl shadow-lg hover:shadow-xl transition-shadow border border-gray-100">
-                            <RefreshCw className="w-5 h-5 text-gray-600" />
+                        <button className="px-4 py-2.5 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg hover:from-purple-600 hover:to-pink-600 transition-all duration-300 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 flex items-center space-x-2 font-medium">
+                            <RefreshCw className="w-4 h-4" />
+                            <span>Refresh</span>
                         </button>
                     </div>
                 </div>
 
-                {/* Stats Grid */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6">
+                {/* Stats Grid - Accurate Totals are now used here */}
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-6">
                     <StatCard 
-                        title="Total Customers"
+                        title="TOTAL CUSTOMERS"
                         value={dashboardData.totalCustomers}
                         icon={Users}
-                        bgColor="bg-gradient-to-br from-blue-500 to-cyan-400"
-                        textColor="text-white"
                         trend="up"
                         percentage={dashboardData.customerGrowth}
                         loading={statsLoading}
+                        subtitle="Active Users"
+                        color="blue"
                     />
                     <StatCard 
-                        title="Total Orders"
-                        value={dashboardData.totalOrders}
+                        title="TOTAL ORDERS"
+                        value={dashboardData.totalOrders} // <-- This is now the full count
                         icon={ShoppingCart}
-                        bgColor="bg-gradient-to-br from-green-500 to-emerald-400"
-                        textColor="text-white"
                         trend="up"
                         percentage={dashboardData.orderGrowth}
                         loading={statsLoading}
+                        subtitle="All Time"
+                        color="green"
                     />
                     <StatCard 
-                        title="Total Revenue"
-                        value={dashboardData.totalRevenue}
+                        title="TOTAL REVENUE"
+                        value={dashboardData.totalRevenue} // <-- This is now the full revenue
                         icon={DollarSign}
-                        bgColor="bg-gradient-to-br from-purple-500 to-pink-400"
-                        textColor="text-white"
                         trend="up"
                         percentage={dashboardData.revenueGrowth}
                         loading={statsLoading}
                         isCurrency={true}
+                        subtitle="This Month"
+                        color="purple"
                     />
                     <StatCard 
-                        title="Pending Orders"
-                        value={dashboardData.pendingOrders}
+                        title="PENDING ORDERS"
+                        value={dashboardData.pendingOrders} // <-- This is now the full pending count
                         icon={Clock}
-                        bgColor="bg-gradient-to-br from-orange-500 to-yellow-400"
-                        textColor="text-white"
                         trend="down"
                         percentage={-5.2}
                         loading={statsLoading}
+                        subtitle="Needs Action"
+                        color="orange"
                     />
                     <StatCard 
-                        title="Total Products"
+                        title="TOTAL PRODUCTS"
                         value={dashboardData.totalProducts}
                         icon={Package}
-                        bgColor="bg-gradient-to-br from-indigo-500 to-blue-400"
-                        textColor="text-white"
                         trend="up"
                         percentage={3.8}
                         loading={statsLoading}
+                        subtitle="Active Products"
+                        color="indigo"
                     />
                 </div>
 
-                {/* Time Filter Tabs */}
-                <div className="flex items-center space-x-2 bg-white p-1 rounded-xl shadow-lg border border-gray-100 inline-flex">
-                    {['today', 'week', 'month', 'quarter', 'year'].map((period) => (
-                        <button
-                            key={period}
-                            onClick={() => setTimeFilter(period)}
-                            className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
-                                timeFilter === period
-                                    ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow'
-                                    : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
-                            }`}
-                        >
-                            {period.charAt(0).toUpperCase() + period.slice(1)}
-                        </button>
-                    ))}
-                </div>
-
-                {/* Quick Actions */}
+                {/* Quick Actions - Enhanced */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                     <Link 
                         to="/orders" 
-                        className="group bg-white p-6 rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 border border-gray-100"
+                        className="group bg-gradient-to-br from-white to-gray-50 p-6 rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 border border-gray-100"
                     >
                         <div className="flex items-center space-x-4">
-                            <div className="p-3 bg-gradient-to-r from-blue-100 to-cyan-100 rounded-xl">
-                                <ShoppingBag className="w-7 h-7 text-blue-500" />
+                            <div className="p-3 bg-gradient-to-r from-blue-500 to-cyan-500 rounded-xl shadow-lg transform group-hover:scale-110 transition-transform duration-300">
+                                <ShoppingBag className="w-7 h-7 text-white" />
                             </div>
                             <div className="flex-1">
                                 <h3 className="font-bold text-gray-800 group-hover:text-gray-900">View All Orders</h3>
                                 <p className="text-sm text-gray-500">Manage and track all orders</p>
                             </div>
-                            <ChevronRight className="w-5 h-5 text-gray-400 group-hover:text-gray-600 transform group-hover:translate-x-1 transition-transform" />
+                            <ChevronRight className="w-5 h-5 text-gray-400 group-hover:text-gray-600 transform group-hover:translate-x-2 transition-transform duration-300" />
                         </div>
                     </Link>
                     
                     <Link 
                         to="/products" 
-                        className="group bg-white p-6 rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 border border-gray-100"
+                        className="group bg-gradient-to-br from-white to-gray-50 p-6 rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 border border-gray-100"
                     >
                         <div className="flex items-center space-x-4">
-                            <div className="p-3 bg-gradient-to-r from-green-100 to-emerald-100 rounded-xl">
-                                <Package className="w-7 h-7 text-green-500" />
+                            <div className="p-3 bg-gradient-to-r from-green-500 to-emerald-500 rounded-xl shadow-lg transform group-hover:scale-110 transition-transform duration-300">
+                                <Package className="w-7 h-7 text-white" />
                             </div>
                             <div className="flex-1">
                                 <h3 className="font-bold text-gray-800 group-hover:text-gray-900">Manage Products</h3>
                                 <p className="text-sm text-gray-500">Add, edit, or remove products</p>
                             </div>
-                            <ChevronRight className="w-5 h-5 text-gray-400 group-hover:text-gray-600 transform group-hover:translate-x-1 transition-transform" />
+                            <ChevronRight className="w-5 h-5 text-gray-400 group-hover:text-gray-600 transform group-hover:translate-x-2 transition-transform duration-300" />
                         </div>
                     </Link>
                     
                     <Link 
                         to="/customers" 
-                        className="group bg-white p-6 rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 border border-gray-100"
+                        className="group bg-gradient-to-br from-white to-gray-50 p-6 rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 border border-gray-100"
                     >
                         <div className="flex items-center space-x-4">
-                            <div className="p-3 bg-gradient-to-r from-purple-100 to-pink-100 rounded-xl">
-                                <Users className="w-7 h-7 text-purple-500" />
+                            <div className="p-3 bg-gradient-to-r from-purple-500 to-pink-500 rounded-xl shadow-lg transform group-hover:scale-110 transition-transform duration-300">
+                                <Users className="w-7 h-7 text-white" />
                             </div>
                             <div className="flex-1">
                                 <h3 className="font-bold text-gray-800 group-hover:text-gray-900">Customer Management</h3>
                                 <p className="text-sm text-gray-500">View and manage customers</p>
                             </div>
-                            <ChevronRight className="w-5 h-5 text-gray-400 group-hover:text-gray-600 transform group-hover:translate-x-1 transition-transform" />
+                            <ChevronRight className="w-5 h-5 text-gray-400 group-hover:text-gray-600 transform group-hover:translate-x-2 transition-transform duration-300" />
                         </div>
                     </Link>
                 </div>
@@ -563,12 +593,12 @@ function AdminDashboardContent() {
                                     />
                                 </div>
                                 
-                                <button className="px-4 py-2.5 border border-gray-200 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors flex items-center justify-center space-x-2">
+                                <button className="px-4 py-2.5 border border-gray-200 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors flex items-center justify-center space-x-2 hover:shadow">
                                     <Filter className="w-4 h-4" />
                                     <span>Filter</span>
                                 </button>
                                 
-                                <button className="px-4 py-2.5 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-colors flex items-center justify-center space-x-2">
+                                <button className="px-4 py-2.5 bg-gradient-to-r from-gray-900 to-gray-700 text-white rounded-lg hover:from-gray-800 hover:to-gray-600 transition-all duration-200 shadow-md hover:shadow-lg transform hover:-translate-y-0.5 flex items-center justify-center space-x-2">
                                     <Download className="w-4 h-4" />
                                     <span>Export</span>
                                 </button>
@@ -578,7 +608,7 @@ function AdminDashboardContent() {
 
                     <div className="overflow-x-auto">
                         <table className="w-full">
-                            <thead className="bg-gray-50">
+                            <thead className="bg-gradient-to-r from-gray-50 to-gray-100">
                                 <tr className="text-left text-gray-600 text-sm font-semibold">
                                     <th className="py-4 px-6">CUSTOMER</th>
                                     <th className="py-4 px-6 text-right">AMOUNT</th>
@@ -591,7 +621,7 @@ function AdminDashboardContent() {
                                     <tr>
                                         <td colSpan="4" className="py-12">
                                             <div className="text-center">
-                                                <div className="inline-block p-4 bg-gray-100 rounded-2xl mb-4">
+                                                <div className="inline-block p-4 bg-gradient-to-br from-gray-100 to-gray-200 rounded-2xl mb-4">
                                                     <ShoppingCart className="w-12 h-12 text-gray-300" />
                                                 </div>
                                                 <h3 className="text-lg font-semibold text-gray-700 mb-2">
@@ -615,7 +645,7 @@ function AdminDashboardContent() {
                         </table>
                     </div>
 
-                    <div className="p-6 border-t border-gray-100 bg-gray-50/50">
+                    <div className="p-6 border-t border-gray-100 bg-gradient-to-r from-gray-50 to-gray-100/50">
                         <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
                             <div className="text-sm text-gray-600">
                                 Showing <span className="font-bold text-gray-800">{filteredOrders.length}</span> of{' '}
@@ -625,14 +655,14 @@ function AdminDashboardContent() {
                                 {searchTerm && (
                                     <button 
                                         onClick={() => setSearchTerm("")}
-                                        className="text-sm text-purple-600 hover:text-purple-800 font-medium flex items-center space-x-1"
+                                        className="text-sm text-purple-600 hover:text-purple-800 font-medium flex items-center space-x-1 hover:underline"
                                     >
                                         <span>Clear search</span>
                                     </button>
                                 )}
                                 <Link 
                                     to="/orders" 
-                                    className="text-sm font-medium bg-gradient-to-r from-purple-500 to-pink-500 text-white px-4 py-2 rounded-lg hover:from-purple-600 hover:to-pink-600 transition-all duration-200 shadow-md hover:shadow-lg"
+                                    className="text-sm font-medium bg-gradient-to-r from-purple-500 to-pink-500 text-white px-4 py-2 rounded-lg hover:from-purple-600 hover:to-pink-600 transition-all duration-200 shadow-md hover:shadow-lg transform hover:-translate-y-0.5"
                                 >
                                     View All Orders →
                                 </Link>
@@ -640,57 +670,6 @@ function AdminDashboardContent() {
                         </div>
                     </div>
                 </section>
-
-                {/* Performance Summary */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    <div className="bg-white p-6 rounded-2xl shadow-lg border border-gray-100">
-                        <div className="flex items-center justify-between mb-4">
-                            <h3 className="font-bold text-gray-800">Revenue Trend</h3>
-                            <TrendingUp className="w-5 h-5 text-green-500" />
-                        </div>
-                        <div className="h-2 bg-gray-100 rounded-full overflow-hidden mb-2">
-                            <div className="h-full bg-gradient-to-r from-green-400 to-emerald-500 rounded-full" style={{ width: '75%' }}></div>
-                        </div>
-                        <div className="flex justify-between text-sm text-gray-600">
-                            <span>This month</span>
-                            <span className="font-semibold text-green-600">+{dashboardData.revenueGrowth}%</span>
-                        </div>
-                    </div>
-                    
-                    <div className="bg-white p-6 rounded-2xl shadow-lg border border-gray-100">
-                        <div className="flex items-center justify-between mb-4">
-                            <h3 className="font-bold text-gray-800">Order Conversion</h3>
-                            <ShoppingCart className="w-5 h-5 text-blue-500" />
-                        </div>
-                        <div className="h-2 bg-gray-100 rounded-full overflow-hidden mb-2">
-                            <div className="h-full bg-gradient-to-r from-blue-400 to-cyan-500 rounded-full" style={{ width: '65%' }}></div>
-                        </div>
-                        <div className="flex justify-between text-sm text-gray-600">
-                            <span>Rate</span>
-                            <span className="font-semibold text-blue-600">4.8%</span>
-                        </div>
-                    </div>
-                    
-                    <div className="bg-white p-6 rounded-2xl shadow-lg border border-gray-100">
-                        <div className="flex items-center justify-between mb-4">
-                            <h3 className="font-bold text-gray-800">Customer Satisfaction</h3>
-                            <Users className="w-5 h-5 text-purple-500" />
-                        </div>
-                        <div className="h-2 bg-gray-100 rounded-full overflow-hidden mb-2">
-                            <div className="h-full bg-gradient-to-r from-purple-400 to-pink-500 rounded-full" style={{ width: '92%' }}></div>
-                        </div>
-                        <div className="flex justify-between text-sm text-gray-600">
-                            <span>Rating</span>
-                            <span className="font-semibold text-purple-600">4.9/5.0</span>
-                        </div>
-                    </div>
-                </div>
-
-                {/* Footer */}
-                <div className="text-center text-sm text-gray-400 py-6 border-t border-gray-200">
-                    <p className="mb-2">Dashboard updated in real-time • Powered by Firebase</p>
-                    <p>Need help? <a href="#" className="text-purple-500 hover:text-purple-600 transition-colors">Contact support</a> or check our <a href="#" className="text-purple-500 hover:text-purple-600 transition-colors">documentation</a>.</p>
-                </div>
             </main>
         </div>
     );
