@@ -101,8 +101,9 @@ const Sellers = () => {
     } else {
       const search = productSearchTerm.toLowerCase();
       const filtered = sellerProducts.filter((p) => {
-        const name = (p.name || "").toLowerCase();
-        const category = (p.category || "").toLowerCase();
+        // Updated to safely handle product name/category as objects (if stored as {id, name})
+        const name = (p.name?.name || p.name || "").toLowerCase();
+        const category = (p.category?.name || p.category || "").toLowerCase();
         const description = (p.description || "").toLowerCase();
 
         return (
@@ -1032,11 +1033,20 @@ const Sellers = () => {
                                 ) : (
                                     filteredSellerProducts.map((product) => ( 
                                         <div key={product.id} className="grid grid-cols-12 items-center bg-white p-3 rounded-md hover:bg-gray-100 transition-colors border border-gray-200">
-                                            <p className="col-span-6 text-gray-900 font-medium truncate text-sm">{product.name || 'Untitled Product'}</p>
-                                            <p className="col-span-3 text-gray-700 text-sm">{product.category || 'N/A'}</p>
+                                            {/* FIX 1: Use optional chaining to safely access .name if product.name is an object {id, name} */}
+                                            <p className="col-span-6 text-gray-900 font-medium truncate text-sm">
+                                                {product.name?.name || product.name || 'Untitled Product'}
+                                            </p>
+                                            {/* FIX 2: Use optional chaining to safely access .name if product.category is an object {id, name} */}
+                                            <p className="col-span-3 text-gray-700 text-sm">
+                                                {product.category?.name || product.category || 'N/A'}
+                                            </p>
                                             <div className="col-span-3 flex justify-end items-center">
                                                 <DollarSign className='h-4 w-4 text-green-600 mr-1' />
-                                                <span className="text-green-600 font-semibold text-sm">{product.price?.toFixed(2) || 'N/A'}</span>
+                                                {/* FIX 3: Explicitly check if the price is a number for safe rendering */}
+                                                <span className="text-green-600 font-semibold text-sm">
+                                                    {typeof product.price === 'number' ? product.price.toFixed(2) : 'N/A'}
+                                                </span>
                                             </div>
                                         </div>
                                     ))

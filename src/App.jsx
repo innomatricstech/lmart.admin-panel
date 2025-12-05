@@ -12,14 +12,15 @@ import CustomerDirectory from "./components/Customer.jsx";
 
 // Orders
 // FIX: Added .jsx extension
-import { OrderDetail, OrdersTable } from "./components/Orders/OrdersTable.jsx";
+import  OrdersTable from "./components/Orders/OrdersTable.jsx";
+import OrderDetail  from "./components/Orders/OrdersDetails.jsx";
 
-// import {PendingOrdersTable} from "./components/Orders/PendingOrdersTable.jsx";
-// import {ProcessingOrdersTable} from "./components/Orders/ProcessingOrdersTable.jsx";
-// import {ShippedOrdersTable} from "./components/Orders/ShippedOrdersTable.jsx";
-// import {DeliveredOrdersTable} from "./components/Orders/DeliveredOrdersTable.jsx";
-// import { CancelledOrdersTable } from "./components/Orders/CancelledOrdersTable.jsx";
-// import ReturnOrdersTable from "./components/ReturnOrdersTable.jsx";
+import PendingOrdersTable from "./components/Orders/PendingOrdersTable.jsx";
+import {ProcessingOrdersTable} from "./components/Orders/ProcessingOrdersTable.jsx";
+import {ShippedOrdersTable} from "./components/Orders/ShippedOrdersTable.jsx";
+import {DeliveredOrdersTable} from "./components/Orders/DeliveredOrdersTable.jsx";
+import { CancelledOrdersTable } from "./components/Orders/CancelledOrdersTable.jsx";
+import ReturnOrdersTable from "./components/ReturnOrdersTable.jsx";
 
 // Others
 import EarningsPage from "./components/EarningsPage.jsx";
@@ -170,13 +171,15 @@ function App() {
                     {/* FIXED: Updated route to match both userId and orderId */}
                     <Route path="orders/:userId/:orderId" element={<OrderDetail />} />
                     
-                    {/* <Route path="orders/pending" element={<PendingOrdersTable />} /> */}
-                    {/* <Route path="orders/processing" element={<ProcessingOrdersTable />} />
+                    <Route path="orders/pending" element={<PendingOrdersTable />} />
+                    <Route path="orders/processing" element={<ProcessingOrdersTable />} />
                     <Route path="orders/shipped" element={<ShippedOrdersTable />} />
-                    <Route path="orders/delivered" element={<DeliveredOrdersTable />} />
-                    <Route path="orders/cancelled" element={<CancelledOrdersTable />} />
-                    <Route path="return-orders" element={<ReturnOrdersTable />} /> */}
+                    
+                   
+                    <Route path="return-orders" element={<ReturnOrdersTable />} /> 
                     <Route path="recent-orders" element={<RecentOrdersTable />} />
+                     <Route path="orders/cancelled" element={<CancelledOrdersTable />} />
+                     <Route path="orders/delivered" element={<DeliveredOrdersTable />} />
 
                     {/* Financial */}
                     <Route path="earnings" element={<EarningsPage />} />
