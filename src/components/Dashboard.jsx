@@ -26,7 +26,13 @@ import {
     Activity
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { collection, getDocs, query, orderBy, limit } from 'firebase/firestore';
+import { 
+    collection, 
+    getDocs, 
+    query, 
+    orderBy, 
+    limit 
+} from 'firebase/firestore';
 import { db } from '../../firerbase';
 
 // ===================================
@@ -160,7 +166,7 @@ const StatCard = ({ title, value, icon: Icon, trend, percentage, loading, isCurr
     );
 };
 
-// Enhanced OrderRow with better styling
+// Enhanced OrderRow with better styling - UPDATED VIEW BUTTON
 const OrderRow = ({ order, index }) => {
     const getStatusIcon = (status) => {
         switch(status?.toLowerCase()) {
@@ -253,8 +259,9 @@ const OrderRow = ({ order, index }) => {
             </td>
             <td className="py-4 px-6">
                 <div className="flex justify-end space-x-2">
+                    {/* UPDATED VIEW BUTTON - Links to Order Details page */}
                     <Link 
-                        to={`/orders/${order.id}`}
+                        to={`/orders/${order.userId || 'unknown_user'}/${order.id}`}
                         className="px-4 py-2 bg-gradient-to-r from-purple-500 to-pink-500 text-white text-sm font-medium rounded-lg hover:from-purple-600 hover:to-pink-600 transition-all duration-300 transform hover:-translate-y-0.5 shadow-md hover:shadow-lg flex items-center space-x-2 group"
                     >
                         <span>View</span>
@@ -322,14 +329,50 @@ function AdminDashboardContent() {
     const [statsLoading, setStatsLoading] = useState(true);
     const [timeFilter, setTimeFilter] = useState('today');
 
+    // ==========================================================
+    // FUNCTION: Aggregates ALL orders from all user subcollections (FIXED LOGIC)
+    // ==========================================================
+    const fetchAllOrdersFromUsersSubcollections = async () => {
+        // Fetches all documents from the top-level 'users' collection
+        const usersSnapshot = await getDocs(collection(db, 'users'));
+        let allOrders = [];
+        let totalRevenue = 0;
+
+        // Iterate over each user
+        for (const userDoc of usersSnapshot.docs) {
+            const userId = userDoc.id;
+            // Reference the 'orders' subcollection for this specific user
+            const userOrdersRef = collection(db, 'users', userId, 'orders');
+            
+            // Fetch all orders for the current user
+            const ordersSnapshot = await getDocs(userOrdersRef);
+            
+            ordersSnapshot.docs.forEach(orderDoc => {
+                const data = orderDoc.data();
+                // Aggregate revenue
+                totalRevenue += (data.amount || 0);
+                
+                // Collect order data WITH USERID
+                allOrders.push({ 
+                    ...data, 
+                    id: orderDoc.id, 
+                    userId: userId, // Include parent user ID - IMPORTANT FOR ROUTING
+                    // Add a sortable date property
+                    sortDate: data.createdAt?.toDate ? data.createdAt.toDate().getTime() : new Date(data.date).getTime() || 0
+                });
+            });
+        }
+        
+        return { allOrders, totalRevenue };
+    };
+
     // Fetch dashboard data from Firestore
     useEffect(() => {
         const fetchDashboardData = async () => {
             try {
                 setStatsLoading(true);
-                const ordersRef = collection(db, 'orders');
-
-                // 1. Fetch Total Customers Count
+                
+                // 1. Fetch Total Customers Count (Global)
                 let totalCustomers = 0;
                 try {
                     const usersSnapshot = await getDocs(collection(db, 'users'));
@@ -339,59 +382,49 @@ function AdminDashboardContent() {
                     totalCustomers = 12; // Fallback
                 }
                 
-                // 2. Fetch FULL Orders Snapshot (For accurate TOTALS, REVENUE, and PENDING)
-                // This fetches all documents to get the true totals.
-                const allOrdersSnapshot = await getDocs(ordersRef);
+                // 2. Fetch ALL Orders (Aggregated from all user subcollections)
+                const { allOrders, totalRevenue } = await fetchAllOrdersFromUsersSubcollections(); // <-- Using aggregation
 
-                // Calculate ALL statistics from the FULL snapshot
-                const totalOrders = allOrdersSnapshot.size;
-                const totalRevenue = allOrdersSnapshot.docs.reduce((sum, doc) => sum + (doc.data().amount || 0), 0);
-                const pendingOrders = allOrdersSnapshot.docs.filter(doc => {
-                    const status = doc.data().status;
+                // Calculate ALL global statistics from the aggregated list
+                const totalOrders = allOrders.length;
+                
+                const pendingOrders = allOrders.filter(order => {
+                    const status = order.status;
                     return !status || status.toLowerCase() === 'pending' || status.toLowerCase() === 'processing';
                 }).length;
-
-                // 3. Fetch RECENT Orders Snapshot (Limited to 10 for the "Recent Orders" table display)
-                const recentOrdersQuery = query(
-                    ordersRef, 
-                    orderBy('createdAt', 'desc'),
-                    limit(10)
-                );
                 
-                const recentOrdersSnapshot = await getDocs(recentOrdersQuery);
-                const ordersList = recentOrdersSnapshot.docs.map(doc => {
-                    const data = doc.data();
-                    const dateTimestamp = data.createdAt || data.date;
-                    
-                    const formatDate = (timestamp) => {
-                        if (!timestamp) return 'N/A';
-                        try {
-                            if (timestamp.toDate) {
-                                return timestamp.toDate().toLocaleDateString('en-IN');
-                            }
-                            if (typeof timestamp === 'string' && timestamp.includes(' at ')) {
-                                const datePart = timestamp.split(' at ')[0]; 
-                                return new Date(datePart).toLocaleDateString('en-IN');
-                            }
-                            return new Date(timestamp).toLocaleDateString('en-IN');
-                        } catch (e) {
-                            return 'N/A';
+                // 3. Determine RECENT Orders (Limited to 10 for the "Recent Orders" table display)
+                // Sort all orders by the sortDate (most recent first) and take the top 10
+                const sortedOrders = allOrders.sort((a, b) => b.sortDate - a.sortDate);
+                const recentOrdersRaw = sortedOrders.slice(0, 10);
+                
+                const formatDate = (timestamp) => {
+                    if (!timestamp) return 'N/A';
+                    try {
+                        // Handle Firebase Timestamp objects
+                        if (timestamp.toDate) {
+                            return timestamp.toDate().toLocaleDateString('en-IN');
                         }
-                    };
-
-                    return {
-                        id: doc.id,
-                        name: data.customerInfo?.name || data.customer || 'Unknown Customer',
-                        email: data.customerInfo?.email || data.email || 'N/A',
-                        phone: data.customerInfo?.phone || data.phone || 'N/A',
-                        amount: `₹${(data.amount || 0).toLocaleString('en-IN')}`,
-                        items: Array.isArray(data.items) ? data.items.length : 1,
-                        date: formatDate(dateTimestamp),
-                        status: data.status || 'pending'
-                    };
-                });
+                        // Handle Date objects or string dates
+                        return new Date(timestamp).toLocaleDateString('en-IN');
+                    } catch (e) {
+                        return 'N/A';
+                    }
+                };
                 
-                // 4. Fetch Total Products Count
+                const ordersList = recentOrdersRaw.map(order => ({
+                    id: order.id,
+                    userId: order.userId || 'unknown_user', // CRITICAL: Include userId for routing
+                    name: order.customerInfo?.name || order.customer || 'Unknown Customer',
+                    email: order.customerInfo?.email || order.email || 'N/A',
+                    phone: order.customerInfo?.phone || order.phone || 'N/A',
+                    amount: `₹${(order.amount || 0).toLocaleString('en-IN')}`,
+                    items: Array.isArray(order.items) ? order.items.length : 1,
+                    date: formatDate(order.createdAt || order.date),
+                    status: order.status || 'pending'
+                }));
+                
+                // 4. Fetch Total Products Count (Global)
                 let totalProducts = 0;
                 try {
                     const productsSnapshot = await getDocs(collection(db, 'products'));
@@ -403,15 +436,16 @@ function AdminDashboardContent() {
                 setDashboardData(prev => ({
                     ...prev,
                     totalCustomers,
-                    totalOrders,         // <-- Now uses the full count
-                    totalRevenue,        // <-- Now uses the full revenue
-                    pendingOrders,       // <-- Now uses the full count
+                    totalOrders,         // <-- Global total count from aggregation
+                    totalRevenue,        // <-- Global total revenue from aggregation
+                    pendingOrders,       // <-- Global pending count from aggregation
                     totalProducts,
-                    recentOrders: ordersList // <-- Still uses the limited list for the table
+                    recentOrders: ordersList 
                 }));
 
                 setFilteredOrders(ordersList);
                 setStatsLoading(false);
+
             } catch (error) {
                 console.error("Error fetching dashboard data:", error);
                 setStatsLoading(false);
@@ -452,10 +486,10 @@ function AdminDashboardContent() {
                                 <BarChart3 className="w-6 h-6 text-white" />
                             </div>
                             <h1 className="text-3xl lg:text-4xl font-bold bg-gradient-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent">
-                                Dashboard Overview
+                                Dashboard Overview (Global)
                             </h1>
                         </div>
-                        <p className="text-gray-600 max-w-2xl">Welcome back! Here's what's happening with your store today. Track performance, manage orders, and monitor growth.</p>
+                        <p className="text-gray-600 max-w-2xl">Data aggregated from all `users/{'{'}userId{'}'}/orders` subcollections for accurate global statistics.</p>
                     </div>
                     
                     <div className="flex items-center space-x-3">
@@ -466,7 +500,7 @@ function AdminDashboardContent() {
                     </div>
                 </div>
 
-                {/* Stats Grid - Accurate Totals are now used here */}
+                {/* Stats Grid - Counts are now GLOBAL (Aggregated) */}
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-6">
                     <StatCard 
                         title="TOTAL CUSTOMERS"
@@ -475,38 +509,38 @@ function AdminDashboardContent() {
                         trend="up"
                         percentage={dashboardData.customerGrowth}
                         loading={statsLoading}
-                        subtitle="Active Users"
+                        subtitle="Total user documents"
                         color="blue"
                     />
                     <StatCard 
                         title="TOTAL ORDERS"
-                        value={dashboardData.totalOrders} // <-- This is now the full count
+                        value={dashboardData.totalOrders} 
                         icon={ShoppingCart}
                         trend="up"
                         percentage={dashboardData.orderGrowth}
                         loading={statsLoading}
-                        subtitle="All Time"
+                        subtitle="Aggregated from all user subcollections"
                         color="green"
                     />
                     <StatCard 
                         title="TOTAL REVENUE"
-                        value={dashboardData.totalRevenue} // <-- This is now the full revenue
+                        value={dashboardData.totalRevenue} 
                         icon={DollarSign}
                         trend="up"
                         percentage={dashboardData.revenueGrowth}
                         loading={statsLoading}
                         isCurrency={true}
-                        subtitle="This Month"
+                        subtitle="Aggregated from all user subcollections"
                         color="purple"
                     />
                     <StatCard 
                         title="PENDING ORDERS"
-                        value={dashboardData.pendingOrders} // <-- This is now the full pending count
+                        value={dashboardData.pendingOrders} 
                         icon={Clock}
                         trend="down"
                         percentage={-5.2}
                         loading={statsLoading}
-                        subtitle="Needs Action"
+                        subtitle="Aggregated Pending Orders"
                         color="orange"
                     />
                     <StatCard 
@@ -516,7 +550,7 @@ function AdminDashboardContent() {
                         trend="up"
                         percentage={3.8}
                         loading={statsLoading}
-                        subtitle="Active Products"
+                        subtitle="Active Products (Global)"
                         color="indigo"
                     />
                 </div>
@@ -524,7 +558,7 @@ function AdminDashboardContent() {
                 {/* Quick Actions - Enhanced */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                     <Link 
-                        to="/orders" 
+                        to="/orders/all" 
                         className="group bg-gradient-to-br from-white to-gray-50 p-6 rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 border border-gray-100"
                     >
                         <div className="flex items-center space-x-4">
@@ -533,14 +567,14 @@ function AdminDashboardContent() {
                             </div>
                             <div className="flex-1">
                                 <h3 className="font-bold text-gray-800 group-hover:text-gray-900">View All Orders</h3>
-                                <p className="text-sm text-gray-500">Manage and track all orders</p>
+                                <p className="text-sm text-gray-500">Manage and track all aggregated orders</p>
                             </div>
                             <ChevronRight className="w-5 h-5 text-gray-400 group-hover:text-gray-600 transform group-hover:translate-x-2 transition-transform duration-300" />
                         </div>
                     </Link>
                     
                     <Link 
-                        to="/products" 
+                        to="/products/view" 
                         className="group bg-gradient-to-br from-white to-gray-50 p-6 rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 border border-gray-100"
                     >
                         <div className="flex items-center space-x-4">
@@ -577,8 +611,8 @@ function AdminDashboardContent() {
                     <div className="p-6 border-b border-gray-100">
                         <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
                             <div>
-                                <h2 className="text-xl font-bold text-gray-800">Recent Orders</h2>
-                                <p className="text-sm text-gray-500">Latest customer orders and transactions</p>
+                                <h2 className="text-xl font-bold text-gray-800">Recent Orders (Top 10 Global)</h2>
+                                <p className="text-sm text-gray-500">Latest customer orders from all users, sorted by date</p>
                             </div>
                             
                             <div className="flex flex-col sm:flex-row gap-3 w-full lg:w-auto">
@@ -649,7 +683,7 @@ function AdminDashboardContent() {
                         <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
                             <div className="text-sm text-gray-600">
                                 Showing <span className="font-bold text-gray-800">{filteredOrders.length}</span> of{' '}
-                                <span className="font-bold text-gray-800">{dashboardData.recentOrders.length}</span> orders
+                                <span className="font-bold text-gray-800">{dashboardData.totalOrders}</span> total orders
                             </div>
                             <div className="flex items-center space-x-3">
                                 {searchTerm && (
@@ -661,7 +695,7 @@ function AdminDashboardContent() {
                                     </button>
                                 )}
                                 <Link 
-                                    to="/orders" 
+                                    to="/orders/all" 
                                     className="text-sm font-medium bg-gradient-to-r from-purple-500 to-pink-500 text-white px-4 py-2 rounded-lg hover:from-purple-600 hover:to-pink-600 transition-all duration-200 shadow-md hover:shadow-lg transform hover:-translate-y-0.5"
                                 >
                                     View All Orders →
@@ -680,5 +714,5 @@ export default function AdminDashboard() {
         <ErrorBoundary>
             <AdminDashboardContent />
         </ErrorBoundary>
-    );
+    );  
 }

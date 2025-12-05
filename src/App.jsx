@@ -2,7 +2,6 @@ import React, { useState, useEffect } from "react";
 import { BrowserRouter as Router, Routes, Route, Navigate, Outlet, useNavigate } from "react-router-dom";
 
 // Layout components
-// FIX: Added .jsx extension to resolve file path issues
 import Sidebar from "./components/Sidebar.jsx";
 import Header from "./components/Header.jsx";
 import Dashboard from "./components/Dashboard.jsx";
@@ -11,9 +10,8 @@ import Dashboard from "./components/Dashboard.jsx";
 import CustomerDirectory from "./components/Customer.jsx";
 
 // Orders
-// FIX: Added .jsx extension
-import  OrdersTable from "./components/Orders/OrdersTable.jsx";
-import OrderDetail  from "./components/Orders/OrdersDetails.jsx";
+import OrdersTable from "./components/Orders/OrdersTable.jsx";
+import OrderDetail from "./components/Orders/OrdersDetails.jsx";
 
 import PendingOrdersTable from "./components/Orders/PendingOrdersTable.jsx";
 import {ProcessingOrdersTable} from "./components/Orders/ProcessingOrdersTable.jsx";
@@ -35,7 +33,6 @@ import NotificationsPage from "./components/NotificationsPage.jsx";
 import ViewSellersPage from "./components/Seller/ViewSeller.jsx"; 
 import DeletedSellersTable from "./components/Seller/DeletedSellersTable.jsx";
 import EditSellerPage from "./components/Seller/EditSellerPage.jsx";
-// import AddSellerPage from "./components/Seller/AddSellerPage";
 
 // Products
 import Products from "./components/Products/Products.jsx";
@@ -56,7 +53,6 @@ const Placeholder = ({ title }) => (
         <p className="mt-2 text-gray-600">This is a placeholder page.</p>
     </div>
 );
-
 
 // ----------------------
 // DASHBOARD LAYOUT
@@ -94,7 +90,6 @@ const DashboardLayout = ({ sidebarOpen, setSidebarOpen, toggleSidebar, onLogout 
     );
 };
 
-
 // ----------------------
 // MAIN APP COMPONENT
 // ----------------------
@@ -126,7 +121,6 @@ function App() {
         setIsLoggedIn(false);
     };
 
-
     return (
         <Router>
             <Routes>
@@ -137,7 +131,6 @@ function App() {
                 } />
 
                 <Route path="/forgot-password" element={<Placeholder title="Forgot Password" />} />
-
 
                 {/* PROTECTED ROUTES */}
                 <Route
@@ -168,18 +161,17 @@ function App() {
                     <Route path="orders" element={<Navigate to="all" replace />} /> 
                     {/* Route for all orders table */}
                     <Route path="orders/all" element={<OrdersTable />} />
-                    {/* FIXED: Updated route to match both userId and orderId */}
+                    {/* IMPORTANT: Correct route for Order Details - matches Dashboard's Link */}
                     <Route path="orders/:userId/:orderId" element={<OrderDetail />} />
                     
                     <Route path="orders/pending" element={<PendingOrdersTable />} />
                     <Route path="orders/processing" element={<ProcessingOrdersTable />} />
                     <Route path="orders/shipped" element={<ShippedOrdersTable />} />
+                    <Route path="orders/delivered" element={<DeliveredOrdersTable />} />
+                    <Route path="orders/cancelled" element={<CancelledOrdersTable />} />
                     
-                   
                     <Route path="return-orders" element={<ReturnOrdersTable />} /> 
                     <Route path="recent-orders" element={<RecentOrdersTable />} />
-                     <Route path="orders/cancelled" element={<CancelledOrdersTable />} />
-                     <Route path="orders/delivered" element={<DeliveredOrdersTable />} />
 
                     {/* Financial */}
                     <Route path="earnings" element={<EarningsPage />} />
