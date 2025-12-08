@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from "react-router-dom"; 
 
 import {
@@ -12,21 +12,19 @@ import {
     FiRefreshCw
 } from 'react-icons/fi';
 
-// 1. IMPORT NECESSARY FIREBASE FUNCTIONS (Updated imports for doc and setDoc)
 import { 
     collection, 
-    onSnapshot,
-    doc,        // Required to generate a document reference with a specific ID
-    setDoc,     // Required to save the document using the generated ID
-    serverTimestamp     // To get the server time for 'createdAt'
+    doc,
+    setDoc,
+    serverTimestamp
 } from "firebase/firestore";
+
 import { 
-    ref,                // To create storage references
-    uploadBytes,        // To upload the file
-    getDownloadURL      // To get the public URL of the uploaded file
+    ref,
+    uploadBytes,
+    getDownloadURL
 } from "firebase/storage";
 
-// IMPORTANT: Ensure your firerbase.js exports 'db' (Firestore) and 'storage' (Storage)
 import { db, storage } from "../../../firerbase"; 
 
 const AddNewsToday = () => {
@@ -35,51 +33,20 @@ const AddNewsToday = () => {
     const [formData, setFormData] = useState({
         title: '',
         excerpt: '',
-        subcategory: '', 
-        date: '',        
-        image: null      
+        subcategory: '',
+        date: '',
+        image: null      
     });
 
     const [imagePreview, setImagePreview] = useState(null);
-
-    // subcategories state
-    const [subcategories, setSubcategories] = useState([]);
-    const [isLoadingSubcategories, setIsLoadingSubcategories] = useState(true);
-    const [subcategoriesError, setSubcategoriesError] = useState(null);
-
     const [isSaving, setIsSaving] = useState(false);
     const [saveMessage, setSaveMessage] = useState('');
 
-    // ----------------------------------------------------
-    // 1. DATA FETCHING (Subcategories)
-    // ----------------------------------------------------
-    useEffect(() => {
-        const subcategoriesCollectionRef = collection(db, "subcategories");
-        // Using onSnapshot to keep up-to-date and handle initial load
-        const unsubscribe = onSnapshot(
-            subcategoriesCollectionRef, 
-            (snapshot) => {
-                const subs = snapshot.docs.map(doc => ({
-                    id: doc.id,
-                    ...doc.data(),
-                    name: doc.data().subcategory || doc.id // Use 'subcategory' field or ID as name
-                }));
-                setSubcategories(subs);
-                setIsLoadingSubcategories(false);
-            }, 
-            (error) => {
-                console.error("Error fetching subcategories:", error);
-                setSubcategoriesError("Failed to load subcategories.");
-                setIsLoadingSubcategories(false);
-            }
-        );
+    const isFormDisabled = isSaving;
 
-        return () => unsubscribe();
-    }, []);
-
-    // ----------------------------------------------------
-    // 2. INPUT HANDLERS
-    // ----------------------------------------------------
+    // -------------------------
+    // Input Handlers
+    // -------------------------
     const handleChange = (e) => {
         const { name, value } = e.target;
         setFormData(prev => ({ ...prev, [name]: value }));
@@ -98,29 +65,21 @@ const AddNewsToday = () => {
         setFormData(prev => ({ ...prev, image: null }));
         setImagePreview(null);
     };
-    
+
+    // ❌ OLD WRONG ROUTE → /products/news
+    // ✅ NEW PROPER ROUTE → /news/view
     const handleCancel = () => {
         if (window.confirm("Are you sure you want to cancel? Any unsaved data will be lost.")) {
-            navigate('/products/news');
+            navigate('/news/view');
         }
     };
 
-    const resetForm = () => {
-        setFormData({
-            title: '',
-            excerpt: '',
-            subcategory: '',
-            date: '',
-            image: null
-        });
-        handleRemoveImage();
-    };
-
-    // ----------------------------------------------------
-    // 3. SUBMIT HANDLER (ID is created and stored as a field)
-    // ----------------------------------------------------
+    // -------------------------
+    // Submit Handler
+    // -------------------------
     const handleSave = async (e) => {
         e.preventDefault();
+
         if (!formData.title || !formData.excerpt || !formData.date || !formData.subcategory) {
             setSaveMessage("❌ Please fill in all required fields.");
             return;
@@ -133,10 +92,9 @@ const AddNewsToday = () => {
             let imageUrl = null;
             let imagePath = null;
             
-            // 1. Image Upload
+            // Upload image if available
             if (formData.image) {
                 const imageFile = formData.image;
-                // Generate a unique file name
                 const fileName = `news/${Date.now()}_${imageFile.name}`;
                 const storageRef = ref(storage, fileName);
 
@@ -146,34 +104,29 @@ const AddNewsToday = () => {
             }
 
             const newsCollectionRef = collection(db, "news");
+            const docRef = doc(newsCollectionRef);
+            const newsId = docRef.id;
             
-            // 🔑 REFACTOR: Generate Document ID/Reference first
-            const docRef = doc(newsCollectionRef); // Generates a unique ID
-            const newsId = docRef.id; // Get the generated ID
-            
-            // 2. Prepare Data for Firestore, INCLUDING the ID as a field
             const newNewsData = {
-                // The ID is now explicitly stored inside the document
-                id: newsId, 
-                
+                id: newsId,
                 title: formData.title.trim(),
                 excerpt: formData.excerpt.trim(),
-                subcategory: formData.subcategory, 
-                date: formData.date,               
-                imageUrl: imageUrl,
-                imagePath: imagePath,
-                createdAt: serverTimestamp(), 
+                subcategory: formData.subcategory.trim(),
+                date: formData.date,
+                imageUrl,
+                imagePath,
+                createdAt: serverTimestamp(),
             };
 
-            // 3. Save to Firestore using setDoc with the predefined docRef
             await setDoc(docRef, newNewsData);
 
-            setSaveMessage(`✅ News article added successfully! ID: ${newsId}`);
-            
-            // Redirect after successful save
+            setSaveMessage(`✅ News article added successfully!`);
+
+            // ❌ OLD WRONG ROUTE → navigate('/products/news')
+            // ✅ FIXED ROUTE → navigate('/news/view')
             setTimeout(() => {
-                navigate('/products/news');
-            }, 1500);
+                navigate('/news/view');
+            }, 1200);
 
         } catch (error) {
             console.error("Error adding news:", error);
@@ -182,12 +135,7 @@ const AddNewsToday = () => {
             setIsSaving(false);
         }
     };
-    
-    const isFormDisabled = isSaving || isLoadingSubcategories;
 
-    // ----------------------------------------------------
-    // 4. UI RETURN
-    // ----------------------------------------------------
     return (
         <div className="min-h-screen bg-gray-50 py-8 px-4">
             <div className="max-w-4xl mx-auto">
@@ -210,90 +158,48 @@ const AddNewsToday = () => {
                     </div>
                 )}
 
-
                 <div className="bg-white rounded-2xl shadow-xl p-8">
                     <form onSubmit={handleSave} className="space-y-6">
 
-                        {/* Title */}
-                        <div>
-                            <label htmlFor="title" className="block text-lg font-medium text-gray-700 mb-2">Title <span className="text-red-500">*</span></label>
-                            <input
-                                type="text"
-                                id="title"
-                                name="title"
-                                value={formData.title}
-                                onChange={handleChange}
-                                placeholder="Enter news headline or title"
-                                className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:ring-blue-500 focus:border-blue-500"
-                                disabled={isFormDisabled}
-                                required
-                            />
-                        </div>
-
-                        {/* Excerpt/Content */}
-                        <div>
-                            <label htmlFor="excerpt" className="block text-lg font-medium text-gray-700 mb-2">Excerpt / Content <span className="text-red-500">*</span></label>
-                            <textarea
-                                id="excerpt"
-                                name="excerpt"
-                                value={formData.excerpt}
-                                onChange={handleChange}
-                                rows="5"
-                                placeholder="Write a brief excerpt or the full news content"
-                                className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:ring-blue-500 focus:border-blue-500"
-                                disabled={isFormDisabled}
-                                required
-                            />
-                        </div>
-
-                        {/* Subcategory and Date */}
+                        {/* Title + Category */}
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             
-                            {/* Subcategory */}
                             <div>
-                                <label htmlFor="subcategory" className="block text-lg font-medium text-gray-700 mb-2 flex items-center">
-                                    <FiTag className="w-5 h-5 mr-2 text-purple-600" />
-                                    Subcategory <span className="text-red-500">*</span>
-                                </label>
-                                <div className="relative">
-                                    <select
-                                        id="subcategory"
-                                        name="subcategory"
-                                        value={formData.subcategory}
-                                        onChange={handleChange}
-                                        className="appearance-none w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:ring-blue-500 focus:border-blue-500 bg-white pr-10"
-                                        disabled={isFormDisabled}
-                                        required
-                                    >
-                                        <option value="" disabled>Select Subcategory</option>
-                                        {isLoadingSubcategories && <option disabled>Loading...</option>}
-                                        {subcategoriesError && <option disabled>Error loading</option>}
-                                        {subcategories.map(sub => (
-                                            <option key={sub.id} value={sub.name}>{sub.name}</option> 
-                                        ))}
-                                    </select>
-                                </div>
-                            </div>
-                            
-                            {/* Date */}
-                            <div>
-                                <label htmlFor="date" className="block text-lg font-medium text-gray-700 mb-2 flex items-center">
-                                    <FiCalendar className="w-5 h-5 mr-2 text-green-600" />
-                                    Publication Date (DD/MM/YYYY) <span className="text-red-500">*</span>
+                                <label htmlFor="title" className="block text-lg font-medium text-gray-700 mb-2">
+                                    Title <span className="text-red-500">*</span>
                                 </label>
                                 <input
                                     type="text"
-                                    id="date"
-                                    name="date"
-                                    value={formData.date}
+                                    id="title"
+                                    name="title"
+                                    value={formData.title}
                                     onChange={handleChange}
-                                    placeholder="e.g., 25/11/2025"
-                                    className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:ring-blue-500 focus:border-blue-500"
+                                    placeholder="Enter news headline or title"
+                                    className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl 
+                                            focus:ring-blue-500 focus:border-blue-500"
                                     disabled={isFormDisabled}
                                     required
                                 />
                             </div>
 
+                            <div>
+                                <label htmlFor="subcategory" className="block text-lg font-medium text-gray-700 mb-2 flex items-center">
+                                    <FiTag className="w-5 h-5 mr-2 text-purple-600" />
+                                    Category <span className="text-red-500">*</span>
+                                </label>
+                                <input
+                                    type="text"
+                                    id="subcategory"
+                                    name="subcategory"
+                                    value={formData.subcategory}
+                                    onChange={handleChange}
+                                    placeholder="e.g., Politics, Sports, Tech"
+                                    className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl 
+                                            focus:ring-blue-500 focus:border-blue-500"
+                                    disabled={isFormDisabled}
+                                    required
+                                />
+                            </div>
                         </div>
 
                         {/* Image Upload */}
@@ -335,6 +241,43 @@ const AddNewsToday = () => {
                             )}
                         </div>
 
+                        {/* Excerpt */}
+                        <div>
+                            <label htmlFor="excerpt" className="block text-lg font-medium text-gray-700 mb-2">
+                                Excerpt / Content <span className="text-red-500">*</span>
+                            </label>
+                            <textarea
+                                id="excerpt"
+                                name="excerpt"
+                                value={formData.excerpt}
+                                onChange={handleChange}
+                                rows="5"
+                                placeholder="Write a brief excerpt or the full news content"
+                                className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:ring-blue-500 focus:border-blue-500"
+                                disabled={isFormDisabled}
+                                required
+                            />
+                        </div>
+
+                        {/* Date */}
+                        <div>
+                            <label htmlFor="date" className="block text-lg font-medium text-gray-700 mb-2 flex items-center">
+                                <FiCalendar className="w-5 h-5 mr-2 text-green-600" />
+                                Publication Date (DD/MM/YYYY) <span className="text-red-500">*</span>
+                            </label>
+                            <input
+                                type="text"
+                                id="date"
+                                name="date"
+                                value={formData.date}
+                                onChange={handleChange}
+                                placeholder="e.g., 25/11/2025"
+                                className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:ring-blue-500 focus:border-blue-500"
+                                disabled={isFormDisabled}
+                                required
+                            />
+                        </div>
+
                         {/* Action Buttons */}
                         <div className="flex justify-end space-x-4 pt-4">
                             <button
@@ -350,7 +293,7 @@ const AddNewsToday = () => {
                             <button
                                 type="submit"
                                 className="flex items-center justify-center space-x-3 bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700 text-white px-8 py-4 rounded-xl font-semibold transition-all duration-200 transform hover:scale-[1.02] text-lg w-full sm:w-auto disabled:opacity-50 disabled:cursor-not-allowed"
-                                disabled={isSaving} 
+                                disabled={isSaving}
                             >
                                 {isSaving ? (
                                     <>
@@ -365,6 +308,7 @@ const AddNewsToday = () => {
                                 )}
                             </button>
                         </div>
+
                     </form>
                 </div>
             </div>
@@ -372,4 +316,4 @@ const AddNewsToday = () => {
     );
 };
 
-export default AddNewsToday;  
+export default AddNewsToday;

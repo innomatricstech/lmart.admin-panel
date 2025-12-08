@@ -18,7 +18,7 @@ import {
     Truck,
     RefreshCw,
     Download,
-    Filter,
+    Filter, // Keep the icon, it's still useful
     MoreVertical,
     Sparkles,
     CheckCircle,
@@ -36,7 +36,7 @@ import {
 import { db } from '../../firerbase';
 
 // ===================================
-// FIX: ErrorBoundary Definition
+// ErrorBoundary Definition (Unchanged)
 // ===================================
 class ErrorBoundary extends React.Component {
     constructor(props) {
@@ -74,7 +74,7 @@ class ErrorBoundary extends React.Component {
     }
 }
 
-// Attractive StatCard with modern design
+// StatCard Component (Unchanged)
 const StatCard = ({ title, value, icon: Icon, trend, percentage, loading, isCurrency = false, subtitle, color = "blue" }) => {
     const colorConfigs = {
         blue: {
@@ -166,7 +166,7 @@ const StatCard = ({ title, value, icon: Icon, trend, percentage, loading, isCurr
     );
 };
 
-// Enhanced OrderRow with better styling - UPDATED VIEW BUTTON
+// OrderRow Component (Unchanged)
 const OrderRow = ({ order, index }) => {
     const getStatusIcon = (status) => {
         switch(status?.toLowerCase()) {
@@ -276,7 +276,7 @@ const OrderRow = ({ order, index }) => {
     );
 };
 
-// Enhanced LoadingSkeleton
+// LoadingSkeleton (Unchanged)
 const LoadingSkeleton = () => (
     <div className="animate-pulse p-4 md:p-8 bg-gradient-to-br from-gray-50 to-gray-100 min-h-screen">
         {/* Header */}
@@ -310,6 +310,25 @@ const LoadingSkeleton = () => (
     </div>
 );
 
+// Helper function for date filtering
+const getDateThreshold = (period) => {
+    const now = new Date();
+    // Set time to the beginning of the day (00:00:00) to ensure full day inclusion
+    now.setHours(0, 0, 0, 0); 
+    switch (period) {
+        case '7days':
+            now.setDate(now.getDate() - 7);
+            return now.getTime();
+        case '30days':
+            now.setDate(now.getDate() - 30);
+            return now.getTime();
+        case 'all':
+        default:
+            return 0; // Epoch time, ensures all orders are included
+    }
+};
+
+
 // Main Component
 function AdminDashboardContent() {
     const [isLoading, setIsLoading] = useState(true);
@@ -327,85 +346,89 @@ function AdminDashboardContent() {
     });
     const [filteredOrders, setFilteredOrders] = useState([]);
     const [statsLoading, setStatsLoading] = useState(true);
-    const [timeFilter, setTimeFilter] = useState('today');
+    const [timeFilter, setTimeFilter] = useState('today'); // <-- Unused, but kept from original
+
+    // 👇 FIX: State for date filter selection
+    const [filterPeriod, setFilterPeriod] = useState('all'); // 'all', '7days', '30days'
+    
+    // The previous simple filter button logic is removed, as it's replaced by the period selection.
 
     // ==========================================================
-    // FUNCTION: Aggregates ALL orders from all user subcollections (FIXED LOGIC)
+    // FUNCTION: Aggregates ALL orders from all user subcollections 
     // ==========================================================
     const fetchAllOrdersFromUsersSubcollections = async () => {
-        // Fetches all documents from the top-level 'users' collection
         const usersSnapshot = await getDocs(collection(db, 'users'));
         let allOrders = [];
-        let totalRevenue = 0;
+        let totalRevenue = 0; // Aggregated revenue without date filter
 
-        // Iterate over each user
         for (const userDoc of usersSnapshot.docs) {
             const userId = userDoc.id;
-            // Reference the 'orders' subcollection for this specific user
             const userOrdersRef = collection(db, 'users', userId, 'orders');
             
-            // Fetch all orders for the current user
             const ordersSnapshot = await getDocs(userOrdersRef);
             
             ordersSnapshot.docs.forEach(orderDoc => {
                 const data = orderDoc.data();
-                // Aggregate revenue
-                totalRevenue += (data.amount || 0);
                 
-                // Collect order data WITH USERID
+                // Collect order data
                 allOrders.push({ 
                     ...data, 
                     id: orderDoc.id, 
-                    userId: userId, // Include parent user ID - IMPORTANT FOR ROUTING
-                    // Add a sortable date property
+                    userId: userId, 
+                    // CRITICAL: Get sortable date (timestamp)
                     sortDate: data.createdAt?.toDate ? data.createdAt.toDate().getTime() : new Date(data.date).getTime() || 0
                 });
             });
         }
         
-        return { allOrders, totalRevenue };
+        // Calculate TRUE total revenue across all time for the Stat Card (optional, can be filtered too)
+        const totalRevenueAllTime = allOrders.reduce((acc, order) => acc + (order.amount || 0), 0);
+        
+        return { allOrders, totalRevenueAllTime };
     };
 
-    // Fetch dashboard data from Firestore
+    // Fetch dashboard data from Firestore - Reruns on filterPeriod change
     useEffect(() => {
         const fetchDashboardData = async () => {
             try {
                 setStatsLoading(true);
                 
-                // 1. Fetch Total Customers Count (Global)
+                // 1. Fetch data (independent of filter)
                 let totalCustomers = 0;
                 try {
                     const usersSnapshot = await getDocs(collection(db, 'users'));
                     totalCustomers = usersSnapshot.size;
                 } catch (err) {
-                    console.log('Using fallback for customers count');
                     totalCustomers = 12; // Fallback
                 }
                 
-                // 2. Fetch ALL Orders (Aggregated from all user subcollections)
-                const { allOrders, totalRevenue } = await fetchAllOrdersFromUsersSubcollections(); // <-- Using aggregation
+                // Get all orders and the all-time revenue
+                const { allOrders, totalRevenueAllTime } = await fetchAllOrdersFromUsersSubcollections(); 
 
-                // Calculate ALL global statistics from the aggregated list
-                const totalOrders = allOrders.length;
+                // 👇 NEW: Apply Date Filtering to the collected orders
+                const threshold = getDateThreshold(filterPeriod);
                 
-                const pendingOrders = allOrders.filter(order => {
+                const dateFilteredOrders = allOrders.filter(order => order.sortDate >= threshold);
+
+                // 2. Calculate filtered statistics (based on dateFilteredOrders)
+                const totalOrdersFiltered = dateFilteredOrders.length;
+                const totalRevenueFiltered = dateFilteredOrders.reduce((acc, order) => acc + (order.amount || 0), 0);
+                
+                const pendingOrdersFiltered = dateFilteredOrders.filter(order => {
                     const status = order.status;
                     return !status || status.toLowerCase() === 'pending' || status.toLowerCase() === 'processing';
                 }).length;
                 
-                // 3. Determine RECENT Orders (Limited to 10 for the "Recent Orders" table display)
-                // Sort all orders by the sortDate (most recent first) and take the top 10
-                const sortedOrders = allOrders.sort((a, b) => b.sortDate - a.sortDate);
+                // 3. Determine RECENT Orders (Limited to 10 from the date-filtered set)
+                const sortedOrders = dateFilteredOrders.sort((a, b) => b.sortDate - a.sortDate);
                 const recentOrdersRaw = sortedOrders.slice(0, 10);
                 
                 const formatDate = (timestamp) => {
                     if (!timestamp) return 'N/A';
                     try {
-                        // Handle Firebase Timestamp objects
                         if (timestamp.toDate) {
                             return timestamp.toDate().toLocaleDateString('en-IN');
                         }
-                        // Handle Date objects or string dates
                         return new Date(timestamp).toLocaleDateString('en-IN');
                     } catch (e) {
                         return 'N/A';
@@ -414,7 +437,7 @@ function AdminDashboardContent() {
                 
                 const ordersList = recentOrdersRaw.map(order => ({
                     id: order.id,
-                    userId: order.userId || 'unknown_user', // CRITICAL: Include userId for routing
+                    userId: order.userId || 'unknown_user', 
                     name: order.customerInfo?.name || order.customer || 'Unknown Customer',
                     email: order.customerInfo?.email || order.email || 'N/A',
                     phone: order.customerInfo?.phone || order.phone || 'N/A',
@@ -424,7 +447,7 @@ function AdminDashboardContent() {
                     status: order.status || 'pending'
                 }));
                 
-                // 4. Fetch Total Products Count (Global)
+                // 4. Fetch Total Products Count (Global - Unfiltered)
                 let totalProducts = 0;
                 try {
                     const productsSnapshot = await getDocs(collection(db, 'products'));
@@ -436,9 +459,9 @@ function AdminDashboardContent() {
                 setDashboardData(prev => ({
                     ...prev,
                     totalCustomers,
-                    totalOrders,         // <-- Global total count from aggregation
-                    totalRevenue,        // <-- Global total revenue from aggregation
-                    pendingOrders,       // <-- Global pending count from aggregation
+                    totalOrders: totalOrdersFiltered,     // <-- Filtered total count
+                    totalRevenue: totalRevenueFiltered,   // <-- Filtered total revenue
+                    pendingOrders: pendingOrdersFiltered, // <-- Filtered pending count
                     totalProducts,
                     recentOrders: ordersList 
                 }));
@@ -455,9 +478,9 @@ function AdminDashboardContent() {
         fetchDashboardData();
         const timer = setTimeout(() => setIsLoading(false), 1000);
         return () => clearTimeout(timer);
-    }, []);
+    }, [filterPeriod]); // <-- CRITICAL: Rerun fetch when filterPeriod changes
 
-    // Filter orders based on search term
+    // Filter orders based on search term (Unchanged, now filters the already date-filtered list)
     useEffect(() => {
         if (searchTerm.trim() === '') {
             setFilteredOrders(dashboardData.recentOrders);
@@ -478,7 +501,7 @@ function AdminDashboardContent() {
     return (
         <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-blue-50/30 font-sans antialiased">
             <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 lg:py-8 space-y-8">
-                {/* Header */}
+                {/* Header (Unchanged) */}
                 <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6">
                     <div className="flex-1">
                         <div className="flex items-center space-x-3 mb-2">
@@ -489,7 +512,11 @@ function AdminDashboardContent() {
                                 Dashboard Overview (Global)
                             </h1>
                         </div>
-                        <p className="text-gray-600 max-w-2xl">Data aggregated from all `users/{'{'}userId{'}'}/orders` subcollections for accurate global statistics.</p>
+                        <p className="text-gray-600 max-w-2xl">
+                            Statistics for the selected period: <span className="font-semibold text-purple-600">
+                                {filterPeriod === 'all' ? 'All Time' : filterPeriod === '7days' ? 'Last 7 Days' : 'Last 30 Days'}
+                            </span>
+                        </p>
                     </div>
                     
                     <div className="flex items-center space-x-3">
@@ -500,7 +527,7 @@ function AdminDashboardContent() {
                     </div>
                 </div>
 
-                {/* Stats Grid - Counts are now GLOBAL (Aggregated) */}
+                {/* Stats Grid - Now shows FILTERED counts */}
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-6">
                     <StatCard 
                         title="TOTAL CUSTOMERS"
@@ -519,7 +546,7 @@ function AdminDashboardContent() {
                         trend="up"
                         percentage={dashboardData.orderGrowth}
                         loading={statsLoading}
-                        subtitle="Aggregated from all user subcollections"
+                        subtitle={`Orders in selected range`} // Updated subtitle
                         color="green"
                     />
                     <StatCard 
@@ -530,7 +557,7 @@ function AdminDashboardContent() {
                         percentage={dashboardData.revenueGrowth}
                         loading={statsLoading}
                         isCurrency={true}
-                        subtitle="Aggregated from all user subcollections"
+                        subtitle={`Revenue in selected range`} // Updated subtitle
                         color="purple"
                     />
                     <StatCard 
@@ -540,7 +567,7 @@ function AdminDashboardContent() {
                         trend="down"
                         percentage={-5.2}
                         loading={statsLoading}
-                        subtitle="Aggregated Pending Orders"
+                        subtitle={`Pending in selected range`} // Updated subtitle
                         color="orange"
                     />
                     <StatCard 
@@ -555,7 +582,7 @@ function AdminDashboardContent() {
                     />
                 </div>
 
-                {/* Quick Actions - Enhanced */}
+                {/* Quick Actions (Unchanged) */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                     <Link 
                         to="/orders/all" 
@@ -611,11 +638,12 @@ function AdminDashboardContent() {
                     <div className="p-6 border-b border-gray-100">
                         <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
                             <div>
-                                <h2 className="text-xl font-bold text-gray-800">Recent Orders (Top 10 Global)</h2>
-                                <p className="text-sm text-gray-500">Latest customer orders from all users, sorted by date</p>
+                                <h2 className="text-xl font-bold text-gray-800">Recent Orders (Top 10)</h2>
+                                <p className="text-sm text-gray-500">Latest orders from the selected time period</p>
                             </div>
                             
                             <div className="flex flex-col sm:flex-row gap-3 w-full lg:w-auto">
+                                {/* Search Input */}
                                 <div className="relative flex-1 sm:flex-none">
                                     <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
                                     <input
@@ -627,15 +655,21 @@ function AdminDashboardContent() {
                                     />
                                 </div>
                                 
-                                <button className="px-4 py-2.5 border border-gray-200 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors flex items-center justify-center space-x-2 hover:shadow">
-                                    <Filter className="w-4 h-4" />
-                                    <span>Filter</span>
-                                </button>
+                                {/* 👇 FIX: Date-Wise Selection Dropdown */}
+                                <select
+                                    value={filterPeriod}
+                                    onChange={(e) => setFilterPeriod(e.target.value)}
+                                    className="px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors focus:ring-2 focus:ring-purple-500 focus:border-transparent font-medium w-full sm:w-auto"
+                                >
+                                    <option value="all">All Time</option>
+                                    <option value="30days">Last 30 Days</option>
+                                    <option value="7days">Last 7 Days</option>
+                                </select>
                                 
-                                <button className="px-4 py-2.5 bg-gradient-to-r from-gray-900 to-gray-700 text-white rounded-lg hover:from-gray-800 hover:to-gray-600 transition-all duration-200 shadow-md hover:shadow-lg transform hover:-translate-y-0.5 flex items-center justify-center space-x-2">
+                                {/* <button className="px-4 py-2.5 bg-gradient-to-r from-gray-900 to-gray-700 text-white rounded-lg hover:from-gray-800 hover:to-gray-600 transition-all duration-200 shadow-md hover:shadow-lg transform hover:-translate-y-0.5 flex items-center justify-center space-x-2">
                                     <Download className="w-4 h-4" />
                                     <span>Export</span>
-                                </button>
+                                </button> */}
                             </div>
                         </div>
                     </div>
@@ -664,7 +698,7 @@ function AdminDashboardContent() {
                                                 <p className="text-gray-500 max-w-md mx-auto">
                                                     {searchTerm 
                                                         ? 'No orders match your search. Try different keywords.'
-                                                        : 'All caught up! No recent orders to display.'
+                                                        : `No orders found for the selected period (${filterPeriod}).`
                                                     }
                                                 </p>
                                             </div>
@@ -683,7 +717,7 @@ function AdminDashboardContent() {
                         <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
                             <div className="text-sm text-gray-600">
                                 Showing <span className="font-bold text-gray-800">{filteredOrders.length}</span> of{' '}
-                                <span className="font-bold text-gray-800">{dashboardData.totalOrders}</span> total orders
+                                <span className="font-bold text-gray-800">{dashboardData.totalOrders}</span> total orders in this period
                             </div>
                             <div className="flex items-center space-x-3">
                                 {searchTerm && (

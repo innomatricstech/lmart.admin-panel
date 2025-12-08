@@ -11,7 +11,6 @@ import {
     FiPlus,
     FiLoader,
     FiAlertTriangle,
-    // Removed FiEye, FiEdit2, FiX
 } from 'react-icons/fi';
 
 import { 
@@ -41,6 +40,7 @@ const formatDate = (dateValue) => {
     // 2. Handle the custom "dd/mm/yyyy" string format (for the 'date' field)
     if (typeof dateValue === 'string' && dateValue.match(/^\d{2}\/\d{2}\/\d{4}$/)) {
         const parts = dateValue.split('/');
+        // Note: Month is 0-indexed in Date constructor, so parts[1] - 1 is correct
         const day = parseInt(parts[0], 10);
         const month = parseInt(parts[1], 10) - 1; 
         const year = parseInt(parts[2], 10);
@@ -75,7 +75,6 @@ const ViewNews = () => {
     
     const [searchTerm, setSearchTerm] = useState('');
     const [filterSubcategory, setFilterSubcategory] = useState('');
-    // Removed selectedNews state
     const [newsData, setNewsData] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
@@ -85,6 +84,7 @@ const ViewNews = () => {
     // ----------------------------------------------------
     useEffect(() => {
         const newsCollectionRef = collection(db, "news");
+        // Sort by the 'createdAt' field in descending order to show latest first
         const newsQuery = query(newsCollectionRef, orderBy("createdAt", "desc"));
 
         const unsubscribe = onSnapshot(
@@ -141,7 +141,6 @@ const ViewNews = () => {
     // ----------------------------------------------------
     // 4. HANDLERS
     // ----------------------------------------------------
-    // Removed handleViewDetails and handleEdit
     
     const handleDelete = async (news) => {
         if (window.confirm(`Are you sure you want to delete "${news.title}"? This action cannot be undone.`)) {
@@ -157,7 +156,7 @@ const ViewNews = () => {
     };
     
     const handleAddNews = () => {
-        navigate('/products/news/add'); 
+        navigate('/news/add'); 
     };
 
     // ----------------------------------------------------
@@ -172,23 +171,21 @@ const ViewNews = () => {
                         <FiFileText className="w-8 h-8 text-white" />
                     </div>
                     <h1 className="text-4xl font-bold bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent mb-2">
-                        View News
+                        News Management Dashboard 🗞️
                     </h1>
-                    <p className="text-gray-600 text-lg">Manage and view all news articles</p>
+                    <p className="text-gray-600 text-lg">Manage and view all news articles with real-time updates.</p>
                 </div>
 
                 {/* Main Content Card */}
-                <div className="bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden">
+                <div className="bg-white rounded-2xl shadow-2xl border border-gray-100 overflow-hidden">
                     
-                    {/* Removed News Details Panel */}
-
                     {/* News List Section */}
                     <div className="p-8">
                         <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-6 space-y-4 lg:space-y-0">
                             <h3 className="text-2xl font-semibold text-gray-800 flex items-center">
                                 <FiFileText className="w-6 h-6 mr-3 text-purple-600" />
                                 News Articles
-                                <span className="ml-3 bg-purple-100 text-purple-800 px-3 py-1 rounded-full text-sm font-medium">
+                                <span className="ml-3 bg-purple-100 text-purple-800 px-3 py-1 rounded-full text-sm font-medium border border-purple-200">
                                     {loading ? '...' : `${filteredNews.length} articles`}
                                 </span>
                             </h3>
@@ -199,10 +196,10 @@ const ViewNews = () => {
                                     <FiSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
                                     <input
                                         type="text"
-                                        placeholder="Search news..."
+                                        placeholder="Search title or excerpt..."
                                         value={searchTerm}
                                         onChange={(e) => setSearchTerm(e.target.value)}
-                                        className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 w-full sm:w-64"
+                                        className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 w-full sm:w-64 transition-shadow"
                                     />
                                 </div>
 
@@ -212,20 +209,23 @@ const ViewNews = () => {
                                     <select
                                         value={filterSubcategory}
                                         onChange={(e) => setFilterSubcategory(e.target.value)}
-                                        className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 w-full sm:w-48 appearance-none bg-white"
+                                        className="pl-10 pr-8 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 w-full sm:w-48 appearance-none bg-white cursor-pointer transition-shadow"
                                         disabled={loading}
                                     >
-                                        <option value="">All Subcategories</option>
+                                        <option value="">All Categories</option>
                                         {subcategories.map((subcat) => (
                                             <option key={subcat} value={subcat}>{subcat}</option>
                                         ))}
                                     </select>
+                                    <span className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none text-gray-400">
+                                        ▼
+                                    </span>
                                 </div>
 
                                 {/* Add News Button */}
                                 <button 
                                     onClick={handleAddNews}
-                                    className="flex items-center space-x-2 bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg transition-colors duration-200"
+                                    className="flex items-center justify-center space-x-2 bg-green-500 hover:bg-green-600 active:bg-green-700 text-white px-4 py-2 rounded-lg transition-all duration-200 shadow-md hover:shadow-lg"
                                 >
                                     <FiPlus className="w-4 h-4" />
                                     <span>Add News</span>
@@ -234,48 +234,48 @@ const ViewNews = () => {
                         </div>
 
                         {/* News Table */}
-                        <div className="bg-gray-50 rounded-xl overflow-hidden border border-gray-200">
+                        <div className="bg-white rounded-xl overflow-hidden border border-gray-200 shadow-md">
                             <div className="overflow-x-auto">
                                 <table className="w-full">
-                                    <thead className="bg-gradient-to-r from-gray-100 to-gray-200">
+                                    <thead className="bg-gray-100 border-b border-gray-200">
                                         <tr>
-                                            <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700 uppercase tracking-wider">
-                                                TITLE
+                                            <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider min-w-80">
+                                                ARTICLE DETAILS
                                             </th>
-                                            <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700 uppercase tracking-wider">
+                                            <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider min-w-36">
                                                 SUBCATEGORY
                                             </th>
-                                            <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700 uppercase tracking-wider">
-                                                DATE
+                                            <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider min-w-32">
+                                                PUBLICATION DATE
                                             </th>
-                                            <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700 uppercase tracking-wider">
+                                            <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider min-w-28">
                                                 ACTION
                                             </th>
                                         </tr>
                                     </thead>
-                                    <tbody className="bg-white divide-y divide-gray-200">
+                                    <tbody className="divide-y divide-gray-100">
                                         {loading ? (
                                             <tr>
                                                 <td colSpan="4" className="px-6 py-12 text-center text-gray-500">
-                                                    <FiLoader className="w-6 h-6 mx-auto mb-4 text-purple-500 animate-spin" />
-                                                    <p className="text-lg">Loading news articles...</p>
+                                                    <FiLoader className="w-8 h-8 mx-auto mb-4 text-purple-500 animate-spin" />
+                                                    <p className="text-xl font-medium">Fetching articles from the cosmos...</p>
                                                 </td>
                                             </tr>
                                         ) : error && filteredNews.length === 0 ? (
                                             <tr>
-                                                <td colSpan="4" className="px-6 py-12 text-center text-red-500 bg-red-50">
-                                                    <FiAlertTriangle className="w-8 h-8 mx-auto mb-4 text-red-400" />
-                                                    <p className="text-lg font-semibold">{error}</p>
-                                                    <p className="text-sm mt-1 text-red-600">Please check your Firebase connection and security rules.</p>
+                                                <td colSpan="4" className="px-6 py-12 text-center text-red-700 bg-red-50">
+                                                    <FiAlertTriangle className="w-8 h-8 mx-auto mb-4 text-red-500" />
+                                                    <p className="text-xl font-bold">{error}</p>
+                                                    <p className="text-sm mt-1 text-red-600">Please verify your database connection or try adding an article.</p>
                                                 </td>
                                             </tr>
                                         ) : filteredNews.length === 0 ? (
                                             <tr>
                                                 <td colSpan="4" className="px-6 py-12 text-center text-gray-500">
                                                     <FiFileText className="w-12 h-12 mx-auto mb-4 text-gray-300" />
-                                                    <p className="text-lg">No news articles found</p>
+                                                    <p className="text-xl font-medium">No articles match your criteria.</p>
                                                     <p className="text-sm mt-1">
-                                                        {searchTerm || filterSubcategory ? "Try adjusting your search or filter" : "Start by adding your first news article"}
+                                                        {searchTerm || filterSubcategory ? "Clear your search/filter to see all articles." : "Start by adding your first news article."}
                                                     </p>
                                                 </td>
                                             </tr>
@@ -283,45 +283,52 @@ const ViewNews = () => {
                                             filteredNews.map((news) => (
                                                 <tr 
                                                     key={news.id} 
-                                                    className="hover:bg-gray-50 transition-colors duration-150"
+                                                    className="group hover:bg-purple-50 transition-colors duration-150"
                                                 >
+                                                    {/* ARTICLE DETAILS (Title and Excerpt) - Made more attractive */}
                                                     <td className="px-6 py-4">
-                                                        <div className="flex items-center">
-                                                            <div className="w-2 h-2 bg-blue-500 rounded-full mr-3"></div>
+                                                        <div className="flex items-start">
+                                                            <div className="w-3 h-3 bg-blue-500 rounded-full mt-2 mr-3 flex-shrink-0"></div>
                                                             <div>
-                                                                <div className="font-semibold text-gray-800 text-sm">
-                                                                    {news.title}
+                                                                {/* Increased Title prominence */}
+                                                                <div className="text-lg text-gray-900 group-hover:text-purple-700 transition-colors">
+                                                                    {news.title || "Untitled Article"}
                                                                 </div>
-                                                                <div className="text-gray-500 text-xs mt-1 line-clamp-1">
-                                                                    {news.excerpt}
+                                                                {/* Focused on Excerpt for description - made it italic and softer color */}
+                                                                <div className="text-gray-500 text-sm italic mt-1 line-clamp-2 max-w-lg">
+                                                                    {news.excerpt || "No excerpt available for this article."}
                                                                 </div>
                                                             </div>
                                                         </div>
                                                     </td>
+                                                    {/* SUBCATEGORY */}
                                                     <td className="px-6 py-4 whitespace-nowrap">
-                                                        <span className="inline-flex items-center px-3 py-1 bg-purple-100 text-purple-800 rounded-full text-sm font-medium">
-                                                            <FiTag className="w-3 h-3 mr-1" />
-                                                            {news.subcategory}
+                                                        <span className="inline-flex items-center px-4 py-1.5 bg-purple-100 text-purple-800 rounded-full text-sm font-semibold border border-purple-300 shadow-sm">
+                                                            <FiTag className="w-3.5 h-3.5 mr-1.5" />
+                                                            {news.subcategory || "N/A"}
                                                         </span>
                                                     </td>
+                                                    {/* DATE */}
                                                     <td className="px-6 py-4 whitespace-nowrap">
                                                         <div className="flex items-center text-gray-600">
                                                             <FiCalendar className="w-4 h-4 mr-2 text-green-500" />
-                                                            <span className="text-sm font-medium">{formatDate(news.date)}</span>
+                                                            <span className="text-sm font-medium text-gray-700">
+                                                                {formatDate(news.date)}
+                                                            </span>
                                                         </div>
                                                     </td>
+                                                    {/* ACTION */}
                                                     <td className="px-6 py-4 whitespace-nowrap">
                                                         <div className="flex space-x-2">
-                                                            {/* Only Delete Button remains */}
                                                             <button
                                                                 onClick={(e) => {
                                                                     e.stopPropagation();
                                                                     handleDelete(news);
                                                                 }}
-                                                                className="flex items-center space-x-1 bg-red-50 text-red-600 hover:bg-red-100 px-3 py-2 rounded-lg transition-colors duration-200"
+                                                                className="flex items-center space-x-1 bg-red-100 text-red-600 hover:bg-red-200 active:bg-red-300 px-3 py-2 rounded-lg transition-all duration-150 border border-red-200 shadow-sm text-sm font-medium"
                                                             >
-                                                                <FiTrash2 className="w-3 h-3" />
-                                                                <span className="text-sm font-medium">Delete</span>
+                                                                <FiTrash2 className="w-4 h-4" />
+                                                                <span>Delete</span>
                                                             </button>
                                                         </div>
                                                     </td>

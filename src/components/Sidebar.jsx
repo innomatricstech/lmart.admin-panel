@@ -5,7 +5,7 @@ import { NavLink, Link, useLocation } from "react-router-dom";
 import {
   FiBarChart2, FiUsers, FiShoppingBag, FiArchive, FiDollarSign,
   FiBox, FiFileText, FiImage, FiMenu, FiPackage, FiClock,
-  FiUploadCloud, FiLogOut, FiChevronUp, FiBell, FiX, FiUserPlus 
+  FiUploadCloud, FiLogOut, FiChevronUp, FiBell, FiX, FiUserPlus, FiRss
 } from "react-icons/fi";
 
 const PRIMARY_RED = "bg-gradient-to-r from-red-600 to-red-700";
@@ -49,7 +49,7 @@ export default function Sidebar({ onCloseSidebar, onLogout }) {
   const location = useLocation();
   const [openDropdown, setOpenDropdown] = useState(null);
 
-  // NEW: Logout confirmation modal
+  // Logout confirmation modal
   const [showConfirm, setShowConfirm] = useState(false);
 
   const toggleDropdown = (key) => {
@@ -81,34 +81,43 @@ export default function Sidebar({ onCloseSidebar, onLogout }) {
     { text: "Return Orders", icon: FiArchive, key: "Return Orders", path: "/return-orders" },
     { text: "Earnings", icon: FiDollarSign, key: "Earnings", path: "/earnings" },
 
+    // PRODUCTS MENU (Corrected)
     {
       text: "Products", icon: FiBox, key: "Products", path: "/products/view", hasDropdown: true,
       dropdownContent: [
         { text: "View Products", path: "/products/view" },
-        { text: "Manage Subcategories", path: "/products/subcategories" },
-        { text: "Manage Categories", path: "/products/categories" },
         { text: "Add Product", path: "/products/add" },
-        { text: "View News", path: "/products/news" },
-        { text: "Add News Today", path: "/products/news/add" },
+        { text: "Manage Categories", path: "/products/categories" },
+        { text: "Manage Subcategories", path: "/products/subcategories" },
+      ],
+    },
+
+    // NEWS MENU (Corrected + new parent path "/news")
+    {
+      text: "Market News",
+      icon: FiRss,
+      key: "News",
+      path: "/news",          // FIXED
+      hasDropdown: true,
+      dropdownContent: [
+        { text: "View Market News", path: "/news/view" },
+        { text: "Add News Today", path: "/news/add" },
       ],
     },
 
     { text: "Files", icon: FiFileText, key: "Files", path: "/files" },
     { text: "Posters", icon: FiImage, key: "Posters", path: "/posters" },
-    // { text: "Banner", icon: FiMenu, key: "Banner", path: "/banner" },
 
     {
       text: "Sellers", icon: FiPackage, key: "Sellers", path: "/sellers/all", hasDropdown: true,
       dropdownContent: [
         { text: "Sellers", path: "/sellers/all" },
         { text: "Delete Seller", path: "/sellers/delete" },
-        // { text: "Add Seller", path: "/sellers/add", icon: FiUserPlus },
       ],
     },
 
     { text: "Recent Orders", icon: FiClock, key: "Recent Orders", path: "/recent-orders" },
     { text: "Bulk Upload", icon: FiUploadCloud, key: "Bulk Upload", path: "/bulk-upload" },
-    { text: "Notifications", icon: FiBell, key: "Notifications", path: "/notifications" },
   ];
 
   return (
@@ -134,13 +143,19 @@ export default function Sidebar({ onCloseSidebar, onLogout }) {
         <nav className="flex-1 px-3 py-4 overflow-y-auto custom-scrollbar">
           {navigationItems.map((item) => {
             const isOpen = openDropdown === item.key;
+
+            // Improved parent active logic
             const parentActive =
               item.hasDropdown
-                ? location.pathname.startsWith(item.path.split("/").slice(0, 2).join("/"))
+                ? location.pathname.startsWith(item.path.split("/")[1] ? `/${item.path.split("/")[1]}` : item.path) ||
+                  item.dropdownContent.some(sub =>
+                    location.pathname.startsWith(sub.path.split("/")[1] ? `/${sub.path.split("/")[1]}` : sub.path)
+                  )
                 : location.pathname === item.path;
 
             return (
               <div key={item.key} className="mb-1">
+
                 <div className="flex items-center justify-between gap-2">
                   <NavLink
                     to={item.path || "#"}
@@ -150,7 +165,6 @@ export default function Sidebar({ onCloseSidebar, onLogout }) {
                       if (item.hasDropdown) {
                         toggleDropdown(item.key);
                         e.preventDefault();
-                        onCloseSidebar && onCloseSidebar();
                       } else {
                         onCloseSidebar && onCloseSidebar();
                       }
@@ -161,15 +175,21 @@ export default function Sidebar({ onCloseSidebar, onLogout }) {
                         <item.icon className={`w-5 h-5 mr-3 ${parentActive ? ACTIVE_ICON_COLOR : "text-gray-500"}`} />
                         <span>{item.text}</span>
                       </div>
+
                       {item.hasDropdown && (
-                        <FiChevronUp className={`w-4 h-4 transition-transform ${isOpen ? "rotate-0" : "rotate-180"} text-gray-600`} />
+                        <FiChevronUp
+                          className={`w-4 h-4 transition-transform ${
+                            isOpen ? "rotate-0" : "rotate-180"
+                          } text-gray-600`}
+                        />
                       )}
                     </SidebarLinkButton>
                   </NavLink>
                 </div>
 
+                {/* Dropdown */}
                 {item.hasDropdown && (
-                  <div className={`transition-all duration-300 ${isOpen ? "max-h-96 mt-2" : "max-h-0"} overflow-hidden`}>
+                  <div className={`transition-all duration-300 ${isOpen || parentActive ? "max-h-96 mt-2" : "max-h-0"} overflow-hidden`}>
                     <div className="pl-4 py-1 space-y-1 border-l-2 border-gray-200 ml-5">
                       {item.dropdownContent.map((sub) => {
                         const subActive = location.pathname === sub.path;
@@ -186,6 +206,7 @@ export default function Sidebar({ onCloseSidebar, onLogout }) {
                     </div>
                   </div>
                 )}
+
               </div>
             );
           })}
@@ -204,7 +225,7 @@ export default function Sidebar({ onCloseSidebar, onLogout }) {
 
       </aside>
 
-      {/* 🔥 Logout Confirmation Modal */}
+      {/* Logout Confirmation Modal */}
       {showConfirm && (
         <div className="fixed inset-0 flex items-center justify-center bg-black/40 backdrop-blur-sm z-[999]">
           <div className="bg-white rounded-xl shadow-2xl p-6 w-80 text-center">

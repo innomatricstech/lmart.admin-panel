@@ -2,7 +2,7 @@
 import { initializeApp } from "firebase/app";
 import { getAnalytics } from "firebase/analytics";
 // 1. Import the necessary function for Firestore
-import { getFirestore } from "firebase/firestore";
+import { getFirestore,Timestamp } from "firebase/firestore";
 // 4. ADD: Import the necessary function for Firebase Storage
 import { getStorage } from "firebase/storage";
 // 7. ADD: Import the necessary function for Firebase Authentication
@@ -37,3 +37,4 @@ const auth = getAuth(app);
 // 6. ADD: Export the 'storage' variable so it can be used in AddProduct.jsx
 // 8. ADD: Export the 'auth' variable so the user can be authenticated in components
 export { db, storage, auth };
+export { Timestamp };

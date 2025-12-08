@@ -11,7 +11,7 @@ import {
     Gift,
     ChevronDown,
     ChevronUp
-} from 'lucide-react'; 
+} from 'lucide-react';
 
 // Firebase
 import { db } from "../../firerbase";
@@ -22,7 +22,6 @@ import {
     query
 } from "firebase/firestore";
 
-// Helper for avatar color
 const getInitialColor = (name) => {
     if (!name) return "from-gray-500 to-gray-600";
     const hash = name.split("").reduce((acc, char) => acc + char.charCodeAt(0), 0);
@@ -47,9 +46,6 @@ const CustomerDirectory = () => {
     const [sortField, setSortField] = useState("customerId");
     const [sortDirection, setSortDirection] = useState("desc");
 
-    // ----------------------------------------------------------
-    // FETCH CUSTOMERS FROM /users
-    // ----------------------------------------------------------
     useEffect(() => {
         try {
             const q = query(
@@ -83,9 +79,6 @@ const CustomerDirectory = () => {
         }
     }, []);
 
-    // ----------------------------------------------------------
-    // SORTING
-    // ----------------------------------------------------------
     const handleSort = (field) => {
         if (sortField === field) {
             setSortDirection(sortDirection === "asc" ? "desc" : "asc");
@@ -95,9 +88,6 @@ const CustomerDirectory = () => {
         }
     };
 
-    // ----------------------------------------------------------
-    // FILTER & SORT
-    // ----------------------------------------------------------
     const filteredAndSortedCustomers = useMemo(() => {
         const s = searchTerm.toLowerCase();
         const filtered = customers.filter((customer) => {
@@ -127,7 +117,7 @@ const CustomerDirectory = () => {
             <div
                 className={`${className} rounded-full bg-gradient-to-br ${getInitialColor(
                     name
-                )} text-white flex items-center justify-center font-bold shadow-lg`}
+                )} text-white flex items-center justify-center font-bold`}
             >
                 {initial}
             </div>
@@ -165,211 +155,130 @@ const CustomerDirectory = () => {
         URL.revokeObjectURL(url);
     };
 
-    // ----------------------------------------------------------
-    // UI
-    // ----------------------------------------------------------
     return (
         <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
-            {/* Header */}
-            <header className="bg-white/80 backdrop-blur-lg border-b border-gray-200 p-6 shadow-sm sticky top-0 z-10">
-                <div className="max-w-7xl mx-auto">
-                    <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between">
-                        <div className="flex items-center mb-4 lg:mb-0">
-                            <div className="bg-gradient-to-br from-purple-500 to-indigo-600 p-3 rounded-2xl shadow-lg">
-                                <Users className="text-white w-8 h-8" />
-                            </div>
-                            <div className="ml-4">
-                                <h1 className="text-3xl font-bold bg-gradient-to-r from-purple-600 to-indigo-600 bg-clip-text text-transparent">
-                                    Customer Directory
-                                </h1>
-                                <p className="text-gray-600 text-sm mt-1">
-                                    Manage and explore your customer database
-                                </p>
-                            </div>
+
+            {/* Sticky Header */}
+            <header className="bg-white/80 backdrop-blur-lg border-b border-gray-200 p-6 shadow-sm sticky top-0 z-20">
+                <div className="max-w-7xl mx-auto flex flex-col lg:flex-row justify-between items-center">
+                    <div className="flex items-center">
+                        <div className="bg-gradient-to-br from-purple-500 to-indigo-600 p-3 rounded-2xl shadow-lg">
+                            <Users className="text-white w-8 h-8" />
+                        </div>
+                        <div className="ml-4">
+                            <h1 className="text-3xl font-bold bg-gradient-to-r from-purple-600 to-indigo-600 bg-clip-text text-transparent">
+                                Customer Directory
+                            </h1>
+                            <p className="text-gray-600 text-sm mt-1">
+                                Manage and explore your customer database
+                            </p>
+                        </div>
+                    </div>
+
+                    <div className="flex gap-3 mt-4 lg:mt-0">
+                        <div className="relative">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
+                            <input
+                                className="pl-10 pr-4 py-3 border border-gray-300 rounded-xl w-72"
+                                placeholder="Search..."
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                            />
                         </div>
 
-                        <div className="flex flex-col sm:flex-row gap-3">
-                            <div className="relative flex-1 min-w-[280px]">
-                                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-                                <input
-                                    className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200 bg-white/80 backdrop-blur-sm"
-                                    placeholder="Search by name, email, phone..."
-                                    value={searchTerm}
-                                    onChange={(e) => setSearchTerm(e.target.value)}
-                                />
-                            </div>
-                            
-                            <button
-                                onClick={exportToCSV}
-                                className="flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-xl hover:from-green-600 hover:to-emerald-700 transition-all duration-200 shadow-lg hover:shadow-xl font-medium"
-                            >
-                                <Download className="w-5 h-5" />
-                                Export CSV
-                            </button>
-                        </div>
+                        <button
+                            onClick={exportToCSV}
+                            className="flex items-center gap-2 px-4 py-3 bg-green-500 text-white rounded-xl"
+                        >
+                            <Download className="w-5 h-5" />
+                            Export CSV
+                        </button>
                     </div>
                 </div>
             </header>
 
             {/* Main Content */}
             <main className="max-w-7xl mx-auto p-6">
-                {/* Stats Cards */}
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-                    <div className="bg-white rounded-2xl p-6 shadow-lg border border-gray-100">
-                        <div className="flex items-center">
-                            <div className="bg-blue-100 p-3 rounded-xl">
-                                <Users className="w-6 h-6 text-blue-600" />
-                            </div>
-                            <div className="ml-4">
-                                <p className="text-sm text-gray-600">Total Customers</p>
-                                <p className="text-2xl font-bold text-gray-900">{customers.length}</p>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div className="bg-white rounded-2xl p-6 shadow-lg border border-gray-100">
-                        <div className="flex items-center">
-                            <div className="bg-green-100 p-3 rounded-xl">
-                                <Mail className="w-6 h-6 text-green-600" />
-                            </div>
-                            <div className="ml-4">
-                                <p className="text-sm text-gray-600">Filtered Results</p>
-                                <p className="text-2xl font-bold text-gray-900">{filteredAndSortedCustomers.length}</p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
 
-                {/* Customer Table */}
-                <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-200 overflow-hidden">
-                    {loading && (
-                        <div className="p-12 text-center">
-                            <div className="inline-flex items-center justify-center p-4 bg-gradient-to-r from-purple-500 to-indigo-600 rounded-2xl shadow-lg">
-                                <Loader className="w-8 h-8 text-white animate-spin" />
+                {/* Table Container */}
+                <div className="bg-white rounded-2xl shadow-xl border border-gray-200 overflow-hidden">
+
+                    {/* SCROLL FIX APPLIED HERE */}
+                    <div className="overflow-auto max-h-[calc(100vh-260px)]">
+
+                        {loading ? (
+                            <div className="p-12 text-center">
+                                <Loader className="w-8 h-8 animate-spin mx-auto" />
+                                <p className="mt-4 text-gray-600">Loading customers...</p>
                             </div>
-                            <p className="mt-4 text-gray-600 font-medium">Loading customer data...</p>
-                        </div>
-                    )}
-
-                    {error && (
-                        <div className="p-8 text-center bg-red-50 border-b border-red-200">
-                            <div className="inline-flex items-center justify-center p-3 bg-red-100 rounded-xl mb-4">
-                                <AlertTriangle className="w-8 h-8 text-red-600" />
+                        ) : error ? (
+                            <div className="p-8 text-center bg-red-50 text-red-800">
+                                {error}
                             </div>
-                            <h3 className="text-lg font-semibold text-red-800 mb-2">Unable to load customers</h3>
-                            <p className="text-red-600 max-w-md mx-auto">{error}</p>
-                        </div>
-                    )}
-
-                    {!loading && !error && filteredAndSortedCustomers.length === 0 && (
-                        <div className="p-12 text-center">
-                            <div className="inline-flex items-center justify-center p-4 bg-gray-100 rounded-2xl mb-4">
-                                <Users className="w-8 h-8 text-gray-400" />
+                        ) : filteredAndSortedCustomers.length === 0 ? (
+                            <div className="p-12 text-center text-gray-500">
+                                No customers found
                             </div>
-                            <h3 className="text-lg font-semibold text-gray-700 mb-2">No customers found</h3>
-                            <p className="text-gray-500 max-w-md mx-auto">
-                                {searchTerm ? "Try adjusting your search terms" : "No customers in the database yet"}
-                            </p>
-                        </div>
-                    )}
-
-                    {!loading && !error && filteredAndSortedCustomers.length > 0 && (
-                        <div className="overflow-hidden">
-                            <div className="overflow-x-auto">
-                                <table className="w-full">
-                                    <thead>
-                                        <tr className="bg-gradient-to-r from-gray-50 to-gray-100 border-b border-gray-200">
-                                            {[
-                                                { key: "name", label: "Customer", icon: Users },
-                                                { key: "email", label: "Email", icon: Mail },
-                                                { key: "contactNo", label: "Contact", icon: Phone },
-                                                { key: "customerId", label: "Customer ID", icon: IdCard },
-                                                { key: "referralCode", label: "Referral", icon: Gift }
-                                            ].map(({ key, label, icon: Icon }) => (
-                                                <th 
-                                                    key={key}
-                                                    className="p-4 text-left text-sm font-semibold text-gray-700 cursor-pointer hover:bg-gray-200/50 transition-colors duration-150 group"
-                                                    onClick={() => handleSort(key)}
-                                                >
-                                                    <div className="flex items-center gap-2">
-                                                        <Icon className="w-4 h-4 text-gray-500" />
-                                                        <span>{label}</span>
-                                                        <SortIcon field={key} />
-                                                    </div>
-                                                </th>
-                                            ))}
-                                        </tr>
-                                    </thead>
-
-                                    <tbody className="divide-y divide-gray-100">
-                                        {filteredAndSortedCustomers.map((customer, index) => (
-                                            <tr 
-                                                key={customer.id}
-                                                className="hover:bg-gradient-to-r hover:from-purple-50/50 hover:to-indigo-50/50 transition-all duration-200 group cursor-pointer"
+                        ) : (
+                            <table className="w-full">
+                                <thead className="bg-gray-50 border-b border-gray-200">
+                                    <tr>
+                                        {[
+                                            { key: "name", label: "Customer", icon: Users },
+                                            { key: "email", label: "Email", icon: Mail },
+                                            { key: "contactNo", label: "Contact", icon: Phone },
+                                            { key: "customerId", label: "Customer ID", icon: IdCard },
+                                            { key: "referralCode", label: "Referral", icon: Gift }
+                                        ].map(({ key, label, icon: Icon }) => (
+                                            <th 
+                                                key={key}
+                                                className="p-4 text-left text-sm font-semibold cursor-pointer"
+                                                onClick={() => handleSort(key)}
                                             >
-                                                <td className="p-4">
-                                                    <div className="flex items-center">
-                                                        <CustomerAvatar name={customer.name} />
-                                                        <div className="ml-3">
-                                                            <p className="font-semibold text-gray-900 group-hover:text-purple-700 transition-colors">
-                                                                {customer.name || "Unknown"}
-                                                            </p>
-                                                        </div>
-                                                    </div>
-                                                </td>
-                                                <td className="p-4">
-                                                    <div className="flex items-center text-gray-700">
-                                                        <Mail className="w-4 h-4 mr-2 text-gray-400" />
-                                                        {customer.email || "—"}
-                                                    </div>
-                                                </td>
-                                                <td className="p-4">
-                                                    <div className="flex items-center text-gray-700">
-                                                        <Phone className="w-4 h-4 mr-2 text-gray-400" />
-                                                        {customer.contactNo || "—"}
-                                                    </div>
-                                                </td>
-                                                <td className="p-4">
-                                                    <div className="flex items-center">
-                                                        <IdCard className="w-4 h-4 mr-2 text-gray-400" />
-                                                        <span className="font-mono text-sm bg-gray-100 px-2 py-1 rounded-lg text-gray-800">
-                                                            {customer.customerId || "—"}
-                                                        </span>
-                                                    </div>
-                                                </td>
-                                                <td className="p-4">
-                                                    <div className="flex items-center">
-                                                        <Gift className="w-4 h-4 mr-2 text-gray-400" />
-                                                        {customer.referralCode ? (
-                                                            <span className="bg-gradient-to-r from-green-100 to-emerald-100 text-green-800 px-3 py-1 rounded-full text-sm font-medium border border-green-200">
-                                                                {customer.referralCode}
-                                                            </span>
-                                                        ) : (
-                                                            <span className="text-gray-400">—</span>
-                                                        )}
-                                                    </div>
-                                                </td>
-                                            </tr>
+                                                <div className="flex items-center gap-2">
+                                                    <Icon className="w-4 h-4 text-gray-500" />
+                                                    <span>{label}</span>
+                                                    <SortIcon field={key} />
+                                                </div>
+                                            </th>
                                         ))}
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
-                    )}
+                                    </tr>
+                                </thead>
+
+                                <tbody className="divide-y divide-gray-100">
+                                    {filteredAndSortedCustomers.map((customer) => (
+                                        <tr key={customer.id} className="hover:bg-gray-50">
+                                            <td className="p-4">
+                                                <div className="flex items-center">
+                                                    <CustomerAvatar name={customer.name} />
+                                                    <span className="ml-3">{customer.name}</span>
+                                                </div>
+                                            </td>
+
+                                            <td className="p-4">{customer.email || "—"}</td>
+                                            <td className="p-4">{customer.contactNo || "—"}</td>
+
+                                            <td className="p-4">
+                                                <span className="bg-gray-100 px-2 py-1 rounded">
+                                                    {customer.customerId}
+                                                </span>
+                                            </td>
+
+                                            <td className="p-4">
+                                                {customer.referralCode ? (
+                                                    <span className="bg-green-100 text-green-800 px-3 py-1 rounded-full">
+                                                        {customer.referralCode}
+                                                    </span>
+                                                ) : "—"}
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        )}
+                    </div>
                 </div>
 
-                {/* Footer Info */}
-                {!loading && !error && filteredAndSortedCustomers.length > 0 && (
-                    <div className="mt-6 text-center">
-                        <p className="text-gray-500 text-sm">
-                            Showing <span className="font-semibold text-gray-700">{filteredAndSortedCustomers.length}</span> of{" "}
-                            <span className="font-semibold text-gray-700">{customers.length}</span> customers
-                            {searchTerm && (
-                                <span> for "<span className="font-semibold text-gray-700">{searchTerm}</span>"</span>
-                            )}
-                        </p>
-                    </div>
-                )}
             </main>
         </div>
     );

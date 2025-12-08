@@ -1,25 +1,48 @@
-// FilesPage.jsx
-import React, { useState } from 'react';
+// FileDashboard.jsx
+import React, { useState, useEffect, useRef } from 'react';
+// 🛑 IMPORTANT: Update path to your Firebase config file
+import { db, storage } from '../../firerbase'; 
 import { 
-  FiFileText, 
-  FiDownload, 
-  FiUploadCloud, 
-  FiDelete, 
-  FiImage, 
-  FiFile, 
-  FiSearch // <--- FIX: Added FiSearch
+  collection, getDocs, updateDoc, doc, arrayUnion, arrayRemove, getDoc, setDoc 
+} from 'firebase/firestore'; 
+import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
+import { v4 as uuidv4 } from 'uuid';
+import { 
+  FiFileText, FiDownload, FiUploadCloud, FiDelete, FiSearch, FiXCircle, 
+  FiAlertTriangle, FiLoader, FiEye, FiUser, FiImage, FiFile 
 } from 'react-icons/fi';
 
-// --- Sample Data for Files Table ---
-const initialFilesData = [
-  { id: 1, name: 'Generated Image September 28, 2025 - 6.47PM.png', type: 'PNG', size: '1.64 MB', downloads: 0, uploaded: '5/11/2025' },
-  { id: 2, name: 'Q3_Sales_Report.pdf', type: 'PDF', size: '3.1 MB', downloads: 15, uploaded: '1/11/2025' },
-  { id: 3, name: 'Website_Backup_10-25.zip', type: 'ZIP', size: '234 MB', downloads: 5, uploaded: '25/10/2025' },
-  { id: 4, name: 'Product_Catalog_2026.xlsx', type: 'XLSX', size: '5.2 MB', downloads: 8, uploaded: '15/10/2025' },
-  { id: 5, name: 'Dashboard_Mockup.jpg', type: 'JPG', size: '0.8 MB', downloads: 3, uploaded: '10/10/2025' },
-];
+// --- UTILITY FUNCTIONS EMBEDDED HERE (No external import needed) ---
 
-// Component for the file stats summary cards
+/**
+ * Gets a React Icon component based on file type.
+ */
+const getFileIcon = (fileType) => {
+  const type = (fileType || '').toLowerCase();
+   
+  if (type.includes('image') || type.includes('png') || type.includes('jpg') || type.includes('jpeg')) {
+   return <FiImage className="w-5 h-5 text-purple-600" />;
+  } else if (type.includes('pdf')) {
+   return <FiFileText className="w-5 h-5 text-red-600" />;
+  } else {
+    return <FiFile className="w-5 h-5 text-gray-600" />;
+  }
+};
+
+/**
+ * Formats file size in bytes into a human-readable string (KB, MB, GB).
+ */
+const formatBytes = (bytes, decimals = 2) => {
+    if (bytes === 0 || bytes === null || typeof bytes !== 'number') return '0 Bytes';
+    const k = 1024;
+    const dm = decimals < 0 ? 0 : decimals;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
+};
+// --- END EMBEDDED UTILITY FUNCTIONS ---
+
+// --- UTILITY COMPONENTS ---
 const StatCard = ({ title, value, icon: Icon, bgColor, iconColor }) => (
   <div className={`p-4 rounded-xl shadow-lg flex items-center justify-between h-24 ${bgColor}`}>
     <div className="flex flex-col">
@@ -29,193 +52,297 @@ const StatCard = ({ title, value, icon: Icon, bgColor, iconColor }) => (
     <Icon className={`w-8 h-8 ${iconColor}`} />
   </div>
 );
+// --------------------------------------------------------
 
-// Helper to determine icon based on file type
-const getFileIcon = (fileType) => {
-  switch (fileType.toLowerCase()) {
-    case 'png':
-    case 'jpg':
-    case 'jpeg':
-      return <FiImage className="w-5 h-5 text-purple-600" />;
-    case 'pdf':
-      return <FiFileText className="w-5 h-5 text-red-600" />;
-    default:
-      return <FiFile className="w-5 h-5 text-gray-600" />;
-  }
-};
-
-export default function FilesPage() {
-  const [files, setFiles] = useState(initialFilesData);
+// Assuming this is the component you referred to as 'FilesPage.jsx' in your App.jsx routes
+export default function FileDashboard({ onSelectUser }) { 
+  const [files, setFiles] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
+  const [isLoading, setIsLoading] = useState(true);
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState(null);
+  const [error, setError] = useState(null);
 
-  // Simple hardcoded stats for the cards, matching the screenshot's look
+  // 🔑 Placeholder: Replace with the actual logged-in user's ID
+  const currentUserId = 'USER_LOGGED_IN_12345'; 
+
+  const fileInputRef = useRef(null);
+
+  // --- Fetch All Files (Admin/Dashboard View) ---
+  const fetchFiles = async () => {
+    try {
+      setIsLoading(true);
+      const filesCollectionRef = collection(db, 'uploadfile'); 
+      const filesSnapshot = await getDocs(filesCollectionRef);
+      
+      const filesList = [];
+      
+      filesSnapshot.docs.forEach(doc => {
+          const data = doc.data();
+          const parentDocId = doc.id; 
+          
+          if (Array.isArray(data.files)) {
+              data.files.forEach((file, index) => {
+                  const uploadedDate = file.uploadedAt && file.uploadedAt.toDate 
+                      ? file.uploadedAt.toDate().toLocaleDateString() 
+                      : 'N/A';
+
+                  filesList.push({
+                      id: file.fileId || parentDocId + '-' + index, 
+                      name: file.originalName || 'Unknown File',
+                      type: file.fileType || 'N/A',
+                      size: file.fileSize || 0, 
+                      downloads: file.downloads || 0, 
+                      uploaded: uploadedDate,
+                      uploadDocId: parentDocId, 
+                      storagePath: file.storagePath,
+                      downloadURL: file.downloadURL,
+                  });
+              });
+          }
+      });
+
+      setFiles(filesList);
+      setError(null);
+    } catch (err) {
+      console.error("Firebase Fetch Error:", err);
+      setError(`Failed to fetch files. Error: ${err.message}`);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchFiles();
+  }, []); 
+
+  // --- UPLOAD HANDLER ---
+  const handleFileUpload = async (event) => {
+    const file = event.target.files[0];
+    if (!file || !currentUserId) {
+        setUploadError("Missing file or user ID. Cannot upload.");
+        return;
+    }
+
+    setUploading(true);
+    setUploadError(null);
+    const uniqueFileId = uuidv4();
+    const storageRef = ref(storage, `uploadfile/${currentUserId}/${file.name}_${uniqueFileId}`);
+
+    try {
+      const snapshot = await uploadBytes(storageRef, file);
+      const downloadURL = await getDownloadURL(snapshot.ref);
+
+      const fileMetadata = {
+        fileId: uniqueFileId,
+        originalName: file.name,
+        fileType: file.type,
+        fileSize: file.size,
+        downloads: 0,
+        uploadedAt: new Date(),
+        storagePath: snapshot.ref.fullPath,
+        downloadURL: downloadURL,
+      };
+
+      const docRef = doc(db, 'uploadfile', currentUserId);
+      
+      await updateDoc(docRef, {
+        files: arrayUnion(fileMetadata)
+      }).catch(async (e) => {
+          // If update fails (doc might not exist), create it
+          if (e.code === 'not-found' || e.message.includes('No document to update')) {
+              await setDoc(docRef, {
+                  customerId: currentUserId, 
+                  customerName: 'System User', 
+                  files: [fileMetadata],
+                  createdAt: new Date(),
+              });
+          } else {
+              throw e;
+          }
+      });
+
+      alert(`File "${file.name}" uploaded successfully for user ${currentUserId}!`);
+      await fetchFiles(); 
+
+    } catch (err) {
+      console.error("Upload Error:", err);
+      setUploadError(`Failed to upload file: ${err.message}`);
+    } finally {
+      setUploading(false);
+      event.target.value = null; 
+    }
+  };
+
+  // --- DELETE HANDLER (Logic remains the same) ---
+  const handleDeleteFile = async (file) => {
+    if (!window.confirm(`Are you sure you want to delete "${file.name}"? This will be permanently removed.`)) return;
+    
+    try {
+      const docRef = doc(db, 'uploadfile', file.uploadDocId);
+      const docSnapshot = await getDoc(docRef);
+      if (!docSnapshot.exists()) throw new Error("Parent document not found.");
+      
+      const docData = docSnapshot.data();
+      const fileToRemove = docData.files.find(f => f.fileId === file.id);
+
+      if (!fileToRemove) throw new Error("File entry not found in Firestore array.");
+      
+      // 1. Delete from Firebase Storage
+      if (file.storagePath) {
+        const storageFileRef = ref(storage, file.storagePath);
+        await deleteObject(storageFileRef);
+      } 
+
+      // 2. Delete the entry from the Firestore document
+      await updateDoc(docRef, {
+        files: arrayRemove(fileToRemove)
+      });
+      
+      alert(`File "${file.name}" deleted successfully!`);
+      await fetchFiles(); 
+
+    } catch (err) {
+      console.error("Delete Error:", err);
+      alert(`Failed to delete file: ${err.message}`);
+    }
+  };
+
+  // --- DOWNLOAD HANDLER (Logic remains the same) ---
+  const handleDownloadFile = async (file) => {
+    if (!file.downloadURL) return alert("Error: Download URL not available.");
+    
+    try {
+      const docRef = doc(db, 'uploadfile', file.uploadDocId);
+      const docSnapshot = await getDoc(docRef);
+      
+      if (docSnapshot.exists()) {
+          const filesArray = docSnapshot.data().files || [];
+          const fileIndex = filesArray.findIndex(f => f.fileId === file.id);
+          
+          if (fileIndex !== -1) {
+              const newFilesArray = [...filesArray];
+              newFilesArray[fileIndex].downloads = (newFilesArray[fileIndex].downloads || 0) + 1;
+              await updateDoc(docRef, { files: newFilesArray });
+              await fetchFiles(); 
+          }
+      }
+      window.open(file.downloadURL, '_blank');
+    } catch (err) {
+      console.error("Download Update Error:", err);
+      window.open(file.downloadURL, '_blank');
+      alert(`Could not update download count, but file will attempt to download: ${file.name}`);
+    }
+  };
+
+
   const totalFiles = files.length;
-  const totalSize = "NaN undefined"; 
-  const downloads = "0"; 
+  const totalDownloads = files.reduce((sum, file) => sum + (file.downloads || 0), 0); 
+  const totalSizeInBytes = files.reduce((sum, file) => sum + (file.size || 0), 0);
+  const totalSize = formatBytes(totalSizeInBytes); 
 
   const filteredFiles = files.filter(file =>
     file.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    file.type.toLowerCase().includes(searchTerm.toLowerCase())
+    file.type.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    file.uploadDocId.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   return (
-    <div className="flex-1 p-6 lg:p-8 bg-gray-100 min-h-screen">
-      <div className="orders-container bg-white rounded-lg shadow-xl p-6">
-
-        {/* Header */}
-        <div className="flex items-center pb-4 border-b border-gray-100">
-          <FiFileText className="w-5 h-5 mr-2 text-red-600" />
-          <h2 className="text-xl font-bold text-gray-800">Files Dashboard</h2>
+    <div className="p-6">
+      <h2 className="text-2xl font-bold text-gray-800 mb-6 flex items-center">
+        <FiFileText className="w-6 h-6 mr-3 text-red-600" /> Global File Dashboard ☁️
+      </h2>
+      
+      {/* Summary Cards */}
+      {!isLoading && !error && (
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-8">
+          <StatCard title="TOTAL FILES" value={totalFiles} icon={FiFileText} bgColor="bg-purple-600" iconColor="text-white/70" />
+          <StatCard title="TOTAL SIZE" value={totalSize} icon={FiUploadCloud} bgColor="bg-green-600" iconColor="text-white/70" />
+          <StatCard title="TOTAL DOWNLOADS" value={totalDownloads.toLocaleString()} icon={FiDownload} bgColor="bg-orange-600" iconColor="text-white/70" />
         </div>
+      )}
 
-        {/* --- 3 Summary Cards --- */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 mt-6">
-          <StatCard
-            title="TOTAL FILES"
-            value={totalFiles}
-            icon={FiFileText}
-            bgColor="bg-purple-500"
-            iconColor="text-white/70"
-          />
-          <StatCard
-            title="TOTAL SIZE"
-            value={totalSize}
-            icon={FiUploadCloud}
-            bgColor="bg-green-500"
-            iconColor="text-white/70"
-          />
-          <StatCard
-            title="DOWNLOADS"
-            value={downloads}
-            icon={FiDownload}
-            bgColor="bg-orange-500"
-            iconColor="text-white/70"
-          />
-        </div>
-
-        {/* --- Recent Downloads Section --- */}
-        <div className="mt-8">
-          <div className="flex items-center justify-between pb-4">
-            <h3 className="text-lg font-semibold text-gray-800 flex items-center">
-              Recent Downloads
-            </h3>
-            <button className="px-4 py-2 text-sm font-semibold bg-green-500 hover:bg-green-600 text-white rounded-lg transition-colors shadow-md flex items-center">
-                <FiDownload className="w-4 h-4 mr-2" />
-                Download History
-            </button>
-          </div>
-          
-          <div className="bg-blue-50 border border-blue-200 p-4 rounded-lg text-sm mb-6">
-            <div className="flex items-center font-semibold text-blue-700 mb-2">
-              <FiDownload className="w-4 h-4 mr-2" />
-              Files are downloaded to your browser's default download folder
-            </div>
-            <p className="text-blue-600 mb-3">
-              Tip: You can change your browser's download settings to specify a custom folder
-            </p>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs text-blue-600">
-              <p>For Chrome: Settings → Advanced → Downloads → Location</p>
-              <p>For Firefox: Settings → General → Files and Applications</p>
-            </div>
-          </div>
-        </div>
+      {/* Upload Section */}
+      <div className="flex flex-col sm:flex-row justify-between items-center py-4 border-t border-b border-gray-100 mb-8">
+        <h3 className="text-lg font-semibold text-gray-800 mb-2 sm:mb-0">
+          Upload as User: <span className="text-purple-600 font-mono">{currentUserId || "N/A (Please Log In)"}</span>
+        </h3>
         
-        {/* --- Upload Files Section --- */}
-        <div className="flex justify-between items-center py-4 border-t border-gray-100">
-            <h3 className="text-lg font-semibold text-gray-800">Upload Files</h3>
-            <button className="px-4 py-2 text-sm font-semibold bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors shadow-md">
-                Choose Files
-            </button>
-        </div>
-
-        {/* --- All Files Table --- */}
-        <div className="mt-4">
-            <h3 className="text-lg font-semibold text-gray-800 mb-4">All Files ({totalFiles})</h3>
-            
-            {/* Search Bar for Files */}
-            <div className="mb-4 relative">
-                <FiSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
-                <input
-                    type="text"
-                    placeholder="Search by file name or type..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full sm:w-2/3 md:w-1/2 p-3 pl-10 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 transition-colors text-sm"
-                />
-            </div>
-
-
-            <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-gray-200">
-                    <thead className="bg-gray-50">
-                        <tr>
-                            {['FILE', 'TYPE', 'SIZE', 'DOWNLOADS', 'UPLOADED', 'ACTIONS'].map(header => (
-                                <th
-                                    key={header}
-                                    className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
-                                >
-                                    {header}
-                                </th>
-                            ))}
-                        </tr>
-                    </thead>
-                    <tbody className="bg-white divide-y divide-gray-200">
-                        {filteredFiles.length > 0 ? (
-                            filteredFiles.map(file => (
-                                <tr key={file.id} className="hover:bg-gray-50 transition-colors">
-                                    {/* FILE NAME */}
-                                    <td className="p-4 text-sm font-medium text-gray-900 flex items-center">
-                                        {getFileIcon(file.type)}
-                                        <span className="ml-2">{file.name}</span>
-                                    </td>
-
-                                    {/* TYPE */}
-                                    <td className="p-4 text-xs font-medium text-gray-600">
-                                        {file.type}
-                                    </td>
-
-                                    {/* SIZE */}
-                                    <td className="p-4 text-xs text-gray-600">
-                                        {file.size}
-                                    </td>
-
-                                    {/* DOWNLOADS */}
-                                    <td className="p-4 text-xs text-gray-600">
-                                        {file.downloads}
-                                    </td>
-
-                                    {/* UPLOADED */}
-                                    <td className="p-4 text-xs text-gray-500">
-                                        {file.uploaded}
-                                    </td>
-
-                                    {/* ACTIONS */}
-                                    <td className="p-4 flex space-x-2">
-                                        <button 
-                                            className="px-3 py-1 text-xs font-semibold bg-green-500 hover:bg-green-600 text-white rounded transition-colors"
-                                        >
-                                            <FiDownload className="w-4 h-4" />
-                                        </button>
-                                        <button 
-                                            className="px-3 py-1 text-xs font-semibold bg-red-600 hover:bg-red-700 text-white rounded transition-colors"
-                                        >
-                                            <FiDelete className="w-4 h-4" />
-                                        </button>
-                                    </td>
-                                </tr>
-                            ))
-                        ) : (
-                            <tr>
-                                <td colSpan="6" className="p-6 text-center text-gray-500">
-                                    No files found matching your search term.
-                                </td>
-                            </tr>
-                        )}
-                    </tbody>
-                </table>
-            </div>
-        </div>
+        <input type="file" ref={fileInputRef} onChange={handleFileUpload} style={{ display: 'none' }} disabled={uploading || !currentUserId} />
+        
+        <button onClick={() => fileInputRef.current.click()} disabled={uploading || !currentUserId}
+          className="px-4 py-2 text-sm font-semibold bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors shadow-md disabled:bg-purple-300 flex items-center"
+        >
+          <FiUploadCloud className="w-4 h-4 mr-2" /> {uploading ? 'Uploading...' : 'Choose File(s)'}
+        </button>
       </div>
+
+      {uploadError && <p className="text-red-500 text-sm mb-4 flex items-center"><FiAlertTriangle className="w-4 h-4 mr-1" /> {uploadError}</p>}
+      {error && <p className="text-red-500 text-sm mb-4 flex items-center"><FiAlertTriangle className="w-4 h-4 mr-1" /> {error}</p>}
+
+
+      {/* Search Bar */}
+      <div className="mb-6 relative">
+        <FiSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+        <input type="text" placeholder="Search by file name, type, or User ID..." value={searchTerm} 
+          onChange={(e) => setSearchTerm(e.target.value)}
+          className="w-full sm:w-2/3 md:w-1/2 p-3 pl-10 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 transition-colors text-sm"
+        />
+      </div>
+
+      {/* Files Table */}
+      {isLoading ? (
+        <div className="text-center p-8 text-blue-500"><FiLoader className="w-6 h-6 inline mr-2 animate-spin" /> Loading files...</div>
+      ) : (
+        <div className="overflow-x-auto bg-white rounded-lg shadow">
+          <table className="min-w-full divide-y divide-gray-200">
+            <thead className="bg-gray-50">
+              <tr>
+                {['FILE NAME', 'TYPE', 'SIZE', 'DOWNLOADS', 'UPLOADED', 'OWNER (USER ID)', 'ACTIONS'].map(header => (
+                  <th key={header} className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">{header}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200">
+              {filteredFiles.length > 0 ? (
+                filteredFiles.map(file => (
+                  <tr key={file.id} className="hover:bg-gray-50 transition-colors">
+                    <td className="p-4 text-sm font-medium text-gray-900 flex items-center whitespace-nowrap">
+                      {getFileIcon(file.type)} <span className="ml-2 truncate max-w-xs">{file.name}</span>
+                    </td>
+                    <td className="p-4 text-xs font-medium text-gray-600 whitespace-nowrap">{file.type || 'N/A'}</td>
+                    <td className="p-4 text-xs text-gray-600 whitespace-nowrap">{formatBytes(file.size)}</td>
+                    <td className="p-4 text-xs text-gray-600 whitespace-nowrap">{file.downloads}</td>
+                    <td className="p-4 text-xs text-gray-500 whitespace-nowrap">{file.uploaded}</td>
+                    <td className="p-4 text-xs text-gray-500 font-mono truncate max-w-xs" title={`User ID: ${file.uploadDocId}`}>
+                      {file.uploadDocId}
+                    </td>
+                    <td className="p-4 flex space-x-2 whitespace-nowrap">
+                      <button onClick={() => onSelectUser(file.uploadDocId)}
+                        className="p-2 text-xs font-semibold bg-gray-500 hover:bg-gray-600 text-white rounded transition-colors flex items-center" title="View User Details"
+                      >
+                          <FiEye className="w-4 h-4" />
+                      </button>
+                      <button onClick={() => handleDownloadFile(file)}
+                        className="p-2 text-xs font-semibold bg-blue-500 hover:bg-blue-600 text-white rounded transition-colors flex items-center" title={`Download: ${file.name}`}
+                      >
+                        <FiDownload className="w-4 h-4" />
+                      </button>
+                      <button onClick={() => handleDeleteFile(file)}
+                        className="p-2 text-xs font-semibold bg-red-600 hover:bg-red-700 text-white rounded transition-colors flex items-center" title={`Delete: ${file.name}`}
+                      >
+                        <FiDelete className="w-4 h-4" />
+                      </button>
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr><td colSpan="7" className="p-6 text-center text-gray-500">No files found.</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }
