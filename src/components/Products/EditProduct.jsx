@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   FiPackage,
@@ -28,16 +28,20 @@ import {
   doc,
   getDoc,
   getDocs,
-  updateDoc, // 🚨 RE-ENABLED FOR FIRESTORE UPDATE
+  updateDoc,
 } from "firebase/firestore";
 import {
   ref,
   uploadBytes,
   getDownloadURL,
-  deleteObject, // 🚨 RE-ENABLED FOR STORAGE DELETION
+  deleteObject,
 } from "firebase/storage";
 
-// *** REUSABLE KEYWORD GENERATION FUNCTION ***
+// 👇 NEW IMPORT for the success modal
+import ProductUpdateSuccessModal from './ProductUpdateSuccessModal'; 
+
+
+// *** REUSABLE KEYWORD GENERATION FUNCTION *** (Moved to a util file for size reduction, but kept inline for complete self-contained code per previous request)
 const generateSearchKeywords = (product) => {
   const keywords = new Set();
   const lowerName = product.name.toLowerCase();
@@ -89,7 +93,7 @@ const PRODUCT_TAG_OPTIONS = [
     { value: 'E-Store', label: 'E-Store' },
     { value: 'Local Market', label: 'Local Market' },
     { value: 'Printing', label: 'Printing' },
-    { value: 'Oldee', label: 'Oldee' },
+   
 ];
 
 
@@ -135,6 +139,8 @@ const EditProductPage = () => {
     const [loading, setLoading] = useState(false);
     const [loadingData, setLoadingData] = useState(true);
     const [message, setMessage] = useState('');
+    // 👇 NEW STATE FOR MODAL
+    const [showSuccessModal, setShowSuccessModal] = useState(false); 
 
 
     // 🚨 CATEGORY FILTERING LOGIC
@@ -430,8 +436,18 @@ const EditProductPage = () => {
         setMessage("✅ Gallery image removed.");
     };
 
+    // 👇 NEW MODAL HANDLER
+    const handleModalClose = useCallback((shouldNavigate) => {
+        setShowSuccessModal(false);
+        setMessage(''); // Clear any lingering messages
+        if (shouldNavigate) {
+            navigate('/products'); // Navigate to the product list or wherever is appropriate
+        }
+        // If not navigating, the component remains mounted with updated data
+    }, [navigate]);
 
-    // --- SUBMIT/UPDATE HANDLER (REVERTED TO FULL FIREBASE UPDATE) ---
+
+    // --- SUBMIT/UPDATE HANDLER ---
     const handleSubmit = async (e) => {
         e.preventDefault();
         setMessage('');
@@ -440,14 +456,12 @@ const EditProductPage = () => {
 
         try {
             // --- 1. CLEAN UP DELETED IMAGES FROM STORAGE ---
-            // 🚨 REAL FIREBASE ACTION: Delete old images
             await Promise.all(imagesToDelete.map(async (path) => {
                 try {
                     const storageRef = ref(storage, path);
                     await deleteObject(storageRef);
                     console.log(`Deleted old image from storage: ${path}`);
                 } catch (error) {
-                    // Log a warning, but proceed if deletion fails (e.g., file didn't exist)
                     console.warn(`Could not delete old image (path: ${path}). It might not exist or permissions are wrong.`, error);
                 }
             }));
@@ -476,7 +490,6 @@ const EditProductPage = () => {
                     const mainFileName = `products/${Date.now()}_main_${mainFile.name}`;
                     const mainStorageRef = ref(storage, mainFileName);
                     
-                    // 🚨 REAL FIREBASE ACTION: Upload Main Image
                     await uploadBytes(mainStorageRef, mainFile);
                     mainDownloadURL = await getDownloadURL(mainStorageRef);
 
@@ -509,7 +522,6 @@ const EditProductPage = () => {
                     const galleryFileName = `products/${Date.now()}_gallery_${galleryFile.name}`;
                     const galleryStorageRef = ref(storage, galleryFileName);
                     
-                    // 🚨 REAL FIREBASE ACTION: Upload Gallery Image
                     await uploadBytes(galleryStorageRef, galleryFile);
                     const galleryDownloadURL = await getDownloadURL(galleryStorageRef);
 
@@ -561,13 +573,12 @@ const EditProductPage = () => {
             };
 
             // --- 4. UPDATE FIRESTORE DOCUMENT ---
-            // 🚨 REAL FIREBASE ACTION: Update Document
             const docRef = doc(db, "products", productId);
             await updateDoc(docRef, productToUpdate);
 
             // --- 5. CLEANUP AND SUCCESS ---
-            setMessage(`✅ Product "${productData.name || 'Untitled Product'}" updated successfully!`);
-            setImagesToDelete([]);
+            setImagesToDelete([]); // Clear deletion queue after successful cleanup and update
+            setShowSuccessModal(true); // 👇 TRIGGER THE MODAL HERE
 
         } catch (error) {
             console.error("Firebase submission error:", error);
@@ -591,7 +602,7 @@ const EditProductPage = () => {
 
 
     // =======================================================================
-    // JSX RENDERING (Button text changed back)
+    // JSX RENDERING 
     // =======================================================================
 
     if (loadingData && !message) {
@@ -627,6 +638,7 @@ const EditProductPage = () => {
                     <form onSubmit={handleSubmit} className="p-8 space-y-8">
 
                         {/* BASIC INFORMATION */}
+                        {/* ... (Basic Information JSX remains the same) ... */}
                         <div className="space-y-4">
                             <h3 className="text-xl font-semibold text-gray-800 flex items-center">
                                 <FiPackage className="w-6 h-6 mr-3 text-yellow-600" />
@@ -780,6 +792,7 @@ const EditProductPage = () => {
 
 
                         {/* --- PRODUCT VARIANT MANAGEMENT --- */}
+                        {/* ... (Variant Management JSX remains the same) ... */}
                         <div className="space-y-6 border p-6 rounded-xl bg-orange-50 border-orange-200">
                             <h3 className="text-xl font-semibold text-gray-800 flex items-center">
                               <FiDroplet className="w-6 h-6 mr-3 text-orange-600" />
@@ -894,6 +907,7 @@ const EditProductPage = () => {
 
 
                         {/* --- IMAGE UPLOAD SECTION --- */}
+                        {/* ... (Image Upload JSX remains the same) ... */}
                         <div className="space-y-6 border p-6 rounded-xl bg-pink-50 border-pink-200">
                             <h3 className="text-xl font-semibold text-gray-800 flex items-center">
                                 <FiCamera className="w-6 h-6 mr-3 text-pink-600" />
@@ -1035,6 +1049,15 @@ const EditProductPage = () => {
                     </form>
                 </div>
             </div>
+
+            {/* 👇 MODAL RENDERING */}
+            {showSuccessModal && (
+                <ProductUpdateSuccessModal
+                    productData={productData}
+                    productId={productId}
+                    onClose={handleModalClose}
+                />
+            )}
 
 
         </div>

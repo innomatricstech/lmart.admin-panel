@@ -680,7 +680,7 @@ function AdminDashboardContent() {
                                 <tr className="text-left text-gray-600 text-sm font-semibold">
                                     <th className="py-4 px-6">CUSTOMER</th>
                                     <th className="py-4 px-6 text-right">AMOUNT</th>
-                                    <th className="py-4 px-6 hidden lg:table-cell">PAYMENT</th>
+                                    <th className="py-4 px-6 text-right">PAYMENT</th>
                                     <th className="py-4 px-6 text-right">ACTIONS</th>
                                 </tr>
                             </thead>

@@ -1,18 +1,20 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { BrowserRouter as Router, Routes, Route, Navigate, Outlet } from "react-router-dom";
-
+import TrendingProducts from "./TrendingProducts.jsx";
 // Layout
 import Sidebar from "./components/Sidebar.jsx";
 import Header from "./components/Header.jsx";
+import ProfilePage from "./components/ProfilePage.jsx";
 import Dashboard from "./components/Dashboard.jsx";
 
 // Customers
 import CustomerDirectory from "./components/Customer.jsx";
 
+import OldeeProductsPage from "./components/OldeeProductsPage.jsx";
+
 // Orders
 import OrdersTable from "./components/Orders/OrdersTable.jsx";
 import OrderDetail from "./components/Orders/OrdersDetails.jsx";
-
 import PendingOrdersTable from "./components/Orders/PendingOrdersTable.jsx";
 import { ProcessingOrdersTable } from "./components/Orders/ProcessingOrdersTable.jsx";
 import { ShippedOrdersTable } from "./components/Orders/ShippedOrdersTable.jsx";
@@ -23,9 +25,7 @@ import RecentOrdersTable from "./components/RecentOrdersTable.jsx";
 
 // Others
 import EarningsPage from "./components/EarningsPage.jsx";
-// --- UPDATED IMPORT ---
-import FilesManagementPage from "./components/FilesManagementPage.jsx"; // New wrapper component
-// --- END UPDATED IMPORT ---
+import FilesManagementPage from "./components/FilesManagementPage.jsx";
 import PostersPage from "./components/PostersPage.jsx";
 import BannerPage from "./components/BannerPage.jsx";
 import BulkUploadPage from "./components/BulkUploadPage.jsx";
@@ -54,25 +54,20 @@ import LoginPage from "./components/LoginPage.jsx";
 const Placeholder = ({ title }) => (
     <div className="p-6 bg-white rounded-lg shadow">
         <h1 className="text-2xl font-bold">{title}</h1>
-        <p className="mt-2 text-gray-600">This is a placeholder page.</p>
+        <p className="text-gray-600 mt-2">This is a placeholder page.</p>
     </div>
 );
 
-// --------------------------------------
-// Dashboard Layout Wrapper
-// --------------------------------------
-const DashboardLayout = ({ sidebarOpen, setSidebarOpen, toggleSidebar, onLogout }) => {
+const DashboardLayout = ({ sidebarOpen, setSidebarOpen, toggleSidebar, onLogout, user }) => {
     return (
         <div className="flex h-screen bg-gray-50">
 
             {/* Sidebar */}
-            <div
-                className={`${sidebarOpen ? "fixed inset-y-0 left-0 z-30" : "hidden"} lg:block lg:static`}
-            >
+            <div className={`${sidebarOpen ? "fixed inset-y-0 left-0 z-30" : "hidden"} lg:block lg:static`}>
                 <Sidebar onCloseSidebar={() => setSidebarOpen(false)} onLogout={onLogout} />
             </div>
 
-            {/* Mobile overlay */}
+            {/* Dim background when sidebar opens */}
             {sidebarOpen && (
                 <div
                     className="fixed inset-0 bg-black bg-opacity-50 z-20 lg:hidden"
@@ -82,33 +77,44 @@ const DashboardLayout = ({ sidebarOpen, setSidebarOpen, toggleSidebar, onLogout 
 
             {/* Main Content */}
             <div className="flex-1 flex flex-col overflow-hidden">
-                <Header onToggleSidebar={toggleSidebar} />
+                <Header onToggleSidebar={toggleSidebar} onLogout={onLogout} user={user} />
                 <main className="flex-1 overflow-y-auto p-4 md:p-6">
                     <Outlet />
                 </main>
             </div>
+
         </div>
     );
 };
 
-// --------------------------------------
-// MAIN APP COMPONENT
-// --------------------------------------
 export default function App() {
     const [sidebarOpen, setSidebarOpen] = useState(false);
-    const [isLoggedIn, setIsLoggedIn] = useState(!!localStorage.getItem("adminUser"));
 
-    useEffect(() => {
-        if (localStorage.getItem("adminUser")) {
-            setIsLoggedIn(true);
+    // SAFE JSON PARSING
+    const [user, setUser] = useState(() => {
+        try {
+            const stored = localStorage.getItem("adminUser");
+            if (!stored || stored === "undefined" || stored === "null") return null;
+            return JSON.parse(stored);
+        } catch (err) {
+            console.error("Invalid adminUser JSON:", err);
+            return null;
         }
-    }, []);
+    });
+
+    const [isLoggedIn, setIsLoggedIn] = useState(!!user);
 
     const toggleSidebar = () => setSidebarOpen(!sidebarOpen);
 
-    const handleLogin = () => setIsLoggedIn(true);
+    const handleLogin = (adminData) => {
+        localStorage.setItem("adminUser", JSON.stringify(adminData));
+        setUser(adminData);
+        setIsLoggedIn(true);
+    };
+
     const handleLogout = () => {
         localStorage.removeItem("adminUser");
+        setUser(null);
         setIsLoggedIn(false);
     };
 
@@ -116,11 +122,17 @@ export default function App() {
         <Router>
             <Routes>
 
-                {/* PUBLIC ROUTES */}
-                <Route path="/login" element={
-                    isLoggedIn ? <Navigate to="/" replace /> : <LoginPage onLogin={handleLogin} />
-                } />
+                {/* PUBLIC ROUTE */}
+                <Route
+                    path="/login"
+                    element={
+                        isLoggedIn
+                            ? <Navigate to="/" replace />
+                            : <LoginPage onLogin={handleLogin} />
+                    }
+                />
 
+                {/* FORGOT */}
                 <Route path="/forgot-password" element={<Placeholder title="Forgot Password" />} />
 
                 {/* PROTECTED ROUTES */}
@@ -133,6 +145,7 @@ export default function App() {
                                 setSidebarOpen={setSidebarOpen}
                                 toggleSidebar={toggleSidebar}
                                 onLogout={handleLogout}
+                                user={user}
                             />
                         ) : (
                             <Navigate to="/login" replace />
@@ -140,9 +153,11 @@ export default function App() {
                     }
                 >
 
-                    {/* Dashboard */}
                     <Route index element={<Dashboard />} />
                     <Route path="dashboard" element={<Dashboard />} />
+
+                    {/* Profile */}
+                    <Route path="profile" element={<ProfilePage />} />
 
                     {/* Customers */}
                     <Route path="customers" element={<CustomerDirectory />} />
@@ -158,14 +173,14 @@ export default function App() {
                     <Route path="orders/cancelled" element={<CancelledOrdersTable />} />
                     <Route path="return-orders" element={<ReturnOrdersTable />} />
                     <Route path="recent-orders" element={<RecentOrdersTable />} />
+                    <Route path="trending-products" element={<TrendingProducts />} />
 
-                    {/* Financial & Other Pages */}
+
+                    {/* Others */}
                     <Route path="earnings" element={<EarningsPage />} />
-                    {/* --- UPDATED ROUTE --- */}
-                    <Route path="files" element={<FilesManagementPage />} /> 
-                    {/* --- END UPDATED ROUTE --- */}
-                    <Route path="posters" element={<PostersPage />} />
-                    <Route path="banner" element={<BannerPage />} />
+                    <Route path="files" element={<FilesManagementPage />} />
+                    <Route path="banners" element={<PostersPage />} />
+                    {/* <Route path="banner" element={<BannerPage />} /> */}
                     <Route path="bulk-upload" element={<BulkUploadPage />} />
                     <Route path="notifications" element={<NotificationsPage />} />
 
@@ -174,6 +189,7 @@ export default function App() {
                     <Route path="sellers/delete" element={<DeletedSellersTable />} />
                     <Route path="sellers/view/:id" element={<EditSellerPage />} />
                     <Route path="sellers/edit/:id" element={<EditSellerPage />} />
+                    <Route path="/oldee" element={<OldeeProductsPage />} />
 
                     {/* Products */}
                     <Route path="products" element={<Navigate to="view" replace />} />
@@ -183,7 +199,7 @@ export default function App() {
                     <Route path="products/subcategories" element={<ManageSubcategories />} />
                     <Route path="products/categories" element={<ManageCategories />} />
 
-                    {/* MARKET NEWS */}
+                    {/* News */}
                     <Route path="news" element={<Navigate to="view" replace />} />
                     <Route path="news/view" element={<ViewNews />} />
                     <Route path="news/add" element={<AddNewsToday />} />

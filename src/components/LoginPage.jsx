@@ -31,10 +31,24 @@ export default function LoginPage({ onLogin }) {
       const result = await getDocs(q);
 
       if (!result.empty) {
-        const admin = result.docs[0].data();
-        localStorage.setItem("adminUser", JSON.stringify(admin));
+        const docSnap = result.docs[0];
+        const admin = docSnap.data();
 
-        onLogin();
+        // Construct clean admin object
+        const adminData = {
+          uid: docSnap.id,
+          name: admin.name,
+          email: admin.email,
+          password: admin.password,
+          photoURL: admin.photoURL || null
+        };
+
+        // Save safely
+        localStorage.setItem("adminUser", JSON.stringify(adminData));
+
+        // Pass full data to App.js
+        onLogin(adminData);
+
         navigate("/", { replace: true });
       } else {
         setError("Invalid email or password");

@@ -556,10 +556,10 @@ function AdminDashboardContent() {
                                     <span>Filter</span>
                                 </button> */}
                                 
-                                <button className="px-4 py-2.5 bg-gradient-to-r from-gray-900 to-gray-700 text-white rounded-lg hover:from-gray-800 hover:to-gray-600 transition-all duration-200 shadow-md hover:shadow-lg transform hover:-translate-y-0.5 flex items-center justify-center space-x-2">
+                                {/* <button className="px-4 py-2.5 bg-gradient-to-r from-gray-900 to-gray-700 text-white rounded-lg hover:from-gray-800 hover:to-gray-600 transition-all duration-200 shadow-md hover:shadow-lg transform hover:-translate-y-0.5 flex items-center justify-center space-x-2">
                                     <Download className="w-4 h-4" />
                                     <span>Export</span>
-                                </button>
+                                </button> */}
                             </div>
                         </div>
                     </div>
@@ -570,7 +570,7 @@ function AdminDashboardContent() {
                                 <tr className="text-left text-gray-600 text-sm font-semibold">
                                     <th className="py-4 px-6">CUSTOMER</th>
                                     <th className="py-4 px-6 text-right">AMOUNT</th>
-                                    <th className="py-4 px-6 hidden lg:table-cell">PAYMENT</th>
+                                    <th className="py-4 px-6 text-right">PAYMENT</th>
                                     <th className="py-4 px-6 text-right">ACTIONS</th>
                                 </tr>
                             </thead>

@@ -87,7 +87,7 @@ const PRODUCT_TAG_OPTIONS = [
     { value: 'E-Store', label: 'E-Store' }, 
     { value: 'Local Market', label: 'Local Market' },
     { value: 'Printing', label: 'Printing' },
-    { value: 'Oldee', label: 'Oldee' },
+
   
 ];
 
@@ -611,7 +611,7 @@ const AddProductPage = () => {
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 
                                 {/* 1. Main Image Control or Preview (Fixed Height: h-64) */}
-                                <div className="h-64"> 
+                                <div className="h-30"> 
                                     {!mainImageFile ? (
                                         /* Upload Input: Ensure h-full for alignment */
                                         <div className="h-full border-2 border-dashed border-pink-300 rounded-xl p-4 text-center hover:border-pink-500 transition-colors duration-200 bg-white flex flex-col justify-center">
@@ -676,7 +676,7 @@ const AddProductPage = () => {
 
 
                                 {/* 2. Video Upload Control or Preview (Fixed Height: h-64) */}
-                                <div className="h-64"> 
+                                <div className="h-30"> 
                                     {!videoFile ? (
                                         /* Upload Input: Ensure h-full for alignment */
                                         <div className="h-full border-2 border-dashed border-violet-300 rounded-xl p-4 text-center hover:border-violet-500 transition-colors duration-200 bg-white flex flex-col justify-center">
@@ -738,7 +738,7 @@ const AddProductPage = () => {
 
                         {/* --- GALLERY IMAGE UPLOAD & PREVIEWS (MODIFIED) --- */}
                         <div className="space-y-6 border p-6 rounded-xl bg-pink-50 border-pink-200">
-                            <h3 className="text-xl font-semibold text-gray-800 flex items-center">
+                            {/* <h3 className="text-xl font-semibold text-gray-800 flex items-center">
                                 <FiCamera className="w-6 h-6 mr-3 text-pink-600" />
                                 Gallery Images
                             </h3>
@@ -748,7 +748,7 @@ const AddProductPage = () => {
                                     <p className="font-semibold">ℹ️ Note:</p>
                                     <p className="text-sm">Adding a **Color** to a **Product Variant** will enable the color assignment dropdown for images.</p>
                                 </div>
-                            )}
+                            )} */}
 
                             {/* Gallery Images Control (ONLY VISIBLE IF galleryFiles.length === 0) */}
                             {galleryFiles.length === 0 ? (
@@ -1076,7 +1076,7 @@ const AddProductPage = () => {
                           ) : (
                             <>
                               <FiPlus className="w-6 h-6" />
-                              <span>Add Product to Database</span>
+                              <span>Add Product</span>
                             </>
                           )}
                         </button>

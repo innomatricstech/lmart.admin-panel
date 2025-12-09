@@ -1,27 +1,25 @@
-import React, { useState, useEffect } from 'react';
-import { FiChevronDown, FiMenu, FiBarChart2 } from 'react-icons/fi';
+import React, { useState, useEffect } from "react";
+import { FiChevronDown, FiMenu, FiBarChart2 } from "react-icons/fi";
+import { useNavigate } from "react-router-dom";
 
-export default function Header({ onToggleSidebar }) {
-  const [isProfileDropdownOpen, setIsProfileDropdownOpen] = useState(false);
-  const [user, setUser] = useState(null);
+export default function Header({ onToggleSidebar, onLogout, user }) {
+  const navigate = useNavigate();
+  const [admin, setAdmin] = useState(null);
+  const [isOpen, setIsOpen] = useState(false);
 
-  // Load user data from localStorage
   useEffect(() => {
-    const userData = localStorage.getItem("adminUser");
-    if (userData) {
-      setUser(JSON.parse(userData));
-    }
-  }, []);
+    setAdmin(user || null);
+  }, [user]);
 
   return (
-    <header className="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-10">
+    <header className="bg-white shadow-sm border-b sticky top-0 z-10">
       <div className="flex items-center justify-between px-6 py-4">
 
-        {/* Left Section — Menu + Dashboard Title */}
+        {/* Left */}
         <div className="flex items-center space-x-4">
-          <button 
+          <button
             onClick={onToggleSidebar}
-            className="p-2 rounded-lg hover:bg-gray-100 transition-colors duration-200 lg:hidden"
+            className="p-2 rounded-lg hover:bg-gray-100 lg:hidden"
           >
             <FiMenu className="w-5 h-5 text-gray-600" />
           </button>
@@ -32,50 +30,54 @@ export default function Header({ onToggleSidebar }) {
           </div>
         </div>
 
-        {/* Right Section — User Profile */}
+        {/* Right */}
         <div className="relative">
-          <button 
-            onClick={() => setIsProfileDropdownOpen(!isProfileDropdownOpen)}
-            className="flex items-center space-x-3 p-2 rounded-lg hover:bg-gray-100 transition-colors duration-200"
+          <button
+            onClick={() => setIsOpen(!isOpen)}
+            className="flex items-center space-x-3 p-2 rounded-lg hover:bg-gray-100"
           >
-            {/* Avatar Image */}
-            <img 
-              src={user?.photoURL || "/default-avatar.png"}
-              alt="User Avatar"
+            <img
+              src={admin?.photoURL || "/default-avatar.png"}
               className="w-8 h-8 rounded-full object-cover"
             />
 
-            {/* User Info */}
             <div className="hidden sm:block text-left">
-              <p className="text-sm font-semibold text-gray-900">{user?.name || "Admin User"}</p>
-              <p className="text-xs text-gray-500">{user?.email || "admin@imart.in"}</p>
+              <p className="text-sm font-semibold">{admin?.name}</p>
+              <p className="text-xs text-gray-500">{admin?.email}</p>
             </div>
 
-            <FiChevronDown 
-              className={`w-4 h-4 text-gray-500 transition-transform duration-200 ${
-                isProfileDropdownOpen ? 'rotate-180' : 'rotate-0'
+            <FiChevronDown
+              className={`w-4 h-4 transition-transform ${
+                isOpen ? "rotate-180" : ""
               }`}
             />
           </button>
 
-          {/* Dropdown */}
-          {isProfileDropdownOpen && (
-            <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-20">
-              <a href="#profile" className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">
+          {isOpen && (
+            <div className="absolute right-0 mt-2 w-48 bg-white shadow rounded-lg border py-1">
+              
+              <button
+                onClick={() => {
+                  navigate("/profile");
+                  setIsOpen(false);
+                }}
+                className="w-full px-4 py-2 text-left hover:bg-gray-100"
+              >
                 Profile
-              </a>
-              <a href="#settings" className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">
-                Settings
-              </a>
-              <a href="#help" className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">
-                Help & Support
-              </a>
+              </button>
 
-              <div className="border-t border-gray-200 my-1"></div>
+              <div className="border-t my-1"></div>
 
-              <a href="#logout" className="block px-4 py-2 text-sm text-red-600 hover:bg-gray-50">
+              <button
+                onClick={() => {
+                  onLogout();
+                  navigate("/login");
+                }}
+                className="w-full px-4 py-2 text-left text-red-600 hover:bg-gray-100"
+              >
                 Logout
-              </a>
+              </button>
+
             </div>
           )}
         </div>

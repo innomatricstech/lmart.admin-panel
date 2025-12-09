@@ -26,13 +26,14 @@ import {
     ArrowLeftIcon,
     ClockIcon,
     TrashIcon,
-    ExclamationTriangleIcon
+    ExclamationTriangleIcon,
+    CheckCircleIcon // 🚨 ADDED: Icon for the success modal
 } from '@heroicons/react/20/solid';
 
 import { db } from "../../../firerbase";
 
 // ==========================================================
-// UTILITY FUNCTIONS
+// UTILITY FUNCTIONS (Unchanged)
 // ==========================================================
 
 // Helper function to aggregate variant data for the list view
@@ -143,7 +144,75 @@ const fetchCategoryNames = async (categoryId, subCategoryId) => {
 };
 
 // ==========================================================
-// 1. PRODUCT LIST COMPONENT (Products)
+// 4. DELETE CONFIRMATION MODAL COMPONENT (Unchanged)
+// ==========================================================
+const DeleteConfirmationModal = ({ productName, onConfirm, onCancel }) => (
+    <div className="fixed inset-0 bg-gray-600 bg-opacity-75 overflow-y-auto h-full w-full z-50 flex justify-center items-center">
+        <div className="bg-white rounded-lg shadow-xl p-6 m-4 max-w-sm w-full">
+            <div className="text-center">
+                <ExclamationTriangleIcon className="mx-auto h-12 w-12 text-red-500" />
+                <h3 className="mt-2 text-lg font-medium text-gray-900">Confirm Deletion</h3>
+                <div className="mt-2">
+                    <p className="text-sm text-gray-500">
+                        Are you sure you want to delete the product: <span className="font-semibold text-gray-700">"{productName}"</span>?
+                    </p>
+                    <p className="text-xs text-red-500 mt-1 font-medium">
+                        This action cannot be undone.
+                    </p>
+                </div>
+            </div>
+            <div className="mt-5 sm:mt-6 sm:flex sm:flex-row-reverse space-y-3 sm:space-y-0 sm:space-x-3 sm:space-x-reverse">
+                <button
+                    type="button"
+                    className="inline-flex w-full justify-center rounded-lg border border-transparent bg-red-600 px-4 py-2 text-base font-medium text-white shadow-sm hover:bg-red-700 transition-colors sm:ml-3 sm:w-auto sm:text-sm"
+                    onClick={onConfirm}
+                >
+                    Delete Permanently
+                </button>
+                <button
+                    type="button"
+                    className="inline-flex w-full justify-center rounded-lg border border-gray-300 bg-white px-4 py-2 text-base font-medium text-gray-700 shadow-sm hover:bg-gray-50 transition-colors sm:mt-0 sm:w-auto sm:text-sm"
+                    onClick={onCancel}
+                >
+                    Cancel
+                </button>
+            </div>
+        </div>
+    </div>
+);
+
+
+// ==========================================================
+// 🚨 NEW: DELETE SUCCESS MODAL COMPONENT
+// ==========================================================
+const DeleteSuccessModal = ({ productName, onConfirm }) => (
+    <div className="fixed inset-0 bg-gray-600 bg-opacity-75 overflow-y-auto h-full w-full z-50 flex justify-center items-center">
+        <div className="bg-white rounded-lg shadow-xl p-6 m-4 max-w-sm w-full">
+            <div className="text-center">
+                <CheckCircleIcon className="mx-auto h-12 w-12 text-green-500" />
+                <h3 className="mt-2 text-lg font-medium text-gray-900">Deletion Successful</h3>
+                <div className="mt-2">
+                    <p className="text-sm text-gray-500">
+                        The product <span className="font-semibold text-gray-700">"{productName}"</span> has been **successfully removed**.
+                    </p>
+                </div>
+            </div>
+            <div className="mt-5 sm:mt-6">
+                <button
+                    type="button"
+                    className="inline-flex w-full justify-center rounded-lg border border-transparent bg-green-600 px-4 py-2 text-base font-medium text-white shadow-sm hover:bg-green-700 transition-colors sm:text-sm"
+                    onClick={onConfirm}
+                >
+                    Acknowledge
+                </button>
+            </div>
+        </div>
+    </div>
+);
+
+
+// ==========================================================
+// 1. MAIN PRODUCTS COMPONENT
 // ==========================================================
 
 const Products = () => {
@@ -154,6 +223,9 @@ const Products = () => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [searchTerm, setSearchTerm] = useState('');
+    
+    // 🚨 NEW STATE: To control the success message modal
+    const [showSuccessModal, setShowSuccessModal] = useState(false); 
 
     const navigate = useNavigate();
 
@@ -251,18 +323,36 @@ const Products = () => {
         setProductToDelete(product);
     };
 
+    const handleSuccessModalClose = () => {
+        setShowSuccessModal(false);
+    };
+
     const confirmDelete = async () => {
-        if (productToDelete) {
-            try {
-                const productRef = doc(db, "products", productToDelete.id);
-                await deleteDoc(productRef);
-                setProductToDelete(null);
-                setSelectedProductId(null);
-                alert(`Product '${productToDelete.name}' deleted successfully.`);
-            } catch (err) {
-                console.error("Error deleting product:", err);
-                alert("Failed to delete product. Check console for details.");
-            }
+        if (!productToDelete) return;
+        
+        const productName = productToDelete.name || 'Unknown Product';
+        
+        // 1. Close the confirmation modal
+        setProductToDelete(null); // This clears productToDelete and closes the confirmation modal
+
+        try {
+            // 2. Perform Firebase Deletion
+            const productRef = doc(db, "products", productToDelete.id);
+            await deleteDoc(productRef);
+            
+            // 3. 🚨 Show the success modal
+            // We set productToDelete back for the success modal to have the name, 
+            // then we'll clear it after the success modal is closed.
+            setShowSuccessModal(true); 
+
+            console.log(`Product '${productName}' deleted successfully.`);
+        } catch (err) {
+            console.error("Error deleting product:", err);
+            alert("Failed to delete product. Check console for details.");
+        } finally {
+             // We wait for the user to close the success modal before resetting all states.
+             // For now, we only clear the selection, the success modal is handled by its own state.
+             setSelectedProductId(null);
         }
     };
 
@@ -309,9 +399,13 @@ const Products = () => {
 
     // --- CONDITIONAL RENDER: Show Detail View if a product is selected ---
     if (selectedProductId) {
+        // Find the product data for the view
+        const productData = productsWithNames.find(p => p.id === selectedProductId);
+        
         return (
             <IntegratedProductView
                 productId={selectedProductId}
+                productData={productData} // Passing data can avoid re-fetching
                 onClose={handleCloseView}
                 navigate={navigate}
                 onDelete={handleDeleteProduct}
@@ -379,13 +473,13 @@ const Products = () => {
 
                             {/* Action Buttons */}
                             <div className="flex space-x-3">
-                                <button
+                                {/* <button
                                     onClick={handleDownloadExcel}
                                     className="flex items-center space-x-2 bg-blue-500 text-white px-6 py-3 rounded-xl font-semibold hover:bg-blue-600 transition-all duration-200 transform hover:scale-[1.02] shadow-md"
                                 >
                                     <ArrowDownTrayIcon className="h-5 w-5" />
                                     <span>Export</span>
-                                </button>
+                                </button> */}
 
                                 <button
                                     onClick={handleAddProduct}
@@ -592,12 +686,20 @@ const Products = () => {
                     onCancel={() => setProductToDelete(null)}
                 />
             )}
+            
+            {/* 🚨 NEW: Deletion Success Modal */}
+            {showSuccessModal && (
+                <DeleteSuccessModal
+                    productName={productToDelete?.name || 'Unknown Product'} // Use optional chaining in case productToDelete state wasn't perfectly preserved
+                    onConfirm={handleSuccessModalClose}
+                />
+            )}
         </div>
     );
 };
 
 // ==========================================================
-// 2. DETAIL CARD UTILITY COMPONENT
+// 2. DETAIL CARD UTILITY COMPONENT (Unchanged)
 // ==========================================================
 
 const DetailCard = ({ icon: Icon, title, values }) => (
@@ -618,7 +720,7 @@ const DetailCard = ({ icon: Icon, title, values }) => (
 );
 
 // ==========================================================
-// 3. INTEGRATED PRODUCT VIEW COMPONENT (UPDATED)
+// 3. INTEGRATED PRODUCT VIEW COMPONENT (Unchanged - Minor Fix)
 // ==========================================================
 const IntegratedProductView = ({ productId, onClose, navigate, onDelete }) => {
     const [product, setProduct] = useState(null);
@@ -753,6 +855,7 @@ const IntegratedProductView = ({ productId, onClose, navigate, onDelete }) => {
                         <span className="font-medium">Back to Products List</span>
                     </button>
                     <div className="flex space-x-3">
+                         {/* Re-enable Delete button for IntegratedProductView if needed */}
                          <button
                             onClick={() => onDelete(product)}
                             className="flex items-center space-x-2 bg-red-500 text-white px-4 py-2 rounded-xl font-semibold shadow-md hover:bg-red-600 transition"
@@ -969,43 +1072,5 @@ const IntegratedProductView = ({ productId, onClose, navigate, onDelete }) => {
         </div>
     );
 };
-
-// ==========================================================
-// 4. DELETE CONFIRMATION MODAL COMPONENT
-// ==========================================================
-const DeleteConfirmationModal = ({ productName, onConfirm, onCancel }) => (
-    <div className="fixed inset-0 bg-gray-600 bg-opacity-75 overflow-y-auto h-full w-full z-50 flex justify-center items-center">
-        <div className="bg-white rounded-lg shadow-xl p-6 m-4 max-w-sm w-full">
-            <div className="text-center">
-                <ExclamationTriangleIcon className="mx-auto h-12 w-12 text-red-500" />
-                <h3 className="mt-2 text-lg font-medium text-gray-900">Confirm Deletion</h3>
-                <div className="mt-2">
-                    <p className="text-sm text-gray-500">
-                        Are you sure you want to delete the product: <span className="font-semibold text-gray-700">"{productName}"</span>?
-                    </p>
-                    <p className="text-xs text-red-500 mt-1 font-medium">
-                        This action cannot be undone.
-                    </p>
-                </div>
-            </div>
-            <div className="mt-5 sm:mt-6 sm:flex sm:flex-row-reverse space-y-3 sm:space-y-0 sm:space-x-3 sm:space-x-reverse">
-                <button
-                    type="button"
-                    className="inline-flex w-full justify-center rounded-lg border border-transparent bg-red-600 px-4 py-2 text-base font-medium text-white shadow-sm hover:bg-red-700 transition-colors sm:ml-3 sm:w-auto sm:text-sm"
-                    onClick={onConfirm}
-                >
-                    Delete Permanently
-                </button>
-                <button
-                    type="button"
-                    className="inline-flex w-full justify-center rounded-lg border border-gray-300 bg-white px-4 py-2 text-base font-medium text-gray-700 shadow-sm hover:bg-gray-50 transition-colors sm:mt-0 sm:w-auto sm:text-sm"
-                    onClick={onCancel}
-                >
-                    Cancel
-                </button>
-            </div>
-        </div>
-    </div>
-);
 
 export default Products;

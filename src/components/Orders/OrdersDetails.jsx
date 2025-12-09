@@ -298,7 +298,7 @@ const handleDownloadInvoice = async () => {
     name: "L Mart",
     phone: "+91-87629 78777",
     email: "info@lmart.com",
-    line1: "56 Industrial Estate,",
+    line1: "57 Industrial Estate,",
     line2: "Sindagi-586 128",
   };
 

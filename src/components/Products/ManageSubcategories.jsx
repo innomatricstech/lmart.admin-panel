@@ -40,7 +40,7 @@ const ManageSubcategories = () => {
   const [loadingCategories, setLoadingCategories] = useState(false); // Changed initial state to false
 
   // Hardcoded labels
-  const LABELS = ['E-Store', 'Local Market', "Printing","Oldee"];
+  const LABELS = ['E-Store', 'Local Market', "Printing"];
 
   // 1. --- FETCH CATEGORIES FROM FIRESTORE (MODIFIED WITH FILTERING) ---
   const fetchCategories = useCallback(async (currentLabel) => {
