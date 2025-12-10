@@ -34,6 +34,11 @@ import {
   FiUser,
 } from "react-icons/fi";
 
+// --- Helper Functions ---
+
+/**
+ * Returns the appropriate icon based on the file MIME type.
+ */
 const getFileIcon = (fileType) => {
   const type = (fileType || "").toLowerCase();
 
@@ -51,6 +56,9 @@ const getFileIcon = (fileType) => {
   }
 };
 
+/**
+ * Formats file size in bytes into human-readable KB, MB, GB format.
+ */
 const formatBytes = (bytes, decimals = 2) => {
   if (!bytes || bytes === 0) return "0 Bytes";
   const k = 1024;
@@ -60,7 +68,9 @@ const formatBytes = (bytes, decimals = 2) => {
   return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + " " + sizes[i];
 };
 
-// Helper to trigger actual browser download (no new tab)
+/**
+ * Helper to trigger actual browser download (without opening a new tab).
+ */
 const triggerDownload = (url, name) => {
   const a = document.createElement("a");
   a.href = url;
@@ -70,6 +80,9 @@ const triggerDownload = (url, name) => {
   document.body.removeChild(a);
 };
 
+/**
+ * Component for displaying dashboard statistics.
+ */
 const StatCard = ({ title, value, icon: Icon, bgColor, iconColor }) => (
   <div
     className={`p-4 rounded-xl shadow-lg flex items-center justify-between h-24 ${bgColor}`}
@@ -82,7 +95,7 @@ const StatCard = ({ title, value, icon: Icon, bgColor, iconColor }) => (
   </div>
 );
 
-// User Files View Component
+// --- User Files View Component (Modal) ---
 const UserFilesView = ({ user, onClose, onUpload, onDownloadAll, onDeleteAll }) => {
   const [showUploadForm, setShowUploadForm] = useState(false);
   const [selectedFile, setSelectedFile] = useState(null);
@@ -103,12 +116,14 @@ const UserFilesView = ({ user, onClose, onUpload, onDownloadAll, onDeleteAll }) 
     setUploadError(null);
 
     const uniqueFileId = uuidv4();
+    // Define storage path: uploadfile/USER_DOC_ID/FILENAME_UNIQUEID
     const storageRef = ref(
       storage,
       `uploadfile/${user.uploadDocId}/${selectedFile.name}_${uniqueFileId}`
     );
 
     try {
+      // 1. Upload file to Firebase Storage
       const snapshot = await uploadBytes(storageRef, selectedFile);
       const downloadURL = await getDownloadURL(snapshot.ref);
 
@@ -125,9 +140,11 @@ const UserFilesView = ({ user, onClose, onUpload, onDownloadAll, onDeleteAll }) 
 
       const userDoc = doc(db, "uploadfile", user.uploadDocId);
 
+      // 2. Update Firestore document with file metadata
       await updateDoc(userDoc, {
         files: arrayUnion(fileMetadata),
       }).catch(async () => {
+        // If the document doesn't exist, create it (handles first upload)
         await setDoc(userDoc, {
           customerId: user.uploadDocId,
           customerName: user.customerName,
@@ -136,7 +153,7 @@ const UserFilesView = ({ user, onClose, onUpload, onDownloadAll, onDeleteAll }) 
         });
       });
 
-      // Refresh user data
+      // Refresh user data in the main dashboard after successful upload
       onUpload();
       setSelectedFile(null);
       setShowUploadForm(false);
@@ -150,6 +167,7 @@ const UserFilesView = ({ user, onClose, onUpload, onDownloadAll, onDeleteAll }) 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
       <div className="bg-white rounded-lg shadow-2xl w-full max-w-6xl max-h-[90vh] overflow-y-auto">
+        {/* Header */}
         <div className="p-6 border-b flex justify-between items-center sticky top-0 bg-white z-10">
           <div>
             <h3 className="text-xl font-bold flex items-center">
@@ -173,10 +191,11 @@ const UserFilesView = ({ user, onClose, onUpload, onDownloadAll, onDeleteAll }) 
           </button>
         </div>
 
+        {/* Content */}
         <div className="p-6">
           {/* File List */}
           <div className="mb-6">
-            <h4 className="text-lg font-semibold mb-4">Files List</h4>
+            <h4 className="text-lg font-semibold mb-4">Files List (Newest First)</h4>
             {user.individualFiles.length > 0 ? (
               <div className="space-y-3">
                 {user.individualFiles.map((file) => (
@@ -201,6 +220,7 @@ const UserFilesView = ({ user, onClose, onUpload, onDownloadAll, onDeleteAll }) 
                       >
                         <FiDownload />
                       </button>
+                      {/* Note: Delete single file functionality would go here */}
                     </div>
                   </div>
                 ))}
@@ -213,7 +233,7 @@ const UserFilesView = ({ user, onClose, onUpload, onDownloadAll, onDeleteAll }) 
             )}
           </div>
 
-          {/* Actions */}
+          {/* Actions (Download All / Delete All) */}
           <div className="flex justify-between items-center border-t pt-6">
             <div className="flex space-x-3">
               <button
@@ -280,8 +300,10 @@ const UserFilesView = ({ user, onClose, onUpload, onDownloadAll, onDeleteAll }) 
   );
 };
 
+// --- Main File Dashboard Component ---
+
 export default function FileDashboard({ onSelectUser }) {
-  const [files, setFiles] = useState([]); 
+  const [files, setFiles] = useState([]); // User summaries
   const [searchTerm, setSearchTerm] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [uploadError, setUploadError] = useState(null);
@@ -292,14 +314,15 @@ export default function FileDashboard({ onSelectUser }) {
   const [showAllFiles, setShowAllFiles] = useState(false); // Toggle between summary and detailed view
   const [allFilesList, setAllFilesList] = useState([]); // Flattened list of all files
 
-  const currentUserId = "USER_LOGGED_IN_12345"; 
-  const fileInputRef = useRef(null);
-
   const showStatus = (message, isError = false) => {
     setStatusMessage({ message, isError });
     setTimeout(() => setStatusMessage(null), 3000);
   };
 
+  /**
+   * Fetches all documents from the 'uploadfile' collection, calculates summaries,
+   * creates a flattened list of all files, and SORTS all file arrays by date (newest first).
+   */
   const fetchFiles = useCallback(async () => {
     try {
       setIsLoading(true);
@@ -313,8 +336,15 @@ export default function FileDashboard({ onSelectUser }) {
         const docId = docSnap.id;
         const data = docSnap.data();
 
-        const individualFiles = Array.isArray(data.files) ? data.files : [];
+        let individualFiles = Array.isArray(data.files) ? data.files : [];
 
+        // 🌟 1. SORTING LOGIC: User Files (Newest First)
+        individualFiles.sort((a, b) => {
+            const dateA = a.uploadedAt?.toDate?.() || new Date(0);
+            const dateB = b.uploadedAt?.toDate?.() || new Date(0);
+            return dateB.getTime() - dateA.getTime(); // Descending order
+        });
+        
         const totalSizeInBytes = individualFiles.reduce(
           (sum, f) => sum + (f.fileSize || 0),
           0
@@ -324,12 +354,14 @@ export default function FileDashboard({ onSelectUser }) {
           0
         );
 
+        // Get the latest upload timestamp from the now-sorted array (index 0)
         const latestUpload =
           individualFiles.length > 0
-            ? individualFiles[individualFiles.length - 1].uploadedAt?.toDate?.()
-                .toLocaleString() || "N/A"
+            ? individualFiles[0].uploadedAt?.toDate?.()
+                  .toLocaleString() || "N/A"
             : data.createdAt?.toDate?.().toLocaleString() || "N/A";
 
+        // Summary for the User Summary View
         const userSummary = {
           uploadDocId: docId,
           customerName: data.customerName || "N/A",
@@ -351,7 +383,7 @@ export default function FileDashboard({ onSelectUser }) {
 
         uploadSummaries.push(userSummary);
 
-        // Flatten files for detailed view
+        // Flatten files for All Files Detailed View (using the sorted list)
         individualFiles.forEach(file => {
           flattenedFiles.push({
             ...file,
@@ -362,10 +394,18 @@ export default function FileDashboard({ onSelectUser }) {
             type: file.fileType,
             customerName: data.customerName || "N/A",
             customerEmail: data.customerEmail || "N/A",
+            // Note: Saving as a formatted string here, must parse for global sort
             uploadedAt: file.uploadedAt?.toDate?.().toLocaleString() || "N/A",
             downloads: file.downloads || 0,
           });
         });
+      });
+      
+      // 🌟 2. SORTING LOGIC: Global All Files List (Newest First)
+      flattenedFiles.sort((a, b) => {
+        const dateA = new Date(a.uploadedAt); 
+        const dateB = new Date(b.uploadedAt);
+        return dateB.getTime() - dateA.getTime(); // Descending order
       });
 
       setFiles(uploadSummaries);
@@ -381,15 +421,8 @@ export default function FileDashboard({ onSelectUser }) {
   useEffect(() => {
     fetchFiles();
   }, [fetchFiles]);
-
-  const handleUploadForUser = (userId) => {
-    const user = files.find(f => f.uploadDocId === userId);
-    if (user) {
-      setSelectedUser(user);
-    }
-  };
   
-  // Download all files as ZIP
+  // Download all files as ZIP for a specific user
   const handleDownloadAllFiles = async (user) => {
     if (user.totalFiles === 0) {
       showStatus("No files to download for this user.", true);
@@ -403,41 +436,41 @@ export default function FileDashboard({ onSelectUser }) {
       const zip = new JSZip();
       let downloadedCount = 0;
 
-      // Create a folder for the user
+      // Create a folder for the user inside the zip
       const userFolder = zip.folder(`${user.customerName}_${user.uploadDocId}`);
 
       // Download each file and add to zip
       for (const file of user.individualFiles) {
         try {
+          // Fetch the file content from the downloadURL
           const response = await fetch(file.downloadURL);
           const blob = await response.blob();
           userFolder.file(file.name, blob);
           downloadedCount++;
           
-          // Update progress in status
           showStatus(`Downloaded ${downloadedCount}/${user.totalFiles} files...`);
         } catch (err) {
           console.error(`Failed to download ${file.name}:`, err);
         }
       }
 
-      // Generate and download the zip file
+      // Generate and trigger download of the zip file
       const zipBlob = await zip.generateAsync({ type: "blob" });
       saveAs(zipBlob, `${user.customerName}_files_${Date.now()}.zip`);
       
-      // Update download counts in Firestore
+      // Update download counts in Firestore for all files in the batch
       const userDoc = doc(db, "uploadfile", user.uploadDocId);
       const snap = await getDoc(userDoc);
       const filesArray = snap.data().files || [];
       
       const updatedFiles = filesArray.map(f => ({
         ...f,
-        downloads: (f.downloads || 0) + 1
+        downloads: (f.downloads || 0) + 1 // Increment download count
       }));
       
       await updateDoc(userDoc, { files: updatedFiles });
       
-      // Update local state
+      // Refresh local state
       fetchFiles();
       
       showStatus(`Successfully downloaded ${downloadedCount} files for ${user.customerName}.`);
@@ -449,7 +482,7 @@ export default function FileDashboard({ onSelectUser }) {
     }
   };
   
-  // Handle delete all files
+  // Handle delete all files for a specific user
   const handleDeleteAllUserFiles = async (user) => {
     if (user.totalFiles === 0) {
       showStatus("No files to delete for this user.", true);
@@ -463,22 +496,23 @@ export default function FileDashboard({ onSelectUser }) {
     try {
       showStatus(`Deleting ${user.totalFiles} files for ${user.customerName}...`);
 
-      // Delete each file from storage
+      // 1. Delete each file from Firebase Storage
       for (const file of user.individualFiles) {
         try {
           await deleteObject(ref(storage, file.storagePath));
         } catch (err) {
+          // Log error but continue deletion process for other files/metadata
           console.error(`Failed to delete ${file.name} from storage:`, err);
         }
       }
 
-      // Delete the document from Firestore
+      // 2. Clear the files array in the Firestore document
       const userDoc = doc(db, "uploadfile", user.uploadDocId);
       await updateDoc(userDoc, {
-        files: []
+        files: [] // Set the files array to empty
       });
 
-      // Update local state
+      // Refresh local state
       fetchFiles();
       setSelectedUser(null);
       
@@ -489,6 +523,7 @@ export default function FileDashboard({ onSelectUser }) {
     }
   };
 
+  // Filtering Logic
   const filteredFiles = files.filter(
     (summary) =>
       summary.customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -503,6 +538,7 @@ export default function FileDashboard({ onSelectUser }) {
       file.uploadDocId.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  // Calculate Global Stats
   const totalFiles = files.reduce((sum, s) => sum + s.totalFiles, 0);
   const totalDownloads = files.reduce((sum, s) => sum + s.totalDownloads, 0);
   const totalSize = formatBytes(
@@ -595,7 +631,7 @@ export default function FileDashboard({ onSelectUser }) {
         />
       </div>
 
-      {/* User Summary View */}
+      {/* User Summary View (Default) */}
       {!showAllFiles && (
         <div className="overflow-x-auto mt-4 bg-white rounded shadow-md">
           <table className="min-w-full text-sm">
@@ -606,7 +642,7 @@ export default function FileDashboard({ onSelectUser }) {
                   "Total Files",
                   "Total Size",
                   "Downloads",
-                  "Last Upload",
+                  "Last Upload (Newest)",
                   "User ID",
                   "Actions",
                 ].map((t) => (
@@ -622,6 +658,7 @@ export default function FileDashboard({ onSelectUser }) {
 
             <tbody>
               {filteredFiles.length ? (
+                // filteredFiles are not sorted here, but the data inside (latestUpload) reflects the newest file.
                 filteredFiles.map((summary) => (
                   <tr
                     key={summary.uploadDocId}
@@ -677,7 +714,7 @@ export default function FileDashboard({ onSelectUser }) {
                   "Downloads",
                   "Customer",
                   "User ID",
-                  "Uploaded At",
+                  "Uploaded At (Newest)",
                   "Action",
                 ].map((t) => (
                   <th
@@ -692,6 +729,7 @@ export default function FileDashboard({ onSelectUser }) {
 
             <tbody>
               {filteredAllFiles.length ? (
+                // filteredAllFiles is sorted by upload date (newest first)
                 filteredAllFiles.map((file) => (
                   <tr
                     key={`${file.uploadDocId}-${file.id}`}
@@ -759,7 +797,7 @@ export default function FileDashboard({ onSelectUser }) {
           onDownloadAll={() => handleDownloadAllFiles(selectedUser)}
           onDeleteAll={() => handleDeleteAllUserFiles(selectedUser)}
         />
-      )}\
+      )}
     </div>
   );
 }
