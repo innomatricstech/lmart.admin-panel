@@ -18,7 +18,8 @@ import {
   FiUser,
   FiZap,
   FiTrash2,
-  FiSave
+  FiSave,
+  FiVideo, // 👈 ADDED VIDEO ICON
 } from 'react-icons/fi';
 
 // Assuming you have imported and configured your Firebase app instance:
@@ -41,7 +42,7 @@ import {
 import ProductUpdateSuccessModal from './ProductUpdateSuccessModal'; 
 
 
-// *** REUSABLE KEYWORD GENERATION FUNCTION *** (Moved to a util file for size reduction, but kept inline for complete self-contained code per previous request)
+// *** REUSABLE KEYWORD GENERATION FUNCTION *** (UNMODIFIED)
 const generateSearchKeywords = (product) => {
   const keywords = new Set();
   const lowerName = product.name.toLowerCase();
@@ -131,7 +132,10 @@ const EditProductPage = () => {
     // --- IMAGE MANAGEMENT STATE ---
     const [mainImageState, setMainImageState] = useState(null);
     const [galleryImagesState, setGalleryImagesState] = useState([]);
-    // Array to track paths of images that were deleted from the gallery/main slot (for cleanup)
+    // 👇 ADDED STATE FOR VIDEO
+    const [videoFileState, setVideoFileState] = useState(null); 
+    
+    // Array to track paths of images/videos that were deleted/replaced (for cleanup)
     const [imagesToDelete, setImagesToDelete] = useState([]);
 
 
@@ -226,6 +230,20 @@ const EditProductPage = () => {
                         isMain: false,
                         isExisting: true, // Mark as existing file/URL
                     })));
+                    
+                    // --- 3. Map Video URL to Video State ---
+                    if (data.videoUrl && data.videoPath) {
+                        setVideoFileState({
+                            url: data.videoUrl,
+                            name: data.videoUrl.split('/').pop().split('?')[0], // Simple way to derive a name
+                            id: `video-${data.videoPath}`,
+                            path: data.videoPath,
+                            isExisting: true,
+                        });
+                    } else {
+                        setVideoFileState(null);
+                    }
+
 
                 } else {
                     setMessage("❌ No such product found.");
@@ -242,7 +260,7 @@ const EditProductPage = () => {
     }, [productId]);
 
 
-    // --- PRODUCT & CATEGORY CHANGE HANDLER ---
+    // --- PRODUCT & CATEGORY CHANGE HANDLER (UNMODIFIED) ---
     const handleChange = (e) => {
         const { name, value } = e.target;
 
@@ -273,7 +291,7 @@ const EditProductPage = () => {
         }
     };
 
-    // --- VARIANT LOGIC ---
+    // --- VARIANT LOGIC (UNMODIFIED) ---
     const handleNewVariantChange = (e) => {
         const { name, value } = e.target;
         setNewVariant(prev => ({ ...prev, [name]: value }));
@@ -379,7 +397,7 @@ const EditProductPage = () => {
         const uniqueNewImages = newImages.filter(newImg =>
             !galleryImagesState.some(existingImg =>
                 (existingImg.isExisting && existingImg.name === newImg.name) ||
-                (!existingImg.isExisting && existingImg.file.size === newImg.file.size && existingImg.name === newImg.name)
+                (!existingImg.isExisting && existingImg.file && newImg.file && existingImg.file.size === newImg.file.size && existingImg.name === newImg.name)
             )
         );
 
@@ -436,18 +454,59 @@ const EditProductPage = () => {
         setMessage("✅ Gallery image removed.");
     };
 
-    // 👇 NEW MODAL HANDLER
+    // --- VIDEO MANAGEMENT LOGIC (NEW) ---
+    const handleVideoChange = (e) => {
+        const file = e.target.files ? e.target.files[0] : null;
+        if (file) {
+            // If an existing video is being replaced, mark it for deletion
+            if (videoFileState && videoFileState.isExisting && videoFileState.path) {
+                setImagesToDelete(prev => [...prev, videoFileState.path]);
+            }
+            // Clear the local URL of the old object if it was a file
+            if (videoFileState && videoFileState.url && !videoFileState.isExisting) URL.revokeObjectURL(videoFileState.url);
+
+            setVideoFileState({
+                file: file,
+                url: URL.createObjectURL(file), 
+                name: file.name,
+                id: `video-${Date.now()}`,
+                isExisting: false, // It's a new file
+            });
+            setMessage(`✅ Product Video selected: ${file.name}.`); 
+        } else {
+            setVideoFileState(null); 
+        }
+        e.target.value = null; 
+    };
+
+    const removeVideo = () => {
+        if (videoFileState) {
+            // If it's an existing file, mark its path for deletion in Storage
+            if (videoFileState.isExisting && videoFileState.path) {
+                setImagesToDelete(prev => [...prev, videoFileState.path]);
+            }
+            // Clean up the object URL if it was a new file
+            if (videoFileState.url && !videoFileState.isExisting) URL.revokeObjectURL(videoFileState.url);
+        }
+
+        setVideoFileState(null);
+        if (document.getElementById("videoFile")) document.getElementById("videoFile").value = "";
+        setMessage("✅ Product Video removed.");
+    };
+    // --- END: VIDEO MANAGEMENT LOGIC
+
+
+    // 👇 MODAL HANDLER (UNMODIFIED)
     const handleModalClose = useCallback((shouldNavigate) => {
         setShowSuccessModal(false);
         setMessage(''); // Clear any lingering messages
         if (shouldNavigate) {
             navigate('/products'); // Navigate to the product list or wherever is appropriate
         }
-        // If not navigating, the component remains mounted with updated data
     }, [navigate]);
 
 
-    // --- SUBMIT/UPDATE HANDLER ---
+    // --- SUBMIT/UPDATE HANDLER (UPDATED) ---
     const handleSubmit = async (e) => {
         e.preventDefault();
         setMessage('');
@@ -455,26 +514,28 @@ const EditProductPage = () => {
         setLoading(true);
 
         try {
-            // --- 1. CLEAN UP DELETED IMAGES FROM STORAGE ---
+            // --- 1. CLEAN UP DELETED ASSETS (IMAGES & VIDEOS) FROM STORAGE ---
             await Promise.all(imagesToDelete.map(async (path) => {
                 try {
                     const storageRef = ref(storage, path);
                     await deleteObject(storageRef);
-                    console.log(`Deleted old image from storage: ${path}`);
+                    console.log(`Deleted old asset from storage: ${path}`);
                 } catch (error) {
-                    console.warn(`Could not delete old image (path: ${path}). It might not exist or permissions are wrong.`, error);
+                    console.warn(`Could not delete old asset (path: ${path}). It might not exist or permissions are wrong.`, error);
                 }
             }));
 
 
-            // --- 2. UPLOAD NEW IMAGES & COLLECT ALL IMAGE DATA ---
+            // --- 2. UPLOAD NEW ASSETS & COLLECT ALL DATA ---
             let imageUrls = [];
             let mainDownloadURL = '';
+            let videoDownloadURL = '';
+            let videoStoragePath = '';
+
 
             // A. Handle Main Image (New Upload or Existing URL)
             if (mainImageState) {
                 if (mainImageState.isExisting) {
-                    // Existing Image - use current details
                     mainDownloadURL = mainImageState.url;
                     imageUrls.push({
                         url: mainImageState.url,
@@ -485,7 +546,6 @@ const EditProductPage = () => {
                         color: mainImageState.color,
                     });
                 } else if (mainImageState.file) {
-                    // New Image - upload
                     const mainFile = mainImageState.file;
                     const mainFileName = `products/${Date.now()}_main_${mainFile.name}`;
                     const mainStorageRef = ref(storage, mainFileName);
@@ -507,7 +567,6 @@ const EditProductPage = () => {
             // B. Handle Gallery Images (New Uploads or Existing URLs)
             for (const imageObject of galleryImagesState) {
                 if (imageObject.isExisting) {
-                    // Existing Image - use current details
                     imageUrls.push({
                         url: imageObject.url,
                         name: imageObject.name,
@@ -517,7 +576,6 @@ const EditProductPage = () => {
                         color: imageObject.color,
                     });
                 } else if (imageObject.file) {
-                    // New Image - upload
                     const galleryFile = imageObject.file;
                     const galleryFileName = `products/${Date.now()}_gallery_${galleryFile.name}`;
                     const galleryStorageRef = ref(storage, galleryFileName);
@@ -533,6 +591,22 @@ const EditProductPage = () => {
                         isMain: false,
                         color: imageObject.color,
                     });
+                }
+            }
+
+            // C. Handle Product Video (New Upload or Existing URL)
+            if (videoFileState) {
+                if (videoFileState.isExisting) {
+                    // Existing Video - use current details
+                    videoDownloadURL = videoFileState.url;
+                    videoStoragePath = videoFileState.path;
+                } else if (videoFileState.file) {
+                    // New Video - upload
+                    const file = videoFileState.file;
+                    videoStoragePath = `products/${Date.now()}_video_${file.name}`;
+                    const storageRef = ref(storage, videoStoragePath);
+                    await uploadBytes(storageRef, file);
+                    videoDownloadURL = await getDownloadURL(storageRef);
                 }
             }
 
@@ -567,6 +641,8 @@ const EditProductPage = () => {
 
                 imageUrls: imageUrls,
                 mainImageUrl: mainDownloadURL,
+                videoUrl: videoDownloadURL || null, // 👈 ADDED VIDEO URL
+                videoPath: videoStoragePath || null, // 👈 ADDED VIDEO PATH
 
                 searchKeywords: generateSearchKeywords(tempProductForKeywords),
                 updatedAt: new Date(),
@@ -578,6 +654,15 @@ const EditProductPage = () => {
 
             // --- 5. CLEANUP AND SUCCESS ---
             setImagesToDelete([]); // Clear deletion queue after successful cleanup and update
+            // Re-sync video state to show it as existing
+            if (videoFileState && !videoFileState.isExisting) {
+                setVideoFileState(prev => ({
+                    ...prev,
+                    isExisting: true,
+                    url: videoDownloadURL,
+                    path: videoStoragePath,
+                }));
+            }
             setShowSuccessModal(true); // 👇 TRIGGER THE MODAL HERE
 
         } catch (error) {
@@ -638,7 +723,6 @@ const EditProductPage = () => {
                     <form onSubmit={handleSubmit} className="p-8 space-y-8">
 
                         {/* BASIC INFORMATION */}
-                        {/* ... (Basic Information JSX remains the same) ... */}
                         <div className="space-y-4">
                             <h3 className="text-xl font-semibold text-gray-800 flex items-center">
                                 <FiPackage className="w-6 h-6 mr-3 text-yellow-600" />
@@ -791,8 +875,7 @@ const EditProductPage = () => {
                         </div>
 
 
-                        {/* --- PRODUCT VARIANT MANAGEMENT --- */}
-                        {/* ... (Variant Management JSX remains the same) ... */}
+                        {/* --- PRODUCT VARIANT MANAGEMENT (UNMODIFIED) --- */}
                         <div className="space-y-6 border p-6 rounded-xl bg-orange-50 border-orange-200">
                             <h3 className="text-xl font-semibold text-gray-800 flex items-center">
                               <FiDroplet className="w-6 h-6 mr-3 text-orange-600" />
@@ -906,12 +989,11 @@ const EditProductPage = () => {
                           </div>
 
 
-                        {/* --- IMAGE UPLOAD SECTION --- */}
-                        {/* ... (Image Upload JSX remains the same) ... */}
-                        <div className="space-y-6 border p-6 rounded-xl bg-pink-50 border-pink-200">
+                        {/* 🚨 UPDATED: MAIN MEDIA UPLOAD SECTION (INCLUDING VIDEO) */}
+                        <div className="space-y-6 border p-6 rounded-xl bg-violet-50 border-violet-200">
                             <h3 className="text-xl font-semibold text-gray-800 flex items-center">
-                                <FiCamera className="w-6 h-6 mr-3 text-pink-600" />
-                                Image Management (Replace Old or Add New)
+                                <FiCamera className="w-6 h-6 mr-3 text-violet-600" />
+                                Product Media Management
                             </h3>
 
                             {availableColors.length === 0 && (
@@ -921,52 +1003,161 @@ const EditProductPage = () => {
                                 </div>
                             )}
 
-                            {/* Image Controls */}
+
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                <div className="border-2 border-dashed border-pink-300 rounded-xl p-4 text-center hover:border-pink-500 transition-colors duration-200 bg-white">
-                                    <FiUpload className="w-6 h-6 text-pink-400 mx-auto mb-2" />
-                                    <label htmlFor="mainImageFile" className="cursor-pointer">
-                                        <span className="text-md font-medium text-gray-700 block mb-1">{mainImageState ? 'Replace Main Image' : 'Upload Main Image'}</span>
-                                        <p className="text-gray-500 text-xs">(Current: {mainImageState ? mainImageState.name : 'None'})</p>
-                                        <input
-                                            type="file"
-                                            id="mainImageFile"
-                                            accept="image/*"
-                                            onChange={handleMainImageChange}
-                                            className="hidden"
-                                            disabled={isFormDisabled}
-                                        />
-                                    </label>
+                                
+                                {/* 1. Main Image Control or Preview (Fixed Height: h-30) */}
+                                <div className="h-30"> 
+                                    {!mainImageState ? (
+                                        /* Upload Input: Entire dashed area is the clickable label */
+                                        <label htmlFor="mainImageFile" className="h-full border-2 border-dashed border-pink-300 rounded-xl p-4 text-center hover:border-pink-500 transition-colors duration-200 bg-white flex flex-col justify-center cursor-pointer">
+                                            <FiUpload className="w-6 h-6 text-pink-400 mx-auto mb-2" />
+                                            <span className="text-md font-medium text-gray-700 block mb-1">Upload Main Product Image</span>
+                                            <p className="text-gray-500 text-xs">(Recommended)</p>
+                                            <input 
+                                                type="file"
+                                                id="mainImageFile"
+                                                accept="image/*"
+                                                onChange={handleMainImageChange}
+                                                className="hidden"
+                                                disabled={isFormDisabled}
+                                            />
+                                        </label>
+                                    ) : (
+                                        /* Image Preview: Fixed height container, image contained inside */
+                                        <div 
+                                            key={mainImageState.id} 
+                                            className="relative rounded-xl overflow-hidden shadow-lg border-4 border-yellow-500 h-full w-full bg-gray-50 flex items-center justify-center" 
+                                        >
+                                            <img
+                                                src={mainImageState.url}
+                                                alt={mainImageState.name}
+                                                className="w-full h-full object-contain" 
+                                            />
+                                            
+                                            {/* Top-Right: Remove Button */}
+                                            <button
+                                                type="button"
+                                                onClick={removeMainImage}
+                                                className="absolute top-2 right-2 bg-red-500 text-white w-6 h-6 rounded-full flex items-center justify-center shadow-md hover:bg-red-600 transition-colors z-20"
+                                                title="Remove Main Image"
+                                                disabled={isFormDisabled}
+                                            >
+                                                <FiX className="w-3 h-3" />
+                                            </button>
+                                            
+                                            {/* Bottom-Left 'Replace/Upload' Button */}
+                                            <label 
+                                                htmlFor="mainImageFile" 
+                                                className="absolute bottom-2 left-2 bg-blue-600 text-white p-2 rounded-lg shadow-lg hover:bg-blue-700 transition-colors z-20 cursor-pointer flex items-center space-x-1"
+                                                title="Replace Image"
+                                            >
+                                                <FiUpload className="w-4 h-4" />
+                                                <span className="text-xs font-medium hidden sm:inline">Replace</span>
+                                                <input 
+                                                    type="file"
+                                                    id="mainImageFile"
+                                                    accept="image/*"
+                                                    onChange={handleMainImageChange}
+                                                    className="hidden"
+                                                    disabled={isFormDisabled}
+                                                />
+                                            </label>
+                                            <span className={`absolute bottom-2 right-2 text-white text-xs font-bold px-2 py-1 rounded-lg z-10 ${mainImageState.isExisting ? 'bg-gray-600' : 'bg-pink-600'}`}>
+                                                {mainImageState.isExisting ? 'OLD' : 'NEW'}
+                                            </span>
+                                        </div>
+                                    )}
                                 </div>
 
-                                {/* Gallery Images Control */}
-                                <div className="border-2 border-dashed border-blue-300 rounded-xl p-4 text-center hover:border-blue-500 transition-colors duration-200 bg-white">
-                                    <FiCamera className="w-6 h-6 text-blue-400 mx-auto mb-2" />
-                                    <label htmlFor="galleryImages" className="cursor-pointer">
-                                        <span className="text-md font-medium text-gray-700 block mb-1">Add New Gallery Images</span>
-                                        <p className="text-gray-500 text-xs">(Current: {galleryImagesState.length} images)</p>
-                                        <input
-                                            type="file"
-                                            id="galleryImages"
-                                            multiple
-                                            accept="image/*"
-                                            onChange={handleGalleryImageChange}
-                                            className="hidden"
-                                            disabled={isFormDisabled}
-                                        />
-                                    </label>
+
+                                {/* 2. Video Upload Control or Preview (Fixed Height: h-30) */}
+                                <div className="h-30"> 
+                                    {!videoFileState ? (
+                                        /* Upload Input: Entire dashed area is the clickable label */
+                                        <label htmlFor="videoFile" className="h-full border-2 border-dashed border-violet-300 rounded-xl p-4 text-center hover:border-violet-500 transition-colors duration-200 bg-white flex flex-col justify-center cursor-pointer">
+                                            <FiVideo className="w-6 h-6 text-violet-400 mx-auto mb-2" />
+                                            <span className="text-md font-medium text-gray-700 block mb-1">Upload Product Video</span>
+                                            <p className="text-gray-500 text-xs">(Max 1 file)</p>
+                                            <input 
+                                                type="file"
+                                                id="videoFile"
+                                                accept="video/*"
+                                                onChange={handleVideoChange}
+                                                className="hidden"
+                                                disabled={isFormDisabled}
+                                            />
+                                        </label>
+                                    ) : (
+                                        /* Video Preview: Fixed height container */
+                                        <div className="p-3 border-4 border-violet-500 rounded-xl bg-white flex flex-col h-full shadow-lg justify-center relative">
+                                            <FiVideo className="w-6 h-6 text-violet-600 flex-shrink-0 mx-auto mb-1" />
+                                            <p className="font-semibold text-gray-800 truncate text-center text-sm" title={videoFileState.name}>{videoFileState.name}</p>
+                                            <p className="text-xs text-gray-500 text-center">Video Ready ({videoFileState.isExisting ? 'OLD' : 'NEW'})</p>
+                                            
+                                            {/* Top-Right: Remove Button */}
+                                            <button
+                                                type="button"
+                                                onClick={removeVideo}
+                                                className="absolute top-2 right-2 bg-red-500 text-white w-6 h-6 rounded-full flex items-center justify-center shadow-md hover:bg-red-600 transition-colors z-20"
+                                                disabled={isFormDisabled}
+                                                title="Remove Video"
+                                            >
+                                                <FiX className="w-3 h-3" />
+                                            </button>
+                                            
+                                            {/* Bottom-Left 'Replace/Upload' Button for Video */}
+                                            <label 
+                                                htmlFor="videoFile" 
+                                                className="absolute bottom-2 left-2 bg-blue-600 text-white p-2 rounded-lg shadow-lg hover:bg-blue-700 transition-colors z-20 cursor-pointer flex items-center space-x-1"
+                                                title="Replace Video"
+                                            >
+                                                <FiUpload className="w-4 h-4" />
+                                                <span className="text-xs font-medium hidden sm:inline">Replace</span>
+                                                <input 
+                                                    type="file"
+                                                    id="videoFile"
+                                                    accept="video/*"
+                                                    onChange={handleVideoChange}
+                                                    className="hidden"
+                                                    disabled={isFormDisabled}
+                                                />
+                                            </label>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
+                          </div>
+
+
+                        {/* --- GALLERY IMAGE UPLOAD & PREVIEWS (MODIFIED to remove duplicate controls) --- */}
+                        <div className="space-y-6 border p-6 rounded-xl bg-pink-50 border-pink-200">
+                            
+                            {/* Gallery Images Control (Add More Button) */}
+                            <label htmlFor="galleryImages" className="cursor-pointer text-blue-600 hover:text-blue-800 text-lg font-bold flex items-center space-x-2 justify-center border-2 border-dashed border-blue-300 rounded-xl p-4 bg-white hover:border-blue-500 transition-colors duration-200">
+                                <FiPlus className="w-5 h-5" /> 
+                                <span>Add New Gallery Images ({galleryImagesState.length} current)</span>
+                                <input
+                                    type="file"
+                                    id="galleryImages"
+                                    multiple
+                                    accept="image/*"
+                                    onChange={handleGalleryImageChange}
+                                    className="hidden"
+                                    disabled={isFormDisabled}
+                                />
+                            </label>
+
 
                             {/* Image Previews with Dropdown Color Assignment */}
-                            {allImages.length > 0 && (
+                            {galleryImagesState.length > 0 && (
                                 <div className="mt-4 p-4 border border-gray-300 rounded-lg bg-white">
-                                    <p className="text-sm font-bold text-gray-700 mb-3">Image Previews ({allImages.length}):</p>
+                                    <p className="text-sm font-bold text-gray-700 mb-3">Gallery Image Previews ({galleryImagesState.length}):</p>
                                     <div className="grid grid-cols-3 md:grid-cols-6 gap-4">
-                                        {allImages.map((image) => (
+                                        {galleryImagesState.map((image) => (
                                             <div
                                                 key={image.id}
-                                                className={`relative rounded-lg overflow-hidden shadow-md group border-2 ${image.isExisting ? 'border-gray-500' : 'border-pink-500 ring-2 ring-pink-300'} ${image.isMain ? 'ring-2 ring-yellow-300' : ''}`}
+                                                className={`relative rounded-lg overflow-hidden shadow-md group border-2 ${image.color ? 'border-green-500' : 'border-gray-300'} ${!image.isExisting ? 'ring-2 ring-pink-300' : ''}`}
                                             >
                                                 <img
                                                     src={image.url}
@@ -974,13 +1165,13 @@ const EditProductPage = () => {
                                                     className="w-full h-20 object-cover"
                                                 />
 
-                                                <span className={`absolute top-0 left-0 text-white text-xs font-bold px-2 py-1 rounded-br-lg z-10 ${image.isMain ? 'bg-yellow-600' : (image.isExisting ? 'bg-gray-600' : 'bg-pink-600')}`}>
-                                                    {image.isMain ? 'MAIN' : (image.isExisting ? 'OLD' : 'NEW')}
+                                                <span className={`absolute top-0 left-0 text-white text-xs font-bold px-2 py-1 rounded-br-lg z-10 ${image.isExisting ? 'bg-gray-600' : 'bg-pink-600'}`}>
+                                                    {image.isExisting ? 'OLD' : 'NEW'}
                                                 </span>
 
                                                 <button
                                                     type="button"
-                                                    onClick={() => image.isMain ? removeMainImage() : removeGalleryImage(image.id)}
+                                                    onClick={() => removeGalleryImage(image.id)}
                                                     className="absolute top-1 right-1 bg-red-500 text-white w-5 h-5 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity disabled:opacity-50 z-20"
                                                     title="Remove Image"
                                                     disabled={isFormDisabled}

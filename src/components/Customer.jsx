@@ -16,7 +16,6 @@ import {
 } from 'lucide-react';
 
 // --- Firebase/Firestore Imports ---
-// NOTE: Ensure your Firebase config file is correctly located at this path.
 import { db } from "../../firerbase"; 
 import { 
     collection, 
@@ -26,6 +25,17 @@ import {
     doc,        
     updateDoc   
 } from "firebase/firestore";
+
+// Define the columns without fixed widths, using flexible widths where possible (e.g., Email is wider)
+const COLUMNS = [
+    { key: "name", label: "Customer Name", icon: Users, width: "w-[15%]" },
+    { key: "email", label: "Email", icon: Mail, width: "w-[25%]" }, // Largest width to hold emails
+    { key: "contactNo", label: "Contact", icon: Phone, width: "w-[15%]" },
+    { key: "customerId", label: "Customer ID", icon: IdCard, width: "w-[15%]" },
+    { key: "referralCode", label: "Referral", icon: Gift, width: "w-[15%]" },
+    { key: "isBlocked", label: "Status", icon: CheckCircle, width: "w-[10%]" }
+];
+// Action column will take the remaining width (approx 5%)
 
 // --- Main Component ---
 const CustomerDirectory = () => {
@@ -37,23 +47,21 @@ const CustomerDirectory = () => {
     const [error, setError] = useState(null);
     const [sortField, setSortField] = useState("customerId");
     const [sortDirection, setSortDirection] = useState("desc");
-    const [updateInProgress, setUpdateInProgress] = useState(null); // Tracks which customer block/unblock action is running
+    const [updateInProgress, setUpdateInProgress] = useState(null); 
 
     // 1. FIREBASE DATA FETCHING (Real-time listener)
     useEffect(() => {
         try {
-            // Create a query to order by customerId (important for initial load order)
             const q = query(
                 collection(db, "users"),
                 orderBy("customerId", "desc") 
             );
 
-            // Set up the real-time listener (onSnapshot)
             const unsubscribe = onSnapshot(
                 q,
                 (snapshot) => {
                     const list = snapshot.docs.map((doc) => ({
-                        id: doc.id, // Firestore document ID
+                        id: doc.id, 
                         ...doc.data()
                     }));
 
@@ -67,7 +75,6 @@ const CustomerDirectory = () => {
                 }
             );
 
-            // Cleanup function to unsubscribe from the listener
             return () => unsubscribe();
         } catch (err) {
             console.error("Firestore setup error:", err);
@@ -82,7 +89,6 @@ const CustomerDirectory = () => {
         setError(null);
         
         try {
-            // customerId here is the Firestore document ID (doc.id)
             const customerRef = doc(db, "users", customerId);
             const newStatus = !currentStatus;
             
@@ -90,7 +96,6 @@ const CustomerDirectory = () => {
                 isBlocked: newStatus,
             });
             
-            // UI updates automatically via the onSnapshot listener
         } catch (err) {
             console.error("Error updating block status:", err);
             setError(`Failed to update customer status: ${err.message}`);
@@ -103,7 +108,6 @@ const CustomerDirectory = () => {
     const filteredAndSortedCustomers = useMemo(() => {
         const s = searchTerm.toLowerCase();
         
-        // Filter based on search term (name, email, contactNo, customerId)
         const filtered = customers.filter((customer) => {
             return (
                 (customer.name || "").toLowerCase().includes(s) ||
@@ -113,7 +117,6 @@ const CustomerDirectory = () => {
             );
         });
 
-        // Sort the filtered list
         return filtered.sort((a, b) => {
             const aValue = a[sortField] || "";
             const bValue = b[sortField] || "";
@@ -125,7 +128,6 @@ const CustomerDirectory = () => {
             }
         });
     }, [customers, searchTerm, sortField, sortDirection]);
-
 
     // 4. UI HANDLERS & HELPERS
 
@@ -164,9 +166,7 @@ const CustomerDirectory = () => {
         );
     };
     
-    // 5. CSV EXPORT (Placeholder - assumes export logic will be passed or defined here)
     const exportToCSV = () => {
-        // Implement the robust CSV generation logic here, using filteredAndSortedCustomers
         const headers = ["Customer ID", "Name", "Email", "Contact No", "Referral Code", "Status"];
         const csvData = filteredAndSortedCustomers.map(customer => [
             customer.customerId || "",
@@ -198,12 +198,12 @@ const CustomerDirectory = () => {
 
     return (
         <div className="p-6 bg-gray-50 min-h-screen">
+            {/* Main Card Container */}
             <div className="max-w-full mx-auto bg-white rounded-xl shadow-lg border border-gray-100">
 
                 {/* --- HEADER & CONTROLS --- */}
                 <div className="p-6 border-b border-gray-100 flex flex-col md:flex-row md:items-center md:justify-between">
                     
-                    {/* Title Block */}
                     <div className="flex items-center mb-4 md:mb-0">
                         <Users className="w-6 h-6 text-indigo-600 mr-3" />
                         <h1 className="text-xl font-bold text-gray-900">
@@ -211,9 +211,7 @@ const CustomerDirectory = () => {
                         </h1>
                     </div>
 
-                    {/* Search and Export Group */}
                     <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
-                        {/* Search Bar */}
                         <div className="relative w-full sm:w-64">
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
                             <input
@@ -224,7 +222,6 @@ const CustomerDirectory = () => {
                             />
                         </div>
 
-                        {/* Export Button */}
                         <button
                             onClick={exportToCSV} 
                             className="flex items-center justify-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg shadow-md hover:bg-green-700 transition-colors flex-shrink-0"
@@ -243,8 +240,10 @@ const CustomerDirectory = () => {
                     </div>
                 )}
 
-                {/* --- TABLE STRUCTURE --- */}
-                <div className="overflow-x-auto">
+                {/* --- TABLE STRUCTURE (FULLY RESPONSIVE - NO SCROLL) --- */}
+                
+                {/* Removed overflow-x-auto from here */}
+                <div> 
                     {loading ? (
                         <div className="p-16 text-center">
                             <Loader className="w-10 h-10 animate-spin mx-auto text-indigo-500" />
@@ -256,31 +255,25 @@ const CustomerDirectory = () => {
                             <p className="text-lg font-medium">No customers found matching your criteria.</p>
                         </div>
                     ) : (
-                        <table className="w-full min-w-[900px] table-auto">
+                        // table-fixed allows column widths (w-[...]) to be respected and shrink/stretch
+                        <table className="w-full table-fixed">
                             <thead className="bg-gray-50 border-t border-gray-200">
                                 <tr>
-                                    {/* Table Headers */}
-                                    {[
-                                        { key: "name", label: "Customer Name", icon: Users },
-                                        { key: "email", label: "Email", icon: Mail },
-                                        { key: "contactNo", label: "Contact", icon: Phone },
-                                        { key: "customerId", label: "Customer ID", icon: IdCard },
-                                        { key: "referralCode", label: "Referral", icon: Gift },
-                                        { key: "isBlocked", label: "Status", icon: CheckCircle }
-                                    ].map(({ key, label, icon: Icon }) => (
+                                    {COLUMNS.map(({ key, label, icon: Icon, width }) => (
                                         <th 
                                             key={key}
-                                            className="p-4 text-left text-xs font-bold tracking-wider text-gray-600 uppercase cursor-pointer hover:bg-gray-100"
+                                            className={`p-4 text-left text-xs font-bold tracking-wider text-gray-600 uppercase cursor-pointer hover:bg-gray-100 ${width}`}
                                             onClick={() => handleSortClick(key)}
                                         >
                                             <div className="flex items-center gap-1.5">
                                                 <Icon className="w-4 h-4 text-indigo-500" />
-                                                <span>{label}</span>
+                                                <span className="truncate">{label}</span>
                                                 <SortIcon field={key} />
                                             </div>
                                         </th>
                                     ))}
-                                    <th className="p-4 text-xs font-bold tracking-wider text-center text-gray-600 uppercase w-[120px]">ACTION</th> 
+                                    {/* Action column takes the remaining space */}
+                                    <th className="p-4 text-xs font-bold tracking-wider text-center text-gray-600 uppercase w-[10%]">ACTION</th> 
                                 </tr>
                             </thead>
 
@@ -291,38 +284,38 @@ const CustomerDirectory = () => {
                                         className={`hover:bg-indigo-50/20 transition-colors ${customer.isBlocked ? 'bg-red-50' : ''}`}
                                     >
                                         
-                                        {/* Name */}
-                                        <td className="p-4 font-medium text-gray-900">{customer.name || "N/A"}</td>
+                                        {/* Name (w-[15%]) */}
+                                        <td className="p-4 font-medium text-gray-900 truncate">{customer.name || "N/A"}</td>
 
-                                        {/* Email */}
+                                        {/* Email (w-[25%]) - Critical: Must be truncated to prevent overflow */}
                                         <td className="p-4 text-sm text-gray-600 truncate">{customer.email || "N/A"}</td>
                                         
-                                        {/* Contact */}
-                                        <td className="p-4 text-sm text-gray-600 whitespace-nowrap">{customer.contactNo || "N/A"}</td>
+                                        {/* Contact (w-[15%]) */}
+                                        <td className="p-4 text-sm text-gray-600 truncate">{customer.contactNo || "N/A"}</td>
 
-                                        {/* Customer ID */}
+                                        {/* Customer ID (w-[15%]) */}
                                         <td className="p-4">
-                                            <span className="bg-indigo-50 px-3 py-1 rounded-full text-indigo-700 text-xs font-mono font-medium">
+                                            <span className="bg-indigo-50 px-3 py-1 rounded-full text-indigo-700 text-xs font-mono font-medium truncate inline-block max-w-full">
                                                 {customer.customerId || "—"}
                                             </span>
                                         </td>
 
-                                        {/* Referral Code */}
-                                        <td className="p-4 text-sm text-gray-600">
+                                        {/* Referral Code (w-[15%]) - Critical: Must be truncated */}
+                                        <td className="p-4 text-sm text-gray-600 truncate">
                                             {customer.referralCode || "—"}
                                         </td>
 
-                                        {/* Status */}
+                                        {/* Status (w-[10%]) */}
                                         <td className="p-4 text-center">
                                             {getStatusBadge(customer.isBlocked)}
                                         </td>
                                         
-                                        {/* Action Button (Toggle Block) */}
+                                        {/* Action Button (w-[10%]) */}
                                         <td className="p-4 text-center">
                                             <button
                                                 onClick={() => toggleBlockStatus(customer.id, customer.isBlocked)}
                                                 disabled={updateInProgress === customer.id}
-                                                className={`w-full px-3 py-1.5 text-xs rounded-lg text-white font-medium transition-colors flex items-center justify-center gap-1 ${
+                                                className={`w-full px-1 py-1.5 text-xs rounded-lg text-white font-medium transition-colors flex items-center justify-center gap-1 ${
                                                     customer.isBlocked 
                                                         ? 'bg-blue-500 hover:bg-blue-600' 
                                                         : 'bg-red-500 hover:bg-red-600'

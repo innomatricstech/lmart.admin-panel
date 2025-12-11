@@ -33,6 +33,10 @@ const ManageCategories = () => {
   const [filterLabel, setFilterLabel] = useState('');
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
+  
+  // *** NEW STATE FOR INLINE EDITING ***
+  const [editingId, setEditingId] = useState(null);
+  const [editingName, setEditingName] = useState('');
 
   const LABELS = ['E-Store', 'Local Market', "Printing"];
 
@@ -92,6 +96,42 @@ const ManageCategories = () => {
     } finally {
       setLoading(false);
     }
+  };
+  
+  // *** NEW FUNCTION: Start Editing ***
+  const startEditing = (id, name) => {
+      setEditingId(id);
+      setEditingName(name);
+  };
+
+  // *** NEW FUNCTION: Save Edited Name ***
+  const handleEditCategoryName = async (id) => {
+      if (!editingName.trim()) {
+          setMessage("❌ Category name cannot be empty!");
+          return;
+      }
+      if (editingName === categories.find(c => c.id === id)?.name) {
+          setEditingId(null); // No change, just close edit mode
+          return;
+      }
+
+      setLoading(true);
+      try {
+          await updateDoc(doc(db, "categories", id), {
+              name: editingName,
+              updatedAt: serverTimestamp()
+          });
+          
+          setMessage("✅ Category name updated successfully!");
+          setEditingId(null);
+          setEditingName('');
+          fetchCategories(); // Refresh the list
+      } catch (error) {
+          console.error("Error updating category name:", error);
+          setMessage("❌ Failed to update category name");
+      } finally {
+          setLoading(false);
+      }
   };
 
   // Toggle category status in Firebase
@@ -157,12 +197,15 @@ const ManageCategories = () => {
 
   const getLabelBadge = (label) => {
     const baseClasses = 'px-2 py-1 rounded-full text-xs font-medium border';
-    if (label === 'E-Market') {
-      return `${baseClasses} bg-blue-100 text-blue-800 border-blue-200`;
-    } else if (label === 'MARKET NEWS') {
-      return `${baseClasses} bg-purple-100 text-purple-800 border-purple-200`;
+    // Simplified your existing logic as the label values were different from the string literals in the logic
+    if (label === 'E-Store') {
+        return `${baseClasses} bg-blue-100 text-blue-800 border-blue-200`;
+    } else if (label === 'Local Market') {
+        return `${baseClasses} bg-purple-100 text-purple-800 border-purple-200`;
+    } else if (label === 'Printing') {
+        return `${baseClasses} bg-orange-100 text-orange-800 border-orange-200`;
     } else {
-      return `${baseClasses} bg-orange-100 text-orange-800 border-orange-200`;
+      return `${baseClasses} bg-gray-100 text-gray-800 border-gray-200`;
     }
   };
 
@@ -192,7 +235,7 @@ const ManageCategories = () => {
           {message && (
             <div className={`p-4 flex items-center ${messageClass}`}>
               <div className={`w-6 h-6 rounded-full ${isSuccess ? 'bg-green-500' : 'bg-red-500'} flex items-center justify-center mr-3`}>
-                <FiCheck className="w-4 h-4 text-white" />
+                {isSuccess ? <FiCheck className="w-4 h-4 text-white" /> : <FiX className="w-4 h-4 text-white" />}
               </div>
               <span className="font-medium">{message}</span>
             </div>
@@ -309,7 +352,7 @@ const ManageCategories = () => {
 
             {/* Categories Table */}
             <div className="bg-gray-50 rounded-xl overflow-hidden border border-gray-200">
-              {loading ? (
+              {loading && !categories.length ? ( // Only show full-screen loading on initial load or full refresh
                 <div className="flex justify-center items-center py-12">
                   <FiRefreshCw className="w-8 h-8 text-blue-600 animate-spin" />
                 </div>
@@ -351,12 +394,46 @@ const ManageCategories = () => {
                                 {category.label}
                               </span>
                             </td>
+                            {/* *** UPDATED: Category Name Cell with Edit Logic *** */}
                             <td className="px-6 py-4 whitespace-nowrap">
-                              <div className="flex items-center">
-                                <FiShoppingBag className="w-4 h-4 mr-2 text-purple-500" />
-                                <span className="font-semibold text-gray-800">{category.name}</span>
-                              </div>
+                              {editingId === category.id ? (
+                                <div className="flex items-center space-x-2">
+                                    <input
+                                        type="text"
+                                        value={editingName}
+                                        onChange={(e) => setEditingName(e.target.value)}
+                                        className="px-2 py-1 border border-blue-400 rounded-lg focus:ring-blue-500 focus:border-blue-500 w-64"
+                                    />
+                                    <button
+                                        onClick={() => handleEditCategoryName(category.id)}
+                                        className="text-green-600 hover:text-green-800"
+                                        title="Save Name"
+                                    >
+                                        <FiCheck className="w-5 h-5" />
+                                    </button>
+                                    <button
+                                        onClick={() => { setEditingId(null); setEditingName(''); }}
+                                        className="text-red-600 hover:text-red-800"
+                                        title="Cancel Edit"
+                                    >
+                                        <FiX className="w-5 h-5" />
+                                    </button>
+                                </div>
+                              ) : (
+                                <div className="flex items-center">
+                                  <FiShoppingBag className="w-4 h-4 mr-2 text-purple-500" />
+                                  <span className="font-semibold text-gray-800">{category.name}</span>
+                                  <button
+                                      onClick={() => startEditing(category.id, category.name)}
+                                      className="ml-2 text-blue-500 hover:text-blue-700 p-1 rounded-full hover:bg-gray-200 transition-colors duration-150"
+                                      title="Edit Category Name"
+                                  >
+                                      <FiEdit2 className="w-4 h-4" />
+                                  </button>
+                                </div>
+                              )}
                             </td>
+                            {/* *** END UPDATED *** */}
                             <td className="px-6 py-4 whitespace-nowrap">
                               <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium border ${getStatusBadge(category.status)}`}>
                                 {category.status === 'Active' ? (
@@ -408,7 +485,7 @@ const ManageCategories = () => {
                                   <span className="text-sm font-medium">Delete</span>
                                 </button>
                               </div>
-                            </td>   
+                            </td>   
                           </tr>
                         ))
                       )}

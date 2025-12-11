@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
   collection,
   addDoc,
@@ -6,8 +6,8 @@ import {
   updateDoc,
   deleteDoc,
   doc,
-  query, // ADDED: For creating Firestore queries
-  where, // ADDED: For filtering documents
+  query,
+  where,
 } from "firebase/firestore";
 import {
   FiEdit2,
@@ -20,10 +20,12 @@ import {
   FiShoppingBag,
   FiRefreshCw,
 } from "react-icons/fi";
-// Assuming 'db' is correctly exported from your Firebase configuration file
 import { db } from "../../../firerbase";
 
 const ManageSubcategories = () => {
+  // --- REF FOR SCROLLING ---
+  const formRef = useRef(null); // 1. Create the Ref
+
   // --- STATE FOR FORM INPUTS ---
   const [label, setLabel] = useState("");
   const [category, setCategory] = useState(""); // Stores Category ID (used for saving/filtering)
@@ -37,7 +39,7 @@ const ManageSubcategories = () => {
   const [subcategories, setSubcategories] = useState([]);
   const [categoriesList, setCategoriesList] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [loadingCategories, setLoadingCategories] = useState(false); // Changed initial state to false
+  const [loadingCategories, setLoadingCategories] = useState(false);
 
   // Hardcoded labels
   const LABELS = ['E-Store', 'Local Market', "Printing"];
@@ -45,26 +47,26 @@ const ManageSubcategories = () => {
   // 1. --- FETCH CATEGORIES FROM FIRESTORE (MODIFIED WITH FILTERING) ---
   const fetchCategories = useCallback(async (currentLabel) => {
     if (!currentLabel) {
-        setCategoriesList([]);
-        setCategory("");
-        setCategoryName("");
-        return;
+      setCategoriesList([]);
+      setCategory("");
+      setCategoryName("");
+      return;
     }
-    
+
     setLoadingCategories(true);
     try {
-      // CORE CHANGE: Apply 'where' clause to filter categories by the selected label
+      // Apply 'where' clause to filter categories by the selected label
       const categoriesQuery = query(
         collection(db, "categories"),
         where("label", "==", currentLabel)
       );
-      
+
       const querySnapshot = await getDocs(categoriesQuery);
       const data = querySnapshot.docs.map((doc) => ({
         id: doc.id,
         name: doc.data().name,
       }));
-      
+
       setCategoriesList(data);
 
       // Set the default category ID and Name for the form from the filtered list
@@ -75,13 +77,13 @@ const ManageSubcategories = () => {
         setCategory("");
         setCategoryName("");
       }
-      
+
     } catch (error) {
       console.error("Error fetching categories:", error);
     } finally {
       setLoadingCategories(false);
     }
-  }, [db]); // Added db to dependency array
+  }, []);
 
   // 2. --- FETCH SUBCATEGORIES FROM FIRESTORE ---
   const fetchSubcategories = useCallback(async () => {
@@ -89,10 +91,10 @@ const ManageSubcategories = () => {
     try {
       const querySnapshot = await getDocs(collection(db, "subcategories"));
       const data = querySnapshot.docs.map((doc) => ({
-        id: doc.id, // Always use the Firestore Document ID as the primary key
+        id: doc.id,
         ...doc.data(),
         // Ensure categoryId exists for safe usage
-        categoryId: doc.data().categoryId || '', 
+        categoryId: doc.data().categoryId || '',
       }));
       setSubcategories(data);
     } catch (error) {
@@ -100,14 +102,13 @@ const ManageSubcategories = () => {
     } finally {
       setLoading(false);
     }
-  }, [db]); // Added db to dependency array
+  }, []);
 
   // Run initial fetches
   useEffect(() => {
-    // 1. Fetch subcategories once on mount (independent of label)
     fetchSubcategories();
   }, [fetchSubcategories]);
-  
+
   useEffect(() => {
     // 2. Fetch categories whenever the selected 'label' changes
     fetchCategories(label);
@@ -118,7 +119,7 @@ const ManageSubcategories = () => {
   const handleCategoryChange = (e) => {
     const selectedId = e.target.value;
     setCategory(selectedId);
-    
+
     // Find the corresponding name for display
     const selectedCat = categoriesList.find(cat => cat.id === selectedId);
     setCategoryName(selectedCat ? selectedCat.name : "");
@@ -156,9 +157,9 @@ const ManageSubcategories = () => {
           createdAt: new Date(),
         });
 
-        // ⭐ Explicitly store the Firestore Document ID into the 'id' field
+        // Explicitly store the Firestore Document ID into the 'id' field
         await updateDoc(doc(db, "subcategories", docRef.id), {
-           id: docRef.id, 
+          id: docRef.id,
         });
       }
 
@@ -184,7 +185,7 @@ const ManageSubcategories = () => {
     }
   };
 
-  // Edit subcategory (prefill fields)
+  // Edit subcategory (prefill fields) - FIX APPLIED HERE
   const handleEdit = (item) => {
     setLabel(item.label);
     setSubcategory(item.subcategory);
@@ -192,9 +193,16 @@ const ManageSubcategories = () => {
     setEditId(item.id);
 
     // Set the category ID and Name from the existing subcategory item
-    // The useEffect will trigger a new category fetch based on the new label state
     setCategory(item.categoryId || categoriesList[0]?.id || "");
     setCategoryName(item.category || categoriesList[0]?.name || "");
+    
+    // 2. SCROLL FIX: Scroll the form into view
+    if (formRef.current) {
+      formRef.current.scrollIntoView({ 
+        behavior: "smooth", 
+        block: "start" 
+      });
+    }
   };
 
   // Reset form
@@ -212,7 +220,7 @@ const ManageSubcategories = () => {
     item.subcategory.toLowerCase().includes(searchTerm.toLowerCase()) ||
     item.category.toLowerCase().includes(searchTerm.toLowerCase()) ||
     item.label.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    item.categoryId?.toLowerCase().includes(searchTerm.toLowerCase()) 
+    item.categoryId?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   const isFormDisabled = loading || loadingCategories;
@@ -235,8 +243,8 @@ const ManageSubcategories = () => {
         {/* Main Content Card */}
         <div className="bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden">
           
-          {/* Form Section */}
-          <div className="p-8 border-b border-gray-200">
+          {/* Form Section - 3. ATTACH THE REF HERE */}
+          <div className="p-8 border-b border-gray-200" ref={formRef}>
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-2xl font-semibold text-gray-800 flex items-center">
                 <FiTag className="w-6 h-6 mr-3 text-purple-600" />
@@ -292,9 +300,9 @@ const ManageSubcategories = () => {
                 <select
                   className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all duration-200"
                   value={category}
-                  onChange={handleCategoryChange} // Use new handler
+                  onChange={handleCategoryChange}
                   // Disable category selection if no label is selected or categories are loading
-                  disabled={isFormDisabled || !label || categoriesList.length === 0} 
+                  disabled={isFormDisabled || !label || categoriesList.length === 0}
                 >
                   {!label ? (
                     <option value="">Select a Label first</option>

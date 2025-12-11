@@ -433,7 +433,7 @@ const AddProductPage = () => {
             for (const imageObject of galleryFiles) {
                 const galleryFile = imageObject.file;
                 const galleryFileName = `products/${Date.now()}_gallery_${galleryFile.name}`;
-                const galleryStorageRef = ref(storage, galleryFileName);
+                const galleryStorageRef = ref(storage, galleryFile.name);
                 await uploadBytes(galleryStorageRef, galleryFile);
                 const galleryDownloadURL = await getDownloadURL(galleryStorageRef);
 
@@ -601,7 +601,7 @@ const AddProductPage = () => {
                         </div>
 
 
-                        {/* 🚨 MODIFIED: MAIN MEDIA UPLOAD SECTION */}
+                        {/* 🚨 CORRECTED: MAIN MEDIA UPLOAD SECTION */}
                         <div className="space-y-6 border p-6 rounded-xl bg-violet-50 border-violet-200">
                             <h3 className="text-xl font-semibold text-gray-800 flex items-center">
                                 <FiCamera className="w-6 h-6 mr-3 text-violet-600" />
@@ -610,25 +610,23 @@ const AddProductPage = () => {
 
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 
-                                {/* 1. Main Image Control or Preview (Fixed Height: h-64) */}
+                                {/* 1. Main Image Control or Preview (Fixed Height: h-30) */}
                                 <div className="h-30"> 
                                     {!mainImageFile ? (
-                                        /* Upload Input: Ensure h-full for alignment */
-                                        <div className="h-full border-2 border-dashed border-pink-300 rounded-xl p-4 text-center hover:border-pink-500 transition-colors duration-200 bg-white flex flex-col justify-center">
+                                        /* Upload Input: Entire dashed area is now the clickable label */
+                                        <label htmlFor="mainImageFile" className="h-full border-2 border-dashed border-pink-300 rounded-xl p-4 text-center hover:border-pink-500 transition-colors duration-200 bg-white flex flex-col justify-center cursor-pointer">
                                             <FiUpload className="w-6 h-6 text-pink-400 mx-auto mb-2" />
-                                            <label htmlFor="mainImageFile" className="cursor-pointer">
-                                                <span className="text-md font-medium text-gray-700 block mb-1">Upload Main Product Image</span>
-                                                <p className="text-gray-500 text-xs">(Recommended)</p>
-                                                <input 
-                                                    type="file"
-                                                    id="mainImageFile"
-                                                    accept="image/*"
-                                                    onChange={handleMainImageChange}
-                                                    className="hidden"
-                                                    disabled={isFormDisabled}
-                                                />
-                                            </label>
-                                        </div>
+                                            <span className="text-md font-medium text-gray-700 block mb-1">Upload Main Product Image</span>
+                                            <p className="text-gray-500 text-xs">(Recommended)</p>
+                                            <input 
+                                                type="file"
+                                                id="mainImageFile"
+                                                accept="image/*"
+                                                onChange={handleMainImageChange}
+                                                className="hidden"
+                                                disabled={isFormDisabled}
+                                            />
+                                        </label>
                                     ) : (
                                         /* Image Preview: Fixed height container, image contained inside */
                                         <div 
@@ -652,7 +650,7 @@ const AddProductPage = () => {
                                                 <FiX className="w-3 h-3" />
                                             </button>
                                             
-                                            {/* 🚨 NEW: Bottom-Left 'Replace/Upload' Button */}
+                                            {/* Bottom-Left 'Replace/Upload' Button */}
                                             <label 
                                                 htmlFor="mainImageFile" 
                                                 className="absolute bottom-2 left-2 bg-blue-600 text-white p-2 rounded-lg shadow-lg hover:bg-blue-700 transition-colors z-20 cursor-pointer flex items-center space-x-1"
@@ -669,31 +667,28 @@ const AddProductPage = () => {
                                                     disabled={isFormDisabled}
                                                 />
                                             </label>
-                                            {/* END NEW */}
                                         </div>
                                     )}
                                 </div>
 
 
-                                {/* 2. Video Upload Control or Preview (Fixed Height: h-64) */}
+                                {/* 2. Video Upload Control or Preview (Fixed Height: h-30) */}
                                 <div className="h-30"> 
                                     {!videoFile ? (
-                                        /* Upload Input: Ensure h-full for alignment */
-                                        <div className="h-full border-2 border-dashed border-violet-300 rounded-xl p-4 text-center hover:border-violet-500 transition-colors duration-200 bg-white flex flex-col justify-center">
+                                        /* Upload Input: Entire dashed area is now the clickable label */
+                                        <label htmlFor="videoFile" className="h-full border-2 border-dashed border-violet-300 rounded-xl p-4 text-center hover:border-violet-500 transition-colors duration-200 bg-white flex flex-col justify-center cursor-pointer">
                                             <FiVideo className="w-6 h-6 text-violet-400 mx-auto mb-2" />
-                                            <label htmlFor="videoFile" className="cursor-pointer">
-                                                <span className="text-md font-medium text-gray-700 block mb-1">Upload Product Video</span>
-                                                <p className="text-gray-500 text-xs">(Max 1 file)</p>
-                                                <input 
-                                                    type="file"
-                                                    id="videoFile"
-                                                    accept="video/*"
-                                                    onChange={handleVideoChange}
-                                                    className="hidden"
-                                                    disabled={isFormDisabled}
-                                                />
-                                            </label>
-                                        </div>
+                                            <span className="text-md font-medium text-gray-700 block mb-1">Upload Product Video</span>
+                                            <p className="text-gray-500 text-xs">(Max 1 file)</p>
+                                            <input 
+                                                type="file"
+                                                id="videoFile"
+                                                accept="video/*"
+                                                onChange={handleVideoChange}
+                                                className="hidden"
+                                                disabled={isFormDisabled}
+                                            />
+                                        </label>
                                     ) : (
                                         /* Video Preview: Fixed height container (UPDATED) */
                                         <div className="p-3 border-4 border-violet-500 rounded-xl bg-white flex flex-col h-full shadow-lg justify-center relative">
@@ -712,7 +707,7 @@ const AddProductPage = () => {
                                                 <FiX className="w-3 h-3" />
                                             </button>
                                             
-                                            {/* 🚨 NEW: Bottom-Left 'Replace/Upload' Button for Video */}
+                                            {/* Bottom-Left 'Replace/Upload' Button for Video */}
                                             <label 
                                                 htmlFor="videoFile" 
                                                 className="absolute bottom-2 left-2 bg-blue-600 text-white p-2 rounded-lg shadow-lg hover:bg-blue-700 transition-colors z-20 cursor-pointer flex items-center space-x-1"
@@ -729,45 +724,35 @@ const AddProductPage = () => {
                                                     disabled={isFormDisabled}
                                                 />
                                             </label>
-                                            {/* END NEW */}
                                         </div>
                                     )}
                                 </div>
                             </div>
                         </div>
 
-                        {/* --- GALLERY IMAGE UPLOAD & PREVIEWS (MODIFIED) --- */}
+                        {/* --- GALLERY IMAGE UPLOAD & PREVIEWS (ALREADY FIXED in previous step) --- */}
                         <div className="space-y-6 border p-6 rounded-xl bg-pink-50 border-pink-200">
-                            {/* <h3 className="text-xl font-semibold text-gray-800 flex items-center">
-                                <FiCamera className="w-6 h-6 mr-3 text-pink-600" />
-                                Gallery Images
-                            </h3>
-
-                            {availableColors.length === 0 && (
-                                <div className="p-3 bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700">
-                                    <p className="font-semibold">ℹ️ Note:</p>
-                                    <p className="text-sm">Adding a **Color** to a **Product Variant** will enable the color assignment dropdown for images.</p>
-                                </div>
-                            )} */}
-
+                            
                             {/* Gallery Images Control (ONLY VISIBLE IF galleryFiles.length === 0) */}
                             {galleryFiles.length === 0 ? (
-                                <div className="border-2 border-dashed border-blue-400 rounded-xl p-6 text-center hover:border-blue-600 transition-colors duration-200 bg-white" style={{ borderColor: '#81b2f7', borderStyle: 'dashed' }}>
+                                <label 
+                                    htmlFor="galleryImages" 
+                                    className="border-2 border-dashed border-blue-400 rounded-xl p-6 text-center hover:border-blue-600 transition-colors duration-200 bg-white cursor-pointer block" 
+                                    style={{ borderColor: '#81b2f7', borderStyle: 'dashed' }}
+                                >
                                     <FiCamera className="w-8 h-8 text-blue-500 mx-auto mb-3" />
-                                    <label htmlFor="galleryImages" className="cursor-pointer">
-                                        <span className="text-lg font-semibold text-gray-700 block mb-1">Upload Gallery Images (N number)</span>
-                                        <p className="text-gray-500 text-md">(Optional Color Assignment)</p>
-                                        <input 
-                                            type="file"
-                                            id="galleryImages"
-                                            multiple
-                                            accept="image/*"
-                                            onChange={handleGalleryImageChange}
-                                            className="hidden"
-                                            disabled={isFormDisabled}
-                                        />
-                                    </label>
-                                </div>
+                                    <span className="text-lg font-semibold text-gray-700 block mb-1">Upload Gallery Images (N number)</span>
+                                    <p className="text-gray-500 text-md">(Optional Color Assignment)</p>
+                                    <input 
+                                        type="file"
+                                        id="galleryImages"
+                                        multiple
+                                        accept="image/*"
+                                        onChange={handleGalleryImageChange}
+                                        className="hidden"
+                                        disabled={isFormDisabled}
+                                    />
+                                </label>
                             ) : null}
 
                             {/* Image Previews with Dropdown Color Assignment (ONLY VISIBLE IF galleryFiles.length > 0) */}
@@ -1085,7 +1070,7 @@ const AddProductPage = () => {
                 </div>
             </div>
 
-            {/* 🚨 NEW: Success Modal Implementation */}
+            {/* Success Modal Implementation */}
             {showSuccessModal && (
                 <div className="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center z-50 p-4">
                     <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full p-8 space-y-6 transform transition-all duration-300 scale-100">

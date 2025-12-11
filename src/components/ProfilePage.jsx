@@ -401,10 +401,7 @@ export default function ProfilePage() {
                   {/* Action Buttons */}
                   <div className="flex flex-col sm:flex-row justify-between items-center pt-6 border-t border-gray-100">
                     <div className="text-sm text-gray-500 mb-4 sm:mb-0">
-                      <p className="flex items-center">
-                        <div className="w-2 h-2 bg-green-500 rounded-full mr-2"></div>
-                        Connected to Firebase
-                      </p>
+                      
                     </div>
                     <div className="flex space-x-4">
                       <button
