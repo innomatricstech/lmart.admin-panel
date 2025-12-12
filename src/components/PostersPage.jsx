@@ -4,6 +4,7 @@ import { FiImage, FiUploadCloud, FiXCircle, FiEdit, FiSave, FiTrash2, FiPlus, Fi
 import { collection, addDoc, updateDoc, deleteDoc, doc, getDocs, query, orderBy } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 
+// Assuming you have your firebase config exported from this path
 import { db, storage } from "../../firerbase"; 
 
 // Enhanced image compression utility
@@ -78,17 +79,22 @@ const checkImageAvailability = (url) => {
 export default function PostersPage() {
   const [posters, setPosters] = useState([]);
   const [posterTitle, setPosterTitle] = useState("");
+  // ** NEW STATE **
+  const [subContents, setSubContents] = useState(""); 
   const [selectedFile, setSelectedFile] = useState(null);
   const [isUploading, setIsUploading] = useState(false);
   const [loadingImages, setLoadingImages] = useState({});
   const [imageErrors, setImageErrors] = useState({});
-  const [isLoading, setIsLoading] = useState(true);
+  // FIX: Must use useState hook here
+  const [isLoading, setIsLoading] = useState(true); 
   const [retryCounts, setRetryCounts] = useState({});
 
   // Edit Modal
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingPoster, setEditingPoster] = useState(null);
   const [editedTitle, setEditedTitle] = useState("");
+  // ** NEW STATE for Edit Modal **
+  const [editedSubContents, setEditedSubContents] = useState(""); 
 
   // ---------------- LOAD DATA FROM FIREBASE ----------------
   useEffect(() => {
@@ -215,6 +221,8 @@ export default function PostersPage() {
       // Save in Firestore
       const posterData = {
         title: posterTitle || "New Poster",
+        // ** NEW FIELD **
+        subContents: subContents || "",
         imageUrl: imageURL,
         date: new Date().toLocaleString('en-US', { 
           year: 'numeric', 
@@ -245,6 +253,8 @@ export default function PostersPage() {
 
       // Reset form
       setPosterTitle("");
+      // ** RESET NEW STATE **
+      setSubContents(""); 
       setSelectedFile(null);
       document.getElementById("poster-file-upload").value = null;
 
@@ -258,7 +268,7 @@ export default function PostersPage() {
 
   // ---------------- DELETE ----------------
   const handleDeletePoster = async (id) => {
-    if (!window.confirm("Are you sure you want to delete this poster? This action cannot be undone.")) return;
+    // Removed: if (!window.confirm("Are you sure you want to delete this poster? This action cannot be undone.")) return;
 
     try {
       await deleteDoc(doc(db, "posters", id));
@@ -285,6 +295,9 @@ export default function PostersPage() {
   const handleEditClick = (poster) => {
     setEditingPoster(poster);
     setEditedTitle(poster.title);
+    // ** SET NEW EDIT STATE **
+    // Ensure subContents defaults to "" if undefined in the database
+    setEditedSubContents(poster.subContents || ""); 
     setIsModalOpen(true);
   };
 
@@ -292,6 +305,8 @@ export default function PostersPage() {
     setEditingPoster(null);
     setIsModalOpen(false);
     setEditedTitle("");
+    // ** RESET NEW EDIT STATE **
+    setEditedSubContents(""); 
   };
 
   const handleSaveEdit = async (e) => {
@@ -301,16 +316,23 @@ export default function PostersPage() {
       alert("Please enter a poster title");
       return;
     }
-
+    
     try {
       const posterRef = doc(db, "posters", editingPoster.id);
 
       await updateDoc(posterRef, {
-        title: editedTitle.trim()
+        title: editedTitle.trim(),
+        // ** UPDATE NEW FIELD IN FIREBASE **
+        subContents: editedSubContents.trim()
       });
 
       setPosters(posters.map(p =>
-        p.id === editingPoster.id ? { ...p, title: editedTitle.trim() } : p
+        p.id === editingPoster.id ? { 
+            ...p, 
+            title: editedTitle.trim(),
+            // ** UPDATE NEW FIELD IN LOCAL STATE **
+            subContents: editedSubContents.trim()
+        } : p
       ));
 
       closeModal();
@@ -347,7 +369,7 @@ export default function PostersPage() {
           <form onSubmit={handleAddPoster} className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               
-              {/* Title Input */}
+              {/* Title Input (md:col-span-1) */}
               <div className="md:col-span-1">
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Poster Title
@@ -362,6 +384,26 @@ export default function PostersPage() {
                 />
               </div>
 
+              {/* ** NEW SUB-CONTENTS INPUT (md:col-span-1) ** */}
+              <div className="md:col-span-1">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Sub-Contents (Optional)
+                </label>
+                <textarea
+                  placeholder="Enter a short description or key points..."
+                  value={subContents}
+                  onChange={e => setSubContents(e.target.value)}
+                  rows={3}
+                  className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200"
+                  maxLength={500}
+                />
+              </div>
+            
+            </div>
+            
+            {/* New Row for File Input and Button */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+              
               {/* File Input */}
               <div className="md:col-span-1">
                 <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -437,7 +479,7 @@ export default function PostersPage() {
             </h3>
           </div>
 
-          {/* Loading State */}
+          {/* Loading State/Empty State */}
           {isLoading ? (
             <div className="text-center py-12">
               <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-500 mx-auto mb-4"></div>
@@ -531,6 +573,12 @@ export default function PostersPage() {
                     <h4 className="font-semibold text-gray-800 truncate mb-1" title={poster.title}>
                       {poster.title}
                     </h4>
+                    {/* ** DISPLAY NEW FIELD ** */}
+                    {poster.subContents && (
+                        <p className="text-sm text-gray-600 mb-2 line-clamp-2" title={poster.subContents}>
+                            {poster.subContents}
+                        </p>
+                    )}
                     <p className="text-xs text-gray-500 mb-1">{poster.date}</p>
                     <p className="text-xs text-gray-400 font-mono truncate" title={`ID: ${poster.posterId}`}>
                       ID: {poster.posterId}
@@ -572,7 +620,7 @@ export default function PostersPage() {
             <div className="p-6 border-b border-gray-200">
               <h3 className="text-xl font-bold text-gray-800 flex items-center">
                 <FiEdit className="mr-2 text-blue-500" />
-                Edit Poster Title
+                Edit Poster Details
               </h3>
             </div>
 
@@ -594,6 +642,25 @@ export default function PostersPage() {
                   {editedTitle.length}/100 characters
                 </p>
               </div>
+            
+            {/* ** NEW EDIT INPUT FOR SUB-CONTENTS ** */}
+            <div className="mb-6">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Sub-Contents (Optional)
+                </label>
+                <textarea
+                  value={editedSubContents}
+                  onChange={e => setEditedSubContents(e.target.value)}
+                  rows={3}
+                  className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                  maxLength={500}
+                  placeholder="Enter a short description or key points..."
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  {editedSubContents.length}/500 characters
+                </p>
+            </div>
+
 
               <div className="flex justify-end gap-3">
                 <button 
@@ -639,7 +706,7 @@ export default function PostersPage() {
         .animate-slideUp {
           animation: slideUp 0.3s ease-out;
         }
-      `}</style>
+      `}</style> 
     </div>
   );
 }
