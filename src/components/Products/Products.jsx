@@ -356,13 +356,24 @@ const Products = () => {
         }
     };
 
-    const getProductImage = (product) => {
-        if (product.mainImageUrl) return product.mainImageUrl;
-        if (product.imageUrls && product.imageUrls.length > 0 && product.imageUrls[0].url) {
-            return product.imageUrls[0].url;
-        }
-        return "https://via.placeholder.com/80x80/f3f4f6/9ca3af?text=No+Image";
-    };
+ const getProductImage = (product) => {
+  // 1️⃣ Cloud Function final image
+  if (product.mainImageUrl) return product.mainImageUrl;
+
+  // 2️⃣ Gallery images (string OR object)
+  if (product.imageUrls && product.imageUrls.length > 0) {
+    const first = product.imageUrls[0];
+    return typeof first === "string" ? first : first?.url;
+  }
+
+  // 3️⃣ Old source image (Drive / external)
+  if (product.sourceImages?.main) {
+    return product.sourceImages.main;
+  }
+
+  // 4️⃣ Fallback
+  return "https://via.placeholder.com/80x80/f3f4f6/9ca3af?text=No+Image";
+};
 
     // --- Loading/Error States ---
     if (loading) {
@@ -884,26 +895,31 @@ const IntegratedProductView = ({ productId, onClose, navigate, onDelete }) => {
                                 <PhotoIcon className="h-6 w-6 mr-2 text-indigo-500" />
                                 Product Images
                             </h3>
-                            <img
-                                src={product.mainImageUrl || product.imageUrls?.[0]?.url || "https://via.placeholder.com/400x400/f3f4f6/9ca3af?text=No+Image"}
-                                alt={product.name}
-                                className="w-full h-auto rounded-xl object-cover shadow-lg border border-gray-200"
-                            />
-                            <div className="flex space-x-2 mt-4 overflow-x-auto">
-                                {product.imageUrls?.slice(0, 4).map((img, i) => (
-                                    <img
-                                        key={i}
-                                        src={img.url}
-                                        alt={`Thumbnail ${i + 1}`}
-                                        className="w-16 h-16 object-cover rounded-lg cursor-pointer border-2 border-transparent hover:border-indigo-500 transition"
-                                    />
-                                ))}
-                                {product.imageUrls?.length > 4 && (
-                                     <div className="w-16 h-16 flex items-center justify-center text-gray-500 text-sm border rounded-lg bg-gray-50">
-                                        +{product.imageUrls.length - 4}
-                                     </div>
-                                )}
-                            </div>
+                           <img
+  src={
+    product.mainImageUrl ||
+    product.imageUrls?.[0]?.url ||
+    product.sourceImages?.main ||
+    "https://via.placeholder.com/400x400/f3f4f6/9ca3af?text=No+Image"
+  }
+  alt={product.name}
+/>
+
+                           <div className="flex space-x-2 mt-4 overflow-x-auto">
+  {product.imageUrls?.slice(0, 4).map((img, i) => {
+    const imageUrl = typeof img === "string" ? img : img?.url;
+
+    return (
+      <img
+        key={i}
+        src={imageUrl}
+        alt={`Gallery ${i + 1}`}
+        className="w-16 h-16 object-cover rounded-lg cursor-pointer border-2 border-transparent hover:border-indigo-500 transition"
+      />
+    );
+  })}
+</div>
+
                         </div>
 
                         {/* Pricing & Inventory Card */}
