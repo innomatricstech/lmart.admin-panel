@@ -551,6 +551,7 @@ const Products = () => {
                                                         className="w-16 h-16 rounded-xl object-cover border border-gray-200 shadow-sm"
                                                     />
                                                 </div>
+                                                
                                                 <div className="flex-1 min-w-0">
                                                     <div className="font-semibold text-gray-900 text-lg hover:text-indigo-600 cursor-pointer transition-colors"
                                                          onClick={() => handleViewProduct(product.id)}
@@ -563,6 +564,7 @@ const Products = () => {
                                                 </div>
                                             </div>
                                         </td>
+
 
                                         {/* DETAILS COLUMN - UPDATED TO USE DISPLAY NAMES */}
                                         <td className="px-6 py-4">
@@ -729,6 +731,43 @@ const DetailCard = ({ icon: Icon, title, values }) => (
         </dl>
     </div>
 );
+const getYouTubeEmbedUrl = (url) => {
+  if (!url || typeof url !== "string") return null;
+
+  try {
+    let videoId = null;
+
+    // 1️⃣ Shorts: youtube.com/shorts/VIDEO_ID
+    if (url.includes("/shorts/")) {
+      videoId = url.split("/shorts/")[1]?.split("?")[0];
+    }
+
+    // 2️⃣ youtu.be/VIDEO_ID
+    else if (url.includes("youtu.be/")) {
+      videoId = url.split("youtu.be/")[1]?.split("?")[0];
+    }
+
+    // 3️⃣ youtube.com/watch?v=VIDEO_ID
+    else if (url.includes("youtube.com")) {
+      const parsedUrl = new URL(url);
+      videoId = parsedUrl.searchParams.get("v");
+    }
+
+    // 4️⃣ Already embed URL
+    else if (url.includes("/embed/")) {
+      videoId = url.split("/embed/")[1]?.split("?")[0];
+    }
+
+    if (!videoId) return null;
+
+    return `https://www.youtube.com/embed/${videoId}`;
+  } catch (error) {
+    console.error("YouTube URL parse failed:", url, error);
+    return null;
+  }
+};
+
+
 
 // ==========================================================
 // 3. INTEGRATED PRODUCT VIEW COMPONENT (Unchanged - Minor Fix)
@@ -978,6 +1017,50 @@ const IntegratedProductView = ({ productId, onClose, navigate, onDelete }) => {
                             </div>
                         </div>
                     </div>
+{/* 🎥 PRODUCT VIDEO */}
+
+{product.videoUrl && (
+  <div className="mt-6">
+    <h3 className="flex items-center text-xl font-semibold text-gray-800 mb-3">
+      <PhotoIcon className="h-6 w-6 mr-2 text-indigo-500" />
+      Product Video
+    </h3>
+
+    {product.videoType === "youtube" ? (
+      (() => {
+        const embedUrl = getYouTubeEmbedUrl(product.videoUrl);
+
+        if (!embedUrl) {
+          return (
+            <p className="text-sm text-red-500">
+              Invalid YouTube URL
+            </p>
+          );
+        }
+
+        return (
+          <div className="relative w-md aspect-video rounded-xl ">
+            <iframe
+              src={embedUrl}
+              title="Product YouTube Video"
+              className="absolute inset-0 w-md"
+              frameBorder="0"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+              allowFullScreen
+            />
+          </div>
+        );
+      })()
+    ) : (
+      <video
+        src={product.videoUrl}
+        controls
+        className="w-md rounded-xl border shadow-sm"
+      />
+    )}
+  </div>
+)}
+
 
                     {/* Description */}
                     <div className="border-b pb-6 mb-6">
@@ -985,10 +1068,11 @@ const IntegratedProductView = ({ productId, onClose, navigate, onDelete }) => {
                          <p className="text-gray-700 bg-indigo-50 p-4 rounded-lg italic">
                             {product.description || "No detailed product description available."}
                          </p>
+                         
                     </div>
 
                     {/* Technical Specifications */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 pt-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-6 pt-6">
 
                         {/* Detail Card 1: Identification */}
                         <DetailCard
@@ -1043,6 +1127,7 @@ const IntegratedProductView = ({ productId, onClose, navigate, onDelete }) => {
                                 <CubeIcon className="h-5 w-5 mr-2 text-indigo-500" />
                                 All Individual Variants ({product.variants.length})
                             </h3>
+                            
                             <div className="overflow-x-auto rounded-lg border border-gray-200 shadow-sm">
                                 <table className="min-w-full divide-y divide-gray-200">
                                     <thead className="bg-gray-50">
@@ -1052,6 +1137,7 @@ const IntegratedProductView = ({ productId, onClose, navigate, onDelete }) => {
                                             <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Regular Price (₹)</th>
                                             <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Offer Price (₹)</th>
                                             <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Stock</th>
+                                            
                                         </tr>
                                     </thead>
                                     <tbody className="bg-white divide-y divide-gray-100">

@@ -64,7 +64,7 @@ const SuccessNotificationToast = ({ message, onClose }) => {
 };
 
 
-// --- INLINE EDIT COMPONENT (UPDATED to include offerPrice) ---
+// --- INLINE EDIT COMPONENT (UPDATED to include offerPrice and category) ---
 
 const InlineEditForm = ({ productData, onSave, onCancel, onSaveSuccess }) => {
     const [formData, setFormData] = useState({
@@ -76,6 +76,9 @@ const InlineEditForm = ({ productData, onSave, onCancel, onSaveSuccess }) => {
     });
     const [isSaving, setIsSaving] = useState(false);
     const [editError, setEditError] = useState(null);
+
+    // Category options
+    const categoryOptions = ["Electronics", "Furniture", "Vehicles", "Books", "Fashion", "Appliances", "Others"];
 
     const handleChange = (e) => {
         const { name, value } = e.target;
@@ -138,7 +141,7 @@ const InlineEditForm = ({ productData, onSave, onCancel, onSaveSuccess }) => {
 
                 <form onSubmit={handleSubmit} className="space-y-4">
                     
-                    {/* Name, Price, Offer Price, Negotiation, Status */}
+                    {/* Name, Price, Offer Price, Negotiation, Status, Category */}
                     <div className="grid grid-cols-5 gap-4">
                         <div className="col-span-1">
                             <label htmlFor="name" className="block text-sm font-medium text-gray-700">Product Name</label>
@@ -160,6 +163,27 @@ const InlineEditForm = ({ productData, onSave, onCancel, onSaveSuccess }) => {
                             </select>
                         </div>
                         <div className="col-span-1">
+                            <label htmlFor="category" className="block text-sm font-medium text-gray-700">Category</label>
+                            <select 
+                                id="category" 
+                                name="category" 
+                                value={formData.category || ""} 
+                                onChange={handleChange} 
+                                className="mt-1 p-2 block w-full border border-gray-300 rounded-md bg-white"
+                            >
+                                <option value="">Select Category</option>
+                                {categoryOptions.map((category) => (
+                                    <option key={category} value={category}>
+                                        {category}
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
+                    </div>
+
+                    {/* Status, Contact, Address */}
+                    <div className="grid grid-cols-3 gap-4">
+                        <div>
                             <label htmlFor="status" className="block text-sm font-medium text-gray-700">Status</label>
                             <select id="status" name="status" value={formData.status} onChange={handleChange} className="mt-1 p-2 block w-full border border-gray-300 rounded-md bg-white">
                                 <option value="active">Active</option>
@@ -167,11 +191,6 @@ const InlineEditForm = ({ productData, onSave, onCancel, onSaveSuccess }) => {
                                 <option value="Pending">Pending Review</option>
                             </select>
                         </div>
-                    </div>
-                    {/* ... (Rest of the form remains unchanged) ... */}
-
-                    {/* Description and Contact/Address */}
-                    <div className="grid grid-cols-2 gap-4">
                         <div>
                             <label htmlFor="contactNumber" className="block text-sm font-medium text-gray-700">Contact Number</label>
                             <input type="text" name="contactNumber" id="contactNumber" value={formData.contactNumber} onChange={handleChange} className="mt-1 p-2 block w-full border border-gray-300 rounded-md" />
@@ -261,7 +280,7 @@ const DeleteConfirmationModal = ({ product, onConfirm, onCancel, isDeleting }) =
 };
 
 
-// --- MAIN COMPONENT: OldeeProductsPage (Mostly Unchanged) ---
+// --- MAIN COMPONENT: OldeeProductsPage (Updated to display category) ---
 
 const OldeeProductsPage = () => {
     const [products, setProducts] = useState([]); 
@@ -454,6 +473,12 @@ const OldeeProductsPage = () => {
                                                             <span className="font-bold">₹{product.price || 'N/A'}</span> 
                                                             <span className="ml-2 text-xs">({product.negotiation || 'Fixed'})</span>
                                                         </div>
+                                                        {/* Display category */}
+                                                        {product.category && (
+                                                            <div className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full inline-block mt-1">
+                                                                {product.category}
+                                                            </div>
+                                                        )}
                                                         {/* Display offer price in the list view */}
                                                         {product.offerPrice && product.offerPrice !== product.price && (
                                                             <div className="text-xs text-red-500 font-medium">Offer: ₹{product.offerPrice}</div>
