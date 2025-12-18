@@ -100,8 +100,20 @@ export default function Sidebar({ onCloseSidebar, onLogout }) {
     { text: "Overview", icon: FiBarChart2, key: "Overview", path: "/" },
     { text: "Customers", icon: FiUsers, key: "Customers", path: "/customers" },
 
-    { text: "Oldee", icon: FiUser, key: "Oldee", path: "/oldee" },
+ 
 
+     {
+      text: "Oldee",
+      icon: FiUser,
+      key: "Oldee",
+      path: "/oldee",
+      hasDropdown: true,
+      dropdownContent: [
+        { text: "All Oldee", path: "/oldee" },
+        { text: "Deleted Oldee", path: "/oldee/delete" },
+        
+      ]
+    },
     // Orders Menu
     {
       text: "Orders",

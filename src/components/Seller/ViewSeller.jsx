@@ -1,14 +1,15 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { 
   collection, getDocs, doc, updateDoc, 
-  query, where 
+  query, where, deleteDoc, writeBatch, addDoc
 } from 'firebase/firestore';
 import {db} from "../../../firerbase"
 import { 
   Users, Mail, Phone, MapPin, Calendar, X, Search, 
   FileText, CheckCircle, Clock, Package, DollarSign, ExternalLink, ShieldCheck,
   MessageCircle, Smartphone, User, Shield, Send, MessageSquare,
-  CheckCircle2, AlertCircle, ArrowUpDown, ArrowUp, ArrowDown
+  CheckCircle2, AlertCircle, ArrowUpDown, ArrowUp, ArrowDown, Trash2,
+  Archive, AlertTriangle
 } from 'lucide-react';
 
 const Sellers = () => {
@@ -20,6 +21,9 @@ const Sellers = () => {
   const [showModal, setShowModal] = useState(false);
   const [showMessageModal, setShowMessageModal] = useState(false);
   const [showConfirmationModal, setShowConfirmationModal] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteReason, setDeleteReason] = useState('');
 
   const [searchTerm, setSearchTerm] = useState("");
   const [messageText, setMessageText] = useState('');
@@ -35,7 +39,7 @@ const Sellers = () => {
   // SORTING STATE
   const [sortConfig, setSortConfig] = useState({
     key: 'registrationDate',
-    direction: 'desc' // 'asc' for oldest first, 'desc' for newest first
+    direction: 'desc'
   });
 
   useEffect(() => {
@@ -46,7 +50,6 @@ const Sellers = () => {
   useEffect(() => {
     let result = [...sellers];
 
-    // Apply search filter
     if (searchTerm.trim() !== "") {
       const search = searchTerm.toLowerCase();
       result = result.filter((s) => {
@@ -67,12 +70,10 @@ const Sellers = () => {
     // Apply sorting by date
     result.sort((a, b) => {
       const getDateValue = (seller) => {
-        // Try registrationDate first, then createdAt, then fallback
         if (seller.registrationDate) {
           return new Date(seller.registrationDate).getTime();
         }
         if (seller.createdAt) {
-          // Handle Firestore timestamp
           if (seller.createdAt.toDate) {
             return seller.createdAt.toDate().getTime();
           }
@@ -85,23 +86,22 @@ const Sellers = () => {
       const bValue = getDateValue(b);
 
       if (sortConfig.direction === 'asc') {
-        return aValue - bValue; // Oldest first
+        return aValue - bValue;
       } else {
-        return bValue - aValue; // Newest first
+        return bValue - aValue;
       }
     });
 
     setFilteredSellers(result);
   }, [searchTerm, sellers, sortConfig]);
 
-  // Filter products when the search term or product list changes
+  // Filter products
   useEffect(() => {
     if (productSearchTerm.trim() === "") {
       setFilteredSellerProducts(sellerProducts);
     } else {
       const search = productSearchTerm.toLowerCase();
       const filtered = sellerProducts.filter((p) => {
-        // Updated to safely handle product name/category as objects (if stored as {id, name})
         const name = (p.name?.name || p.name || "").toLowerCase();
         const category = (p.category?.name || p.category || "").toLowerCase();
         const description = (p.description || "").toLowerCase();
@@ -151,6 +151,87 @@ const Sellers = () => {
     }
   };
 
+  // DELETE SELLER FUNCTION
+  const handleDeleteSeller = async (sellerId, reason = 'No reason provided') => {
+    try {
+      setDeleting(true);
+      
+      // Get seller data before deletion
+      const sellerRef = doc(db, 'sellers', sellerId);
+      const sellerDoc = await getDocs(query(collection(db, 'sellers'), where('__name__', '==', sellerId)));
+      
+      if (sellerDoc.empty) {
+        throw new Error('Seller not found');
+      }
+      
+      const sellerData = sellerDoc.docs[0].data();
+      
+      // Create deleted seller document with timestamp and reason
+      const deletedSellerData = {
+        ...sellerData,
+        originalId: sellerId,
+        deletedAt: new Date().toISOString(),
+        deletedReason: reason,
+        deletedBy: 'admin', // You can replace this with actual admin ID
+        status: 'deleted'
+      };
+      
+      // Add to deleted_sellers collection
+      await addDoc(collection(db, 'deleted_sellers'), deletedSellerData);
+      
+      // Delete from original sellers collection
+      await deleteDoc(sellerRef);
+      
+      // Also delete seller's products (optional - based on your requirements)
+      try {
+        const productsQuery = query(collection(db, "products"), where("sellerid", "==", sellerId));
+        const productsSnap = await getDocs(productsQuery);
+        
+        const batch = writeBatch(db);
+        productsSnap.docs.forEach(productDoc => {
+          batch.delete(productDoc.ref);
+        });
+        
+        if (productsSnap.docs.length > 0) {
+          await batch.commit();
+        }
+      } catch (productError) {
+        console.warn("Error deleting seller's products:", productError);
+        // Continue even if product deletion fails
+      }
+      
+      // Update local state
+      setSellers(prevSellers => prevSellers.filter(seller => seller.id !== sellerId));
+      
+      // Close modals if open
+      setShowDeleteModal(false);
+      if (showModal) closeModal();
+      
+      // Show success message
+      alert(`Seller ${sellerData.businessName || sellerData.firstName} has been deleted and moved to archived records.`);
+      
+    } catch (error) {
+      console.error('Error deleting seller:', error);
+      alert('Failed to delete seller. Please try again.');
+    } finally {
+      setDeleting(false);
+      setDeleteReason('');
+    }
+  };
+
+  const openDeleteModal = (seller) => {
+    setSelectedSeller(seller);
+    setShowDeleteModal(true);
+  };
+
+  const closeDeleteModal = () => {
+    setShowDeleteModal(false);
+    setSelectedSeller(null);
+    setDeleteReason('');
+    setDeleting(false);
+  };
+
+  // Block seller
   const handleBlockSeller = async (sellerId) => {
     try {
       const sellerRef = doc(db, 'sellers', sellerId); 
@@ -173,6 +254,7 @@ const Sellers = () => {
     }
   };
 
+  // Approve seller
   const handleApproveSeller = async (sellerId) => {
     try {
       const sellerRef = doc(db, 'sellers', sellerId);
@@ -195,7 +277,7 @@ const Sellers = () => {
     }
   };
   
-  // Function to handle individual document verification
+  // Document verification
   const handleVerifyDocument = async (sellerId, documentKey, newStatus) => {
       try {
           const sellerRef = doc(db, 'sellers', sellerId);
@@ -447,20 +529,16 @@ const Sellers = () => {
 
   const renderDocStatus = (status) => {
     const s = status.toLowerCase();
-    // Adjusted for light background
     let color = "bg-gray-200 text-gray-700";
     let icon = <Clock className="h-4 w-4 mr-1" />;
 
     if (s === "approved" || s === 'verified') {
-      // Light Green badge
       color = "bg-green-100 text-green-700 border border-green-300";
       icon = <CheckCircle className="h-4 w-4 mr-1" />;
     } else if (s === "pending" || s === 'uploaded') {
-      // Light Yellow badge
       color = "bg-yellow-100 text-yellow-700 border border-yellow-300";
       icon = <Clock className="h-4 w-4 mr-1" />;
     } else if (s === "rejected") {
-      // Light Red badge
       color = "bg-red-100 text-red-700 border border-red-300";
       icon = <X className="h-4 w-4 mr-1" />;
     }
@@ -480,14 +558,13 @@ const Sellers = () => {
     let colorClass = '';
 
     if (s === 'active' || s === 'approved') {
-      // Approved Status - Light Green
       colorClass = 'bg-green-100 text-green-700 border border-green-300';
     } else if (s === 'pending') {
-      // Pending Status - Light Yellow
       colorClass = 'bg-yellow-100 text-yellow-700 border border-yellow-300';
     } else if (s === 'blocked') {
-      // Blocked Status - Light Red
       colorClass = 'bg-red-100 text-red-700 border border-red-300';
+    } else if (s === 'deleted') {
+      colorClass = 'bg-gray-300 text-gray-700 border border-gray-400';
     } else {
       colorClass = 'bg-gray-100 text-gray-700 border border-gray-300';
     }
@@ -499,34 +576,6 @@ const Sellers = () => {
     );
   };
 
-  const getStatusColor = (status) => {
-    switch (status) {
-      case 'active': 
-      case 'approved': 
-        return 'bg-green-100 text-green-700 border-green-300';
-      case 'blocked': 
-        return 'bg-red-100 text-red-700 border-red-300';
-      case 'pending': 
-        return 'bg-yellow-100 text-yellow-700 border-yellow-300';
-      default: 
-        return 'bg-gray-100 text-gray-700 border-gray-300';
-    }
-  };
-
-  const getStatusIcon = (status) => {
-    switch (status) {
-      case 'active': 
-      case 'approved': 
-        return <div className="w-2 h-2 bg-green-600 rounded-full"></div>;
-      case 'blocked': 
-        return <div className="w-2 h-2 bg-red-600 rounded-full"></div>;
-      case 'pending': 
-        return <div className="w-2 h-2 bg-yellow-600 rounded-full"></div>;
-      default: 
-        return <div className="w-2 h-2 bg-gray-600 rounded-full"></div>;
-    }
-  };
-
   if (loading) {
     return (
       <div className="flex justify-center items-center h-64 bg-white">
@@ -536,18 +585,14 @@ const Sellers = () => {
   }
 
   return (
-    // Main background changed to white
     <div className="p-4 lg:p-6 bg-white h-full min-h-screen">
       <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between mb-6 space-y-4 lg:space-y-0">
         <div className="flex items-center space-x-3">
-          {/* Primary icon color changed to red-600 */}
           <Users className="h-8 w-8 text-red-600" />
-          {/* Text color changed to dark gray */}
           <h1 className="text-2xl font-bold text-gray-900">Sellers Management</h1>
         </div>
         
         <div className="flex flex-col sm:flex-row sm:items-center space-y-3 sm:space-y-0 sm:space-x-4">
-          {/* Search Bar */}
           <div className="relative w-full sm:w-64">
             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
               <Search className="h-4 w-4 text-gray-500" />
@@ -557,7 +602,6 @@ const Sellers = () => {
               placeholder="Search sellers..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              // Search input adjusted for light theme
               className="w-full pl-10 pr-10 py-2 bg-gray-100 border border-gray-300 rounded-lg text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent"
             />
             {searchTerm && (
@@ -570,7 +614,6 @@ const Sellers = () => {
             )}
           </div>
 
-          {/* Total Count - Changed to red background */}
           <div className="bg-red-600 px-4 py-2 rounded-lg">
             <span className="text-white font-semibold">
               Total: {filteredSellers.length}
@@ -584,7 +627,6 @@ const Sellers = () => {
         </div>
       </div>
 
-      {/* Search Results Info - Changed to light red background */}
       {searchTerm && (
         <div className="mb-4 p-3 bg-red-100 border border-red-300 rounded-lg">
           <p className="text-red-800 text-sm">
@@ -599,7 +641,6 @@ const Sellers = () => {
         </div>
       )}
 
-      {/* Sort Info - Changed to light gray background */}
       <div className="mb-4 p-3 bg-gray-100 border border-gray-300 rounded-lg flex justify-between items-center">
         <p className="text-gray-700 text-sm">
           Sorted by: <span className="font-semibold text-gray-900">
@@ -608,7 +649,6 @@ const Sellers = () => {
         </p>
         <button
           onClick={handleSort}
-          // Sort button text changed to red
           className="flex items-center text-red-600 hover:text-red-500 transition-colors text-sm font-medium"
         >
           <ArrowUpDown className="h-4 w-4 mr-1" />
@@ -617,11 +657,9 @@ const Sellers = () => {
       </div>
 
       {/* --- Desktop Table View --- */}
-      {/* Table container changed to white/light gray */}
       <div className="hidden md:block bg-white rounded-lg overflow-hidden shadow-xl border border-gray-200">
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-300">
-            {/* Table header changed to light gray */}
             <thead className="bg-gray-100">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
@@ -647,7 +685,6 @@ const Sellers = () => {
                 </th>
               </tr>
             </thead>
-            {/* Table body text and hover adjusted for light theme */}
             <tbody className="divide-y divide-gray-200">
               {filteredSellers.length === 0 ? (
                 <tr>
@@ -665,7 +702,6 @@ const Sellers = () => {
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center">
                         <div className="flex-shrink-0 h-10 w-10">
-                          {/* Initials circle changed to red-600 */}
                           <div className="h-10 w-10 rounded-full bg-red-600 flex items-center justify-center">
                             <span className="text-white font-medium text-sm">
                               {getSellerInitials(seller)}
@@ -691,7 +727,6 @@ const Sellers = () => {
                       <div className="space-y-1">
                         {seller.email && (
                           <div className="flex items-center text-sm text-gray-700">
-                            {/* Icon colors adjusted for light theme */}
                             <Mail className="h-4 w-4 mr-2 text-red-500" />
                             {seller.email}
                           </div>
@@ -724,7 +759,6 @@ const Sellers = () => {
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                       <div className="flex items-center space-x-2 opacity-0 group-hover:opacity-100 transition-opacity">
                         <button 
-                          // View button changed to red-600
                           className="p-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors shadow-lg"
                           onClick={() => handleViewSeller(seller)}
                           title="View Details"
@@ -732,7 +766,6 @@ const Sellers = () => {
                           <User size={16} />
                         </button>
                         <button 
-                          // Message button kept green, but shade adjusted
                           className="p-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors shadow-lg"
                           onClick={() => handleMessageSeller(seller)}
                           title="Send Message"
@@ -740,7 +773,6 @@ const Sellers = () => {
                           <MessageSquare size={16} />
                         </button>
                         <button 
-                          // Approve button kept green
                           className="p-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors shadow-lg"
                           onClick={() => handleApproveSeller(seller.id)}
                           title="Approve Seller"
@@ -748,12 +780,19 @@ const Sellers = () => {
                           <CheckCircle2 size={16} />
                         </button>
                         <button 
-                          // Block button changed to dark red
                           className="p-2 bg-red-700 hover:bg-red-800 text-white rounded-lg transition-colors shadow-lg"
                           onClick={() => handleBlockSeller(seller.id)}
                           title="Block Seller"
                         >
                           <Shield size={16} />
+                        </button>
+                        {/* DELETE BUTTON ADDED */}
+                        <button 
+                          className="p-2 bg-gray-700 hover:bg-gray-800 text-white rounded-lg transition-colors shadow-lg"
+                          onClick={() => openDeleteModal(seller)}
+                          title="Delete Seller"
+                        >
+                          <Trash2 size={16} />
                         </button>
                       </div>
                     </td>
@@ -834,6 +873,14 @@ const Sellers = () => {
                   <Shield size={16} />
                   Block
                 </button>
+                {/* DELETE BUTTON ADDED FOR MOBILE */}
+                <button 
+                  className="flex-1 bg-gray-700 hover:bg-gray-800 text-white py-2 px-3 rounded-lg text-sm font-medium transition-colors shadow-md flex items-center justify-center gap-2"
+                  onClick={() => openDeleteModal(seller)}
+                >
+                  <Trash2 size={16} />
+                  Delete
+                </button>
               </div>
             </div>
           ))
@@ -843,12 +890,9 @@ const Sellers = () => {
       {/* --- SELLER DETAIL MODAL --- */}
       {showModal && selectedSeller && (
         <div className="fixed inset-0 bg-gray-900/80 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
-          {/* Modal content changed to white background and dark text */}
           <div className="bg-white rounded-xl max-w-6xl w-full max-h-[95vh] overflow-y-auto shadow-2xl border border-gray-300">
-            {/* Modal Header */}
             <div className="sticky top-0 bg-white flex justify-between items-center p-6 border-b border-gray-200 z-10">
               <div className='flex items-center space-x-3'>
-                {/* Icon color changed to red-600 */}
                 <ShieldCheck className='h-7 w-7 text-red-600'/>
                 <h2 className="text-2xl font-bold text-gray-900">Seller Profile & Verification</h2>
               </div>
@@ -860,7 +904,6 @@ const Sellers = () => {
               </button>
             </div>
 
-            {/* Modal Content */}
             <div className="p-6 space-y-8">
               
               {/* Profile Card & Status */}
@@ -922,10 +965,8 @@ const Sellers = () => {
               {/* DOCUMENTS SECTION - TABLE VIEW */}
               <div>
                 <h3 className="text-xl font-bold text-yellow-600 mb-4 flex items-center"><FileText className='h-6 w-6 mr-2'/> Documents for Verification</h3>
-                {/* Table container changed to light gray */}
                 <div className="overflow-x-auto bg-gray-50 rounded-lg border border-gray-200">
                   <table className="min-w-full divide-y divide-gray-200">
-                    {/* Table header changed to light gray */}
                     <thead className="bg-gray-100">
                       <tr>
                         <th className="px-4 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Document Type</th>
@@ -983,7 +1024,6 @@ const Sellers = () => {
                 </h3>
                 <div className="bg-gray-50 rounded-lg p-4 border border-gray-200 min-h-[150px]">
                     
-                    {/* PRODUCT SEARCH BAR */}
                     {sellerProducts.length > 0 && (
                       <div className="relative mb-4">
                         <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -994,7 +1034,6 @@ const Sellers = () => {
                           placeholder="Search products by name or category..."
                           value={productSearchTerm}
                           onChange={(e) => setProductSearchTerm(e.target.value)}
-                          // Search input adjusted for light theme
                           className="w-full pl-10 pr-10 py-2 bg-white border border-gray-300 rounded-lg text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-pink-500 focus:border-pink-500 text-sm"
                         />
                         {productSearchTerm && (
@@ -1008,7 +1047,6 @@ const Sellers = () => {
                       </div>
                     )}
 
-                    {/* PRODUCT LIST CONTENT */}
                     {loadingProducts ? (
                         <div className="flex items-center justify-center h-full text-pink-600">
                             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-pink-500 mr-3"></div>
@@ -1033,17 +1071,14 @@ const Sellers = () => {
                                 ) : (
                                     filteredSellerProducts.map((product) => ( 
                                         <div key={product.id} className="grid grid-cols-12 items-center bg-white p-3 rounded-md hover:bg-gray-100 transition-colors border border-gray-200">
-                                            {/* FIX 1: Use optional chaining to safely access .name if product.name is an object {id, name} */}
                                             <p className="col-span-6 text-gray-900 font-medium truncate text-sm">
                                                 {product.name?.name || product.name || 'Untitled Product'}
                                             </p>
-                                            {/* FIX 2: Use optional chaining to safely access .name if product.category is an object {id, name} */}
                                             <p className="col-span-3 text-gray-700 text-sm">
                                                 {product.category?.name || product.category || 'N/A'}
                                             </p>
                                             <div className="col-span-3 flex justify-end items-center">
                                                 <DollarSign className='h-4 w-4 text-green-600 mr-1' />
-                                                {/* FIX 3: Explicitly check if the price is a number for safe rendering */}
                                                 <span className="text-green-600 font-semibold text-sm">
                                                     {typeof product.price === 'number' ? product.price.toFixed(2) : 'N/A'}
                                                 </span>
@@ -1062,7 +1097,6 @@ const Sellers = () => {
               {/* Action Buttons (Footer) */}
               <div className="flex space-x-4 pt-4 border-t border-gray-200">
                 <button 
-                  // Message button changed to red-600
                   className="flex-1 bg-red-600 hover:bg-red-700 text-white py-3 px-4 rounded-lg font-bold transition-transform transform hover:scale-[1.01] shadow-lg flex items-center justify-center gap-2"
                   onClick={() => handleMessageSeller(selectedSeller)}
                 >
@@ -1080,7 +1114,6 @@ const Sellers = () => {
                   Approve Seller
                 </button>
                 <button 
-                  // Block button changed to dark red
                   className="flex-1 bg-red-700 hover:bg-red-800 text-white py-3 px-4 rounded-lg font-bold transition-transform transform hover:scale-[1.01] shadow-lg flex items-center justify-center gap-2"
                   onClick={() => {
                     handleBlockSeller(selectedSeller.id);
@@ -1090,7 +1123,111 @@ const Sellers = () => {
                   <Shield size={20} />
                   Block Seller
                 </button>
+                {/* DELETE BUTTON ADDED IN MODAL */}
+                <button 
+                  className="flex-1 bg-gray-700 hover:bg-gray-800 text-white py-3 px-4 rounded-lg font-bold transition-transform transform hover:scale-[1.01] shadow-lg flex items-center justify-center gap-2"
+                  onClick={() => openDeleteModal(selectedSeller)}
+                >
+                  <Trash2 size={20} />
+                  Delete Seller
+                </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* --- DELETE CONFIRMATION MODAL --- */}
+      {showDeleteModal && selectedSeller && (
+        <div className="fixed inset-0 bg-gray-900/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl max-w-md w-full border border-gray-300 shadow-2xl">
+            <div className="flex justify-between items-center p-6 border-b border-gray-200">
+              <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+                {deleting ? (
+                  <>
+                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-red-600"></div>
+                    Deleting...
+                  </>
+                ) : (
+                  <>
+                    <AlertTriangle className="h-5 w-5 text-red-600" />
+                    Delete Seller
+                  </>
+                )}
+              </h2>
+              {!deleting && (
+                <button
+                  onClick={closeDeleteModal}
+                  className="text-gray-500 hover:text-gray-900 transition-colors p-2 hover:bg-gray-100 rounded-xl"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              )}
+            </div>
+            <div className="p-6">
+              {!deleting ? (
+                <>
+                  <div className="mb-6">
+                    <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-4">
+                      <AlertTriangle className="h-6 w-6 text-red-600 mb-2" />
+                      <p className="text-red-700 font-semibold mb-2">Warning: This action cannot be undone!</p>
+                      <p className="text-sm text-red-600">
+                        The seller will be moved to archived records and their products will be removed.
+                      </p>
+                    </div>
+                    
+                    <div className="mb-4">
+                      <p className="text-gray-700 mb-2">
+                        You are about to delete: 
+                        <span className="font-bold text-gray-900 ml-1">
+                          {getSellerName(selectedSeller)}
+                        </span>
+                      </p>
+                      {selectedSeller.businessName && (
+                        <p className="text-red-600 font-medium">{selectedSeller.businessName}</p>
+                      )}
+                      <p className="text-sm text-gray-600 mt-1">ID: {selectedSeller.id}</p>
+                    </div>
+                    
+                    <div className="mb-4">
+                      <label className="block text-sm font-medium text-gray-600 mb-2">
+                        Reason for deletion (optional):
+                      </label>
+                      <textarea
+                        value={deleteReason}
+                        onChange={(e) => setDeleteReason(e.target.value)}
+                        className="w-full bg-gray-100 text-gray-900 p-3 rounded-lg border border-gray-300 focus:border-red-500 focus:outline-none focus:ring-2 focus:ring-red-500/20 resize-none text-sm"
+                        rows="3"
+                        placeholder="Enter reason for deletion..."
+                      />
+                    </div>
+                  </div>
+                  
+                  <div className="flex justify-end space-x-3">
+                    <button
+                      onClick={closeDeleteModal}
+                      className="bg-gray-300 hover:bg-gray-400 text-gray-900 px-6 py-3 rounded-xl transition-colors font-semibold"
+                      disabled={deleting}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={() => handleDeleteSeller(selectedSeller.id, deleteReason || 'No reason provided')}
+                      className="bg-gradient-to-r from-gray-700 to-gray-800 hover:from-gray-800 hover:to-gray-900 text-white px-6 py-3 rounded-xl transition-all duration-200 font-semibold shadow-lg flex items-center gap-2"
+                      disabled={deleting}
+                    >
+                      <Archive size={18} />
+                      Archive Seller
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <div className="text-center py-8">
+                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-red-600 mx-auto mb-4"></div>
+                  <p className="text-gray-900 font-semibold">Archiving seller...</p>
+                  <p className="text-gray-600 text-sm mt-2">Moving to deleted_sellers collection</p>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -1137,7 +1274,6 @@ const Sellers = () => {
                 <textarea
                   value={messageText}
                   onChange={(e) => setMessageText(e.target.value)}
-                  // Textarea adjusted for light theme
                   className="w-full bg-gray-100 text-gray-900 p-4 rounded-xl border border-gray-300 focus:border-red-500 focus:outline-none focus:ring-2 focus:ring-red-500/20 resize-none"
                   rows="4"
                   placeholder="Type your message here..."
@@ -1164,7 +1300,6 @@ const Sellers = () => {
                     disabled={!selectedSeller.email}
                     className={`flex items-center justify-center gap-2 p-3 rounded-xl font-semibold transition-all duration-200 ${
                       selectedSeller.email 
-                        // Gmail button kept red
                         ? 'bg-red-600 hover:bg-red-700 text-white shadow-lg hover:shadow-xl' 
                         : 'bg-gray-300 text-gray-500 cursor-not-allowed'
                     }`}
@@ -1188,7 +1323,7 @@ const Sellers = () => {
         </div>
       )}
 
-      {/* --- CONFIRMATION MODAL --- */}
+      {/* --- MESSAGE CONFIRMATION MODAL --- */}
       {showConfirmationModal && selectedSeller && (
         <div className="fixed inset-0 bg-gray-900/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-2xl max-w-md w-full border border-gray-300 shadow-2xl">
@@ -1241,7 +1376,6 @@ const Sellers = () => {
                     </button>
                     <button
                       onClick={handleSendMessage}
-                      // Send button changed to red gradient
                       className="bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white px-6 py-3 rounded-xl transition-all duration-200 font-semibold shadow-lg flex items-center gap-2"
                       disabled={sending}
                     >

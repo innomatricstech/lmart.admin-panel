@@ -30,6 +30,7 @@ import PostersPage from "./components/PostersPage.jsx";
 import BannerPage from "./components/BannerPage.jsx";
 import BulkUploadPage from "./components/BulkUploadPage.jsx";
 import NotificationsPage from "./components/NotificationsPage.jsx";
+import DeletedOldeeTable from "./components/DeletedOldee.jsx";
 
 // Sellers
 import ViewSellersPage from "./components/Seller/ViewSeller.jsx";
@@ -189,7 +190,9 @@ export default function App() {
                     <Route path="sellers/delete" element={<DeletedSellersTable />} />
                     <Route path="sellers/view/:id" element={<EditSellerPage />} />
                     <Route path="sellers/edit/:id" element={<EditSellerPage />} />
+                    
                     <Route path="/oldee" element={<OldeeProductsPage />} />
+                     <Route path="/oldee/delete" element={<DeletedOldeeTable />} />
 
                     {/* Products */}
                     <Route path="products" element={<Navigate to="view" replace />} />

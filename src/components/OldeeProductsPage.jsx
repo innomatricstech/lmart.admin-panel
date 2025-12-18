@@ -8,7 +8,11 @@ import {
     doc, 
     updateDoc, 
     deleteDoc,
-    getDoc 
+    getDoc,
+    setDoc,
+    addDoc,
+    getDocs,
+    writeBatch 
 } from "firebase/firestore";
 import { db } from "../../firerbase";
 import { 
@@ -26,7 +30,10 @@ import {
     FiSave, 
     FiDollarSign, 
     FiFileText,
-    FiCheck 
+    FiCheck,
+    FiPlus,
+    FiX,
+    FiMoreVertical
 } from "react-icons/fi";
 
 // Format Firestore timestamp
@@ -40,7 +47,7 @@ const formatDate = (timestamp) => {
     }
 };
 
-// --- SUCCESS NOTIFICATION TOAST (Unchanged) ---
+// --- SUCCESS NOTIFICATION TOAST ---
 const SuccessNotificationToast = ({ message, onClose }) => {
     useEffect(() => {
         if (message) {
@@ -63,22 +70,296 @@ const SuccessNotificationToast = ({ message, onClose }) => {
     );
 };
 
+// --- CATEGORY MANAGEMENT MODAL ---
+const CategoryManagementModal = ({ categories, onAddCategory, onEditCategory, onDeleteCategory, onClose }) => {
+    const [newCategory, setNewCategory] = useState("");
+    const [editingCategory, setEditingCategory] = useState(null);
+    const [editValue, setEditValue] = useState("");
+    const [categoryToDelete, setCategoryToDelete] = useState(null);
+    const [isAdding, setIsAdding] = useState(false);
+    const [isEditing, setIsEditing] = useState(false);
+    const [error, setError] = useState("");
 
-// --- INLINE EDIT COMPONENT (UPDATED to include offerPrice and category) ---
+    const handleAddCategory = async () => {
+        if (!newCategory.trim()) {
+            setError("Category name cannot be empty");
+            return;
+        }
 
-const InlineEditForm = ({ productData, onSave, onCancel, onSaveSuccess }) => {
+        const trimmedCategory = newCategory.trim();
+        
+        if (categories.some(cat => cat.toLowerCase() === trimmedCategory.toLowerCase())) {
+            setError("Category already exists");
+            return;
+        }
+
+        setIsAdding(true);
+        setError("");
+        
+        try {
+            await onAddCategory(trimmedCategory);
+            setNewCategory("");
+        } catch (err) {
+            setError(`Failed to add category: ${err.message}`);
+        } finally {
+            setIsAdding(false);
+        }
+    };
+
+    const handleEditClick = (category) => {
+        setEditingCategory(category);
+        setEditValue(category);
+        setError("");
+    };
+
+    const handleSaveEdit = async () => {
+        if (!editValue.trim()) {
+            setError("Category name cannot be empty");
+            return;
+        }
+
+        const trimmedValue = editValue.trim();
+        
+        if (categories.some(cat => cat.toLowerCase() === trimmedValue.toLowerCase() && cat !== editingCategory)) {
+            setError("Category already exists");
+            return;
+        }
+
+        if (trimmedValue === editingCategory) {
+            setEditingCategory(null);
+            setError("");
+            return;
+        }
+
+        setIsEditing(true);
+        setError("");
+        
+        try {
+            await onEditCategory(editingCategory, trimmedValue);
+            setEditingCategory(null);
+            setEditValue("");
+        } catch (err) {
+            setError(`Failed to update category: ${err.message}`);
+        } finally {
+            setIsEditing(false);
+        }
+    };
+
+    const handleDeleteClick = (category) => {
+        setCategoryToDelete(category);
+    };
+
+    const handleConfirmDelete = async () => {
+        if (!categoryToDelete) return;
+        
+        try {
+            await onDeleteCategory(categoryToDelete);
+            setCategoryToDelete(null);
+        } catch (err) {
+            setError(`Failed to delete category: ${err.message}`);
+        }
+    };
+
+    const handleCancelEdit = () => {
+        setEditingCategory(null);
+        setEditValue("");
+        setError("");
+    };
+
+    const handleKeyPress = (e) => {
+        if (e.key === 'Enter') {
+            if (editingCategory) {
+                handleSaveEdit();
+            } else {
+                handleAddCategory();
+            }
+        }
+    };
+
+    // Confirmation Modal for Category Deletion
+    const DeleteCategoryConfirmation = () => {
+        if (!categoryToDelete) return null;
+
+        return (
+            <div className="fixed inset-0 bg-black bg-opacity-40 flex justify-center items-center z-[150]">
+                <div className="bg-white rounded-lg shadow-2xl w-full max-w-sm p-6">
+                    <div className="flex flex-col items-center space-y-4">
+                        <FiTrash2 className="w-12 h-12 text-red-500" />
+                        <h3 className="text-xl font-bold text-gray-900">Delete Category</h3>
+                        <p className="text-sm text-gray-600 text-center">
+                            Are you sure you want to delete the category <strong>"{categoryToDelete}"</strong>?
+                            <br />
+                            <span className="text-red-500 font-medium">Products using this category will keep it, but it won't be available for new products.</span>
+                        </p>
+                    </div>
+                    
+                    <div className="mt-6 flex justify-end space-x-3">
+                        <button
+                            onClick={() => setCategoryToDelete(null)}
+                            className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-200 rounded-lg hover:bg-gray-300"
+                        >
+                            Cancel
+                        </button>
+                        <button
+                            onClick={handleConfirmDelete}
+                            className="flex items-center px-4 py-2 text-sm font-medium rounded-lg text-white bg-red-600 hover:bg-red-700"
+                        >
+                            <FiTrash2 className="w-4 h-4 mr-2" />
+                            Delete Category
+                        </button>
+                    </div>
+                </div>
+            </div>
+        );
+    };
+
+    return (
+        <>
+            <div className="fixed inset-0 bg-gray-600 bg-opacity-75 flex justify-center items-center z-[100]">
+                <div className="bg-white rounded-lg shadow-2xl w-full max-w-lg p-6">
+                    <div className="flex justify-between items-center mb-6">
+                        <h2 className="text-xl font-bold text-gray-900">Manage Categories</h2>
+                        <button
+                            onClick={onClose}
+                            className="text-gray-400 hover:text-gray-600"
+                        >
+                            <FiX className="w-6 h-6" />
+                        </button>
+                    </div>
+
+                    {/* Add Category Section */}
+                    <div className="mb-6">
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Add New Category</label>
+                        <div className="flex space-x-2">
+                            <input
+                                type="text"
+                                value={newCategory}
+                                onChange={(e) => setNewCategory(e.target.value)}
+                                onKeyPress={handleKeyPress}
+                                placeholder="Enter new category name"
+                                className="flex-1 p-2 border border-gray-300 rounded-md"
+                                disabled={isAdding || isEditing}
+                            />
+                            <button
+                                onClick={handleAddCategory}
+                                disabled={isAdding || isEditing || !newCategory.trim()}
+                                className={`px-4 py-2 rounded-md text-white ${isAdding ? 'bg-blue-400' : 'bg-blue-600 hover:bg-blue-700'} disabled:opacity-50`}
+                            >
+                                {isAdding ? (
+                                    <FiRefreshCw className="w-5 h-5 animate-spin" />
+                                ) : (
+                                    <FiPlus className="w-5 h-5" />
+                                )}
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Categories List */}
+                    <div>
+                        <h3 className="text-lg font-semibold text-gray-700 mb-3">Existing Categories ({categories.length})</h3>
+                        <div className="max-h-80 overflow-y-auto border rounded-lg">
+                            {categories.length === 0 ? (
+                                <p className="text-gray-500 text-center py-8">No categories yet. Add your first category!</p>
+                            ) : (
+                                <div className="divide-y">
+                                    {categories.map((category, index) => (
+                                        <div
+                                            key={index}
+                                            className="px-4 py-3 hover:bg-gray-50 flex items-center justify-between group"
+                                        >
+                                            {editingCategory === category ? (
+                                                <div className="flex-1 flex items-center space-x-2">
+                                                    <input
+                                                        type="text"
+                                                        value={editValue}
+                                                        onChange={(e) => setEditValue(e.target.value)}
+                                                        onKeyPress={handleKeyPress}
+                                                        className="flex-1 p-2 border border-gray-300 rounded-md text-sm"
+                                                        autoFocus
+                                                    />
+                                                    <button
+                                                        onClick={handleSaveEdit}
+                                                        disabled={isEditing}
+                                                        className={`px-3 py-2 rounded-md text-white ${isEditing ? 'bg-green-400' : 'bg-green-600 hover:bg-green-700'}`}
+                                                    >
+                                                        {isEditing ? (
+                                                            <FiRefreshCw className="w-4 h-4 animate-spin" />
+                                                        ) : (
+                                                            'Save'
+                                                        )}
+                                                    </button>
+                                                    <button
+                                                        onClick={handleCancelEdit}
+                                                        className="px-3 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300"
+                                                    >
+                                                        Cancel
+                                                    </button>
+                                                </div>
+                                            ) : (
+                                                <>
+                                                    <div className="flex items-center">
+                                                        <span className="bg-blue-100 text-blue-700 px-2 py-1 rounded-md text-sm font-medium">
+                                                            {index + 1}
+                                                        </span>
+                                                        <span className="ml-3 text-gray-800">{category}</span>
+                                                    </div>
+                                                    <div className="flex space-x-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                        <button
+                                                            onClick={() => handleEditClick(category)}
+                                                            className="p-1 text-blue-600 hover:text-blue-800"
+                                                            title="Edit category"
+                                                        >
+                                                            <FiEdit className="w-4 h-4" />
+                                                        </button>
+                                                        <button
+                                                            onClick={() => handleDeleteClick(category)}
+                                                            className="p-1 text-red-600 hover:text-red-800"
+                                                            title="Delete category"
+                                                        >
+                                                            <FiTrash2 className="w-4 h-4" />
+                                                        </button>
+                                                    </div>
+                                                </>
+                                            )}
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    </div>
+
+                    {error && (
+                        <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-md">
+                            <p className="text-red-600 text-sm">{error}</p>
+                        </div>
+                    )}
+
+                    <div className="mt-6 flex justify-end">
+                        <button
+                            onClick={onClose}
+                            className="px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300"
+                        >
+                            Close
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            {/* Delete Confirmation Modal */}
+            <DeleteCategoryConfirmation />
+        </>
+    );
+};
+
+// --- INLINE EDIT COMPONENT ---
+const InlineEditForm = ({ productData, onSave, onCancel, onSaveSuccess, categories }) => {
     const [formData, setFormData] = useState({
-        // Initialize with productData, ensuring offerPrice is included
         ...productData,
-        // Ensure price fields are strings for input type="number" to work nicely
         price: String(productData.price || 0),
         offerPrice: String(productData.offerPrice || 0), 
     });
     const [isSaving, setIsSaving] = useState(false);
     const [editError, setEditError] = useState(null);
-
-    // Category options
-    const categoryOptions = ["Electronics", "Furniture", "Vehicles", "Books", "Fashion", "Appliances", "Others"];
 
     const handleChange = (e) => {
         const { name, value } = e.target;
@@ -104,9 +385,8 @@ const InlineEditForm = ({ productData, onSave, onCancel, onSaveSuccess }) => {
             
             const updatedData = {
                 ...formData,
-                // Ensure price fields are stored as numbers in Firestore
                 price: Number(formData.price),
-                offerPrice: Number(formData.offerPrice || 0), // Handle null/empty and convert to number
+                offerPrice: Number(formData.offerPrice || 0),
                 updatedAt: new Date(),
             };
 
@@ -141,7 +421,6 @@ const InlineEditForm = ({ productData, onSave, onCancel, onSaveSuccess }) => {
 
                 <form onSubmit={handleSubmit} className="space-y-4">
                     
-                    {/* Name, Price, Offer Price, Negotiation, Status, Category */}
                     <div className="grid grid-cols-5 gap-4">
                         <div className="col-span-1">
                             <label htmlFor="name" className="block text-sm font-medium text-gray-700">Product Name</label>
@@ -172,8 +451,8 @@ const InlineEditForm = ({ productData, onSave, onCancel, onSaveSuccess }) => {
                                 className="mt-1 p-2 block w-full border border-gray-300 rounded-md bg-white"
                             >
                                 <option value="">Select Category</option>
-                                {categoryOptions.map((category) => (
-                                    <option key={category} value={category}>
+                                {categories.map((category, index) => (
+                                    <option key={index} value={category}>
                                         {category}
                                     </option>
                                 ))}
@@ -181,7 +460,6 @@ const InlineEditForm = ({ productData, onSave, onCancel, onSaveSuccess }) => {
                         </div>
                     </div>
 
-                    {/* Status, Contact, Address */}
                     <div className="grid grid-cols-3 gap-4">
                         <div>
                             <label htmlFor="status" className="block text-sm font-medium text-gray-700">Status</label>
@@ -201,13 +479,11 @@ const InlineEditForm = ({ productData, onSave, onCancel, onSaveSuccess }) => {
                         </div>
                     </div>
 
-                    {/* Description */}
                     <div>
                         <label htmlFor="description" className="block text-sm font-medium text-gray-700">Description</label>
                         <textarea id="description" name="description" rows="3" value={formData.description} onChange={handleChange} className="mt-1 p-2 block w-full border border-gray-300 rounded-md"></textarea>
                     </div>
 
-                    {/* Action Buttons */}
                     <div className="pt-4 flex justify-end space-x-3">
                         <button
                             type="button"
@@ -238,9 +514,7 @@ const InlineEditForm = ({ productData, onSave, onCancel, onSaveSuccess }) => {
     );
 };
 
-
-// --- DELETE CONFIRMATION MODAL COMPONENT (Unchanged) ---
-
+// --- DELETE CONFIRMATION MODAL (Product) ---
 const DeleteConfirmationModal = ({ product, onConfirm, onCancel, isDeleting }) => {
     return (
         <div className="fixed inset-0 bg-black bg-opacity-40 flex justify-center items-center z-[100]">
@@ -279,23 +553,22 @@ const DeleteConfirmationModal = ({ product, onConfirm, onCancel, isDeleting }) =
     );
 };
 
-
-// --- MAIN COMPONENT: OldeeProductsPage (Updated to display category) ---
-
+// --- MAIN COMPONENT: OldeeProductsPage ---
 const OldeeProductsPage = () => {
     const [products, setProducts] = useState([]); 
+    const [categories, setCategories] = useState([]); 
+    const [categoryDocs, setCategoryDocs] = useState([]); // Store full category documents
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [processingId, setProcessingId] = useState(null);
-    
     const [notification, setNotification] = useState(null); 
-    
     const [productToDelete, setProductToDelete] = useState(null); 
     const [editingProduct, setEditingProduct] = useState(null); 
+    const [showCategoryModal, setShowCategoryModal] = useState(false);
 
     const navigate = useNavigate();
 
-    // Fetch ALL products (Unchanged)
+    // Fetch ALL products
     useEffect(() => {
         try {
             const q = query(
@@ -329,9 +602,219 @@ const OldeeProductsPage = () => {
         }
     }, []);
 
-    // --- Handlers ---
+    // Fetch categories from Firestore
+    useEffect(() => {
+        const fetchCategories = async () => {
+            try {
+                const categoriesRef = collection(db, "oldee_categories");
+                const querySnapshot = await getDocs(categoriesRef);
+                
+                const categoriesList = [];
+                const docsList = [];
+                
+                querySnapshot.forEach((doc) => {
+                    const data = doc.data();
+                    categoriesList.push(data.name);
+                    docsList.push({ id: doc.id, ...data });
+                });
+                
+                // Sort categories alphabetically
+                const sortedCategories = categoriesList.sort();
+                const sortedDocs = docsList.sort((a, b) => 
+                    a.name.localeCompare(b.name)
+                );
+                
+                setCategories(sortedCategories);
+                setCategoryDocs(sortedDocs);
+                
+                // If no categories exist, add default ones
+                if (sortedCategories.length === 0) {
+                    await initializeDefaultCategories();
+                }
+            } catch (err) {
+                console.error("Error fetching categories:", err);
+                // Set default categories if fetch fails
+                const defaultCats = ["Electronics", "Furniture", "Vehicles", "Books", "Fashion", "Appliances", "Others"];
+                setCategories(defaultCats);
+            }
+        };
 
-    // Update Status (Unchanged)
+        fetchCategories();
+    }, []);
+
+    // Initialize default categories
+    const initializeDefaultCategories = async () => {
+        const defaultCategories = [
+            "Electronics", "Furniture", "Vehicles", "Books", 
+            "Fashion", "Appliances", "Sports", "Toys & Games", 
+            "Home & Garden", "Music & Instruments", "Others"
+        ];
+
+        try {
+            const batch = writeBatch(db);
+            
+            for (const categoryName of defaultCategories) {
+                const newDocRef = doc(collection(db, "oldee_categories"));
+                batch.set(newDocRef, {
+                    name: categoryName,
+                    createdAt: new Date(),
+                    updatedAt: new Date(),
+                    isDefault: true
+                });
+            }
+            
+            await batch.commit();
+            
+            const newDocs = defaultCategories.map(name => ({ 
+                id: `temp-${name}`, 
+                name, 
+                createdAt: new Date(), 
+                updatedAt: new Date(),
+                isDefault: true 
+            }));
+            
+            setCategories(defaultCategories);
+            setCategoryDocs(newDocs);
+            
+        } catch (err) {
+            console.error("Error initializing categories:", err);
+        }
+    };
+
+    // Add new category to Firestore
+    const handleAddCategory = async (categoryName) => {
+        try {
+            // Add to Firestore
+            const docRef = await addDoc(collection(db, "oldee_categories"), {
+                name: categoryName,
+                createdAt: new Date(),
+                updatedAt: new Date(),
+                isDefault: false
+            });
+
+            // Update local state
+            const newCategory = { id: docRef.id, name: categoryName, createdAt: new Date(), updatedAt: new Date() };
+            const updatedCategories = [...categories, categoryName].sort();
+            const updatedDocs = [...categoryDocs, newCategory].sort((a, b) => 
+                a.name.localeCompare(b.name)
+            );
+            
+            setCategories(updatedCategories);
+            setCategoryDocs(updatedDocs);
+            
+            // Show success notification
+            setNotification(`Category "${categoryName}" added successfully!`);
+            
+            return true;
+        } catch (err) {
+            console.error("Error adding category:", err);
+            throw err;
+        }
+    };
+
+    // Edit existing category
+    const handleEditCategory = async (oldName, newName) => {
+        try {
+            // Find the category document
+            const categoryDoc = categoryDocs.find(doc => doc.name === oldName);
+            
+            if (!categoryDoc) {
+                throw new Error("Category not found");
+            }
+
+            // Update in Firestore
+            const categoryRef = doc(db, "oldee_categories", categoryDoc.id);
+            await updateDoc(categoryRef, {
+                name: newName,
+                updatedAt: new Date()
+            });
+
+            // Update local state
+            const updatedCategories = categories.map(cat => 
+                cat === oldName ? newName : cat
+            ).sort();
+            
+            const updatedDocs = categoryDocs.map(doc => 
+                doc.name === oldName ? { ...doc, name: newName, updatedAt: new Date() } : doc
+            ).sort((a, b) => a.name.localeCompare(b.name));
+            
+            setCategories(updatedCategories);
+            setCategoryDocs(updatedDocs);
+
+            // Update all products that use this category
+            await updateProductsCategory(oldName, newName);
+            
+            setNotification(`Category updated from "${oldName}" to "${newName}" successfully!`);
+            
+            return true;
+        } catch (err) {
+            console.error("Error editing category:", err);
+            throw err;
+        }
+    };
+
+    // Update products when category name changes
+    const updateProductsCategory = async (oldCategory, newCategory) => {
+        try {
+            const productsToUpdate = products.filter(product => product.category === oldCategory);
+            
+            if (productsToUpdate.length > 0) {
+                const batch = writeBatch(db);
+                
+                productsToUpdate.forEach(product => {
+                    const productRef = doc(db, "oldee", product.id);
+                    batch.update(productRef, {
+                        category: newCategory,
+                        updatedAt: new Date()
+                    });
+                });
+                
+                await batch.commit();
+                setNotification(`${productsToUpdate.length} products updated with new category name.`);
+            }
+        } catch (err) {
+            console.error("Error updating products category:", err);
+            // Don't throw error here, just log it
+        }
+    };
+
+    // Delete category
+    const handleDeleteCategory = async (categoryName) => {
+        try {
+            // Find the category document
+            const categoryDoc = categoryDocs.find(doc => doc.name === categoryName);
+            
+            if (!categoryDoc) {
+                throw new Error("Category not found");
+            }
+
+            // Don't allow deletion of default categories if you want
+            if (categoryDoc.isDefault) {
+                setNotification("Default categories cannot be deleted.");
+                return;
+            }
+
+            // Delete from Firestore
+            const categoryRef = doc(db, "oldee_categories", categoryDoc.id);
+            await deleteDoc(categoryRef);
+
+            // Update local state
+            const updatedCategories = categories.filter(cat => cat !== categoryName);
+            const updatedDocs = categoryDocs.filter(doc => doc.name !== categoryName);
+            
+            setCategories(updatedCategories);
+            setCategoryDocs(updatedDocs);
+            
+            setNotification(`Category "${categoryName}" deleted successfully!`);
+            
+            return true;
+        } catch (err) {
+            console.error("Error deleting category:", err);
+            throw err;
+        }
+    };
+
+    // Update Status
     const handleUpdateStatus = async (productId, currentStatus) => {
         setProcessingId(productId);
         const newStatus = currentStatus === "active" ? "inactive" : "active"; 
@@ -348,7 +831,7 @@ const OldeeProductsPage = () => {
         }
     };
 
-    // Open Edit Form (Unchanged)
+    // Open Edit Form
     const handleEditProduct = async (productId) => {
         setProcessingId(productId);
         try {
@@ -368,12 +851,12 @@ const OldeeProductsPage = () => {
         }
     };
     
-    // Open Delete Confirmation Modal (Unchanged)
+    // Open Delete Confirmation Modal
     const handleDeleteClick = (product) => {
         setProductToDelete(product);
     };
 
-    // Final Delete Action (Unchanged)
+    // Final Delete Action (stores in deleted_oldee)
     const finalizeDeleteProduct = async () => {
         if (!productToDelete) return;
 
@@ -381,23 +864,37 @@ const OldeeProductsPage = () => {
         setProcessingId(productId); 
 
         try {
-            const ref = doc(db, "oldee", productId);
-            await deleteDoc(ref);
-            setNotification(`Product "${productToDelete.name}" successfully deleted.`); 
+            // Copy to deleted_oldee collection
+            const deletedProductRef = doc(db, "deleted_oldee", productId);
+            
+            const deletedProductData = {
+                ...productToDelete,
+                deletedAt: new Date(),
+                deletedBy: "admin",
+                originalCollection: "oldee",
+                deletionReason: "Admin deletion"
+            };
+
+            await setDoc(deletedProductRef, deletedProductData);
+            
+            // Delete from original collection
+            const originalRef = doc(db, "oldee", productId);
+            await deleteDoc(originalRef);
+            
+            setNotification(`Product "${productToDelete.name}" moved to deleted collection.`); 
             setProductToDelete(null); 
         } catch (e) {
-            console.error("Error deleting document:", e);
+            console.error("Error moving/deleting product:", e);
             setNotification(`Failed to delete product: ${e.message}`);
         } finally {
             setProcessingId(null);
         }
     };
 
-    // Function to set success notification message (Unchanged)
+    // Function to set success notification message
     const handleSuccessNotification = (message) => {
         setNotification(message);
     };
-
 
     // --- UI RENDERING ---
 
@@ -425,20 +922,45 @@ const OldeeProductsPage = () => {
             <div className="max-w-7xl mx-auto">
 
                 {/* HEADER */}
-                <div className="flex items-center space-x-4 mb-8 border-b pb-4">
-                    <FiUser className="w-10 h-10 text-purple-600" />
-                    <div>
-                        <h1 className="text-3xl font-bold text-gray-900">All Oldee Products</h1>
+                <div className="flex items-center justify-between mb-8 border-b pb-4">
+                    <div className="flex items-center space-x-4">
+                        <FiUser className="w-10 h-10 text-purple-600" />
+                        <div>
+                            <h1 className="text-3xl font-bold text-gray-900">All Oldee Products</h1>
+                        </div>
                     </div>
+                    <button
+                        onClick={() => setShowCategoryModal(true)}
+                        className="flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition duration-150"
+                    >
+                        <FiTag className="w-5 h-5 mr-2" />
+                        Manage Categories ({categories.length})
+                    </button>
                 </div>
 
-                {/* COUNTER */}
-                <div className="bg-white rounded-xl shadow p-6 mb-8">
-                    <div className="flex items-center">
-                        <FiClock className="w-6 h-6 text-indigo-600 mr-3" />
-                        <span className="text-xl font-semibold text-gray-700">
-                            {products.length} Total Products Loaded
-                        </span>
+                {/* COUNTER & CATEGORY STATS */}
+                <div className="grid grid-cols-2 gap-6 mb-8">
+                    <div className="bg-white rounded-xl shadow p-6">
+                        <div className="flex items-center">
+                            <FiClock className="w-6 h-6 text-indigo-600 mr-3" />
+                            <div>
+                                <span className="text-xl font-semibold text-gray-700">
+                                    {products.length} Total Products
+                                </span>
+                                <p className="text-sm text-gray-500">Loaded from Firestore</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div className="bg-white rounded-xl shadow p-6">
+                        <div className="flex items-center">
+                            <FiPackage className="w-6 h-6 text-blue-600 mr-3" />
+                            <div>
+                                <span className="text-xl font-semibold text-gray-700">
+                                    {categories.length} Categories
+                                </span>
+                                <p className="text-sm text-gray-500">Click "Manage Categories" to edit</p>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
@@ -479,7 +1001,7 @@ const OldeeProductsPage = () => {
                                                                 {product.category}
                                                             </div>
                                                         )}
-                                                        {/* Display offer price in the list view */}
+                                                        {/* Display offer price */}
                                                         {product.offerPrice && product.offerPrice !== product.price && (
                                                             <div className="text-xs text-red-500 font-medium">Offer: ₹{product.offerPrice}</div>
                                                         )}
@@ -591,7 +1113,8 @@ const OldeeProductsPage = () => {
                     productData={editingProduct}
                     onSave={() => setEditingProduct(null)} 
                     onCancel={() => setEditingProduct(null)}
-                    onSaveSuccess={handleSuccessNotification} 
+                    onSaveSuccess={handleSuccessNotification}
+                    categories={categories}
                 />
             )}
 
@@ -601,6 +1124,16 @@ const OldeeProductsPage = () => {
                     onConfirm={finalizeDeleteProduct}
                     onCancel={() => setProductToDelete(null)}
                     isDeleting={processingId === productToDelete.id} 
+                />
+            )}
+
+            {showCategoryModal && (
+                <CategoryManagementModal
+                    categories={categories}
+                    onAddCategory={handleAddCategory}
+                    onEditCategory={handleEditCategory}
+                    onDeleteCategory={handleDeleteCategory}
+                    onClose={() => setShowCategoryModal(false)}
                 />
             )}
 
