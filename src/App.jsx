@@ -50,6 +50,18 @@ import AddNewsToday from "./components/Products/AddNews.jsx";
 
 // Login
 import LoginPage from "./components/LoginPage.jsx";
+import { signInAnonymously, onAuthStateChanged } from "firebase/auth";
+import { auth } from "../firerbase";
+
+onAuthStateChanged(auth, (user) => {
+  if (user) {
+    console.log("✅ Authenticated user:", user.uid);
+  } else {
+    signInAnonymously(auth)
+      .then(() => console.log("✅ Signed in anonymously"))
+      .catch((err) => console.error("❌ Auth error:", err));
+  }
+});
 
 // Placeholder
 const Placeholder = ({ title }) => (

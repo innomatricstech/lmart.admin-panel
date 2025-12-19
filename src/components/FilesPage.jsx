@@ -1,5 +1,4 @@
-// FileDashboard.jsx
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { db, storage } from "../../firerbase";
 import {
   collection,
@@ -7,7 +6,6 @@ import {
   updateDoc,
   doc,
   arrayUnion,
-  arrayRemove,
   getDoc,
   setDoc,
   Timestamp,
@@ -16,7 +14,6 @@ import {
   ref,
   uploadBytes,
   getDownloadURL,
-  deleteObject,
 } from "firebase/storage";
 import { v4 as uuidv4 } from "uuid";
 import JSZip from "jszip";
@@ -32,33 +29,57 @@ import {
   FiFile,
   FiEye,
   FiUser,
+  FiShield,
+  FiCheckCircle,
+  FiMail,
+  FiPhone,
+  FiCalendar,
+  FiPackage,
+  FiBarChart2,
+  FiHardDrive,
+  FiChevronRight,
+  FiAlertCircle,
+  FiClock,
+  FiTrendingUp,
 } from "react-icons/fi";
+import { 
+  MdEmail, 
+  MdPhone, 
+  MdPerson, 
+  MdStorage, 
+  MdDownload 
+} from "react-icons/md";
 
 // --- Helper Functions ---
 
-/**
- * Returns the appropriate icon based on the file MIME type.
- */
 const getFileIcon = (fileType) => {
   const type = (fileType || "").toLowerCase();
-
-  if (
-    type.includes("image") ||
-    type.includes("png") ||
-    type.includes("jpg") ||
-    type.includes("jpeg")
-  ) {
-    return <FiImage className="w-5 h-5 text-purple-600" />;
-  } else if (type.includes("pdf")) {
-    return <FiFileText className="w-5 h-5 text-red-600" />;
-  } else {
-    return <FiFile className="w-5 h-5 text-gray-600" />;
-  }
+  if (type.includes("image")) return <FiImage className="w-5 h-5 text-purple-500" />;
+  if (type.includes("pdf")) return <FiFileText className="w-5 h-5 text-red-500" />;
+  if (type.includes("word") || type.includes("doc")) return <FiFile className="w-5 h-5 text-blue-500" />;
+  if (type.includes("excel") || type.includes("xls")) return <FiFile className="w-5 h-5 text-green-500" />;
+  if (type.includes("zip") || type.includes("rar")) return <FiPackage className="w-5 h-5 text-yellow-500" />;
+  return <FiFile className="w-5 h-5 text-gray-500" />;
 };
 
-/**
- * Formats file size in bytes into human-readable KB, MB, GB format.
- */
+const getStatusBadge = (status) => {
+  const statusConfig = {
+    "Active": { color: "bg-emerald-100 text-emerald-800", icon: <FiCheckCircle className="w-3 h-3" /> },
+    "Pending": { color: "bg-amber-100 text-amber-800", icon: <FiClock className="w-3 h-3" /> },
+    "Inactive": { color: "bg-gray-100 text-gray-800", icon: <FiAlertCircle className="w-3 h-3" /> },
+    "Admin Uploaded": { color: "bg-blue-100 text-blue-800", icon: <FiShield className="w-3 h-3" /> },
+    "Customer Uploaded": { color: "bg-indigo-100 text-indigo-800", icon: <FiUser className="w-3 h-3" /> },
+  };
+  
+  const config = statusConfig[status] || statusConfig["Active"];
+  return (
+    <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${config.color}`}>
+      {config.icon}
+      {status}
+    </span>
+  );
+};
+
 const formatBytes = (bytes, decimals = 2) => {
   if (!bytes || bytes === 0) return "0 Bytes";
   const k = 1024;
@@ -68,64 +89,105 @@ const formatBytes = (bytes, decimals = 2) => {
   return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + " " + sizes[i];
 };
 
-/**
- * Helper to trigger actual browser download (without opening a new tab).
- */
-const triggerDownload = (url, name) => {
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = name || "download";
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
+const safeToDate = (dateValue) => {
+  if (!dateValue) return new Date(0);
+  if (typeof dateValue.toDate === "function") return dateValue.toDate();
+  return new Date(dateValue);
 };
 
-/**
- * Component for displaying dashboard statistics.
- */
-const StatCard = ({ title, value, icon: Icon, bgColor, iconColor }) => (
-  <div
-    className={`p-4 rounded-xl shadow-lg flex items-center justify-between h-24 ${bgColor}`}
-  >
-    <div className="flex flex-col">
-      <h3 className="text-sm font-semibold text-white/90">{title}</h3>
-      <p className="text-xl font-bold text-white">{value}</p>
+const formatDate = (date) => {
+  if (!date) return "N/A";
+  return new Date(date).toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit'
+  });
+};
+
+const StatCard = ({ title, value, icon: Icon, bgColor, iconColor, trend, trendValue }) => (
+  <div className={`p-6 rounded-2xl shadow-lg ${bgColor} relative overflow-hidden`}>
+    <div className="relative z-10">
+      <div className="flex justify-between items-start">
+        <div>
+          <p className="text-sm font-medium text-white/90 mb-1">{title}</p>
+          <p className="text-2xl font-bold text-white">{value}</p>
+          {trend && (
+            <div className="flex items-center mt-2 text-white/80 text-sm">
+              {trend === "up" ? <FiTrendingUp className="mr-1" /> : "↓"}
+              <span>{trendValue}</span>
+            </div>
+          )}
+        </div>
+        <div className={`p-3 rounded-xl bg-white/20 ${iconColor}`}>
+          <Icon className="w-6 h-6 text-white" />
+        </div>
+      </div>
     </div>
-    <Icon className={`w-8 h-8 ${iconColor}`} />
+  </div>
+);
+
+// --- Customer Details Card ---
+const CustomerDetailCard = ({ customer }) => (
+  <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
+    <div className="flex items-start justify-between mb-4">
+      <div className="flex items-center gap-3">
+        <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl flex items-center justify-center">
+          <FiUser className="w-6 h-6 text-white" />
+        </div>
+        <div>
+          <h3 className="font-bold text-gray-900 text-lg">{customer.customerName}</h3>
+          <div className="flex items-center gap-2 mt-1">
+            {getStatusBadge(customer.status || "Active")}
+            <span className="text-xs text-gray-500 font-mono px-2 py-1 bg-gray-100 rounded">
+              ID: {customer.uploadDocId?.substring(0, 8)}...
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <div className="space-y-3">
+      <div className="flex items-center gap-3 text-gray-600">
+        <MdEmail className="w-4 h-4 text-blue-500" />
+        <span className="text-sm">{customer.customerEmail || "No email"}</span>
+      </div>
+      {/* <div className="flex items-center gap-3 text-gray-600">
+        <MdPhone className="w-4 h-4 text-green-500" />
+        <span className="text-sm">{customer.customerPhone || "No phone"}</span>
+      </div> */}
+      <div className="flex items-center gap-3 text-gray-600">
+        <FiCalendar className="w-4 h-4 text-purple-500" />
+        <span className="text-sm">Joined: {customer.joinDate ? formatDate(customer.joinDate) : "N/A"}</span>
+      </div>
+      <div className="flex items-center gap-3 text-gray-600">
+        <FiHardDrive className="w-4 h-4 text-amber-500" />
+        <span className="text-sm">Storage used: {customer.totalSize || "0 MB"}</span>
+      </div>
+    </div>
   </div>
 );
 
 // --- User Files View Component (Modal) ---
-const UserFilesView = ({ user, onClose, onUpload, onDownloadAll, onDeleteAll }) => {
+const UserFilesView = ({ user, onClose, onUpload }) => {
   const [showUploadForm, setShowUploadForm] = useState(false);
   const [selectedFile, setSelectedFile] = useState(null);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState(null);
-
-  const handleFileSelect = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      setSelectedFile(file);
-    }
-  };
+  const [activeTab, setActiveTab] = useState("all");
 
   const handleUpload = async () => {
     if (!selectedFile) return;
-
     setUploading(true);
     setUploadError(null);
 
     const uniqueFileId = uuidv4();
-    // Define storage path: uploadfile/USER_DOC_ID/FILENAME_UNIQUEID
-    const storageRef = ref(
-      storage,
-      `uploadfile/${user.uploadDocId}/${selectedFile.name}_${uniqueFileId}`
-    );
+    const storageRef = ref(storage, `uploadfile/${user.uploadDocId}/${selectedFile.name}_${uniqueFileId}`);
 
     try {
-      // 1. Upload file to Firebase Storage
       const snapshot = await uploadBytes(storageRef, selectedFile);
-      const downloadURL = await getDownloadURL(snapshot.ref);
+      const adminFile = await getDownloadURL(snapshot.ref);
 
       const fileMetadata = {
         fileId: uniqueFileId,
@@ -133,27 +195,29 @@ const UserFilesView = ({ user, onClose, onUpload, onDownloadAll, onDeleteAll }) 
         fileType: selectedFile.type,
         fileSize: selectedFile.size,
         downloads: 0,
-        uploadedAt: Timestamp.fromDate(new Date()),
+        uploadedAt: Timestamp.now(),
         storagePath: snapshot.ref.fullPath,
-        downloadURL,
+        adminFile,
+        adminUploaded: true,
+        status: "Admin Uploaded",
       };
 
       const userDoc = doc(db, "uploadfile", user.uploadDocId);
+      const docSnap = await getDoc(userDoc);
 
-      // 2. Update Firestore document with file metadata
-      await updateDoc(userDoc, {
-        files: arrayUnion(fileMetadata),
-      }).catch(async () => {
-        // If the document doesn't exist, create it (handles first upload)
+      if (docSnap.exists()) {
+        await updateDoc(userDoc, { files: arrayUnion(fileMetadata) });
+      } else {
         await setDoc(userDoc, {
           customerId: user.uploadDocId,
           customerName: user.customerName,
+          customerEmail: user.customerEmail,
+          // customerPhone: user.customerPhone,
           files: [fileMetadata],
-          createdAt: Timestamp.fromDate(new Date()),
+          createdAt: Timestamp.now(),
         });
-      });
+      }
 
-      // Refresh user data in the main dashboard after successful upload
       onUpload();
       setSelectedFile(null);
       setShowUploadForm(false);
@@ -164,638 +228,524 @@ const UserFilesView = ({ user, onClose, onUpload, onDownloadAll, onDeleteAll }) 
     }
   };
 
+  const filteredFiles = user.individualFiles.filter(file => {
+    if (activeTab === "all") return true;
+    if (activeTab === "admin") return file.adminUploaded;
+    if (activeTab === "customer") return !file.adminUploaded;
+    return true;
+  });
+
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-      <div className="bg-white rounded-lg shadow-2xl w-full max-w-6xl max-h-[90vh] overflow-y-auto">
-        {/* Header */}
-        <div className="p-6 border-b flex justify-between items-center sticky top-0 bg-white z-10">
-          <div>
-            <h3 className="text-xl font-bold flex items-center">
-              <FiUser className="w-5 h-5 mr-2 text-blue-600" />
-              {user.customerName}
-            </h3>
-            <p className="text-sm text-gray-600 mt-1">
-              Email: {user.customerEmail} | User ID:{" "}
-              <span className="font-mono text-xs">{user.uploadDocId}</span>
-            </p>
-            <p className="text-sm text-gray-600">
-              Total Files: {user.totalFiles} | Total Size: {user.totalSize} | 
-              Downloads: {user.totalDownloads}
-            </p>
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-6xl max-h-[90vh] overflow-hidden flex flex-col">
+        {/* Modal Header */}
+        <div className="p-6 border-b bg-gradient-to-r from-gray-50 to-white">
+          <div className="flex justify-between items-start">
+            <div>
+              <div className="flex items-center gap-3 mb-2">
+                <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg flex items-center justify-center">
+                  <FiUser className="w-5 h-5 text-white" />
+                </div>
+                <div>
+                  <h3 className="text-xl font-bold text-gray-900">{user.customerName}</h3>
+                  <div className="flex items-center gap-3 text-sm text-gray-500">
+                    <span className="flex items-center gap-1">
+                      <MdEmail className="w-4 h-4" /> {user.customerEmail}
+                    </span>
+                    {/* {user.customerPhone && (
+                      <span className="flex items-center gap-1">
+                        <MdPhone className="w-4 h-4" /> {user.customerPhone}
+                      </span>
+                    )} */}
+                  </div>
+                </div>
+              </div>
+              <div className="flex items-center gap-4 text-sm">
+                <span className="px-3 py-1 bg-gray-100 rounded-full">
+                  📁 {user.totalFiles} files
+                </span>
+                <span className="px-3 py-1 bg-gray-100 rounded-full">
+                  📥 {user.totalDownloads} downloads
+                </span>
+                <span className="px-3 py-1 bg-gray-100 rounded-full">
+                  💾 {user.totalSize}
+                </span>
+              </div>
+            </div>
+            <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-2xl p-2 hover:bg-gray-100 rounded-lg">
+              &times;
+            </button>
           </div>
-          <button
-            onClick={onClose}
-            className="text-gray-500 hover:text-gray-800 text-2xl"
-          >
-            &times;
-          </button>
         </div>
 
-        {/* Content */}
-        <div className="p-6">
-          {/* File List */}
-          <div className="mb-6">
-            <h4 className="text-lg font-semibold mb-4">Files List (Newest First)</h4>
-            {user.individualFiles.length > 0 ? (
-              <div className="space-y-3">
-                {user.individualFiles.map((file) => (
-                  <div
-                    key={file.id}
-                    className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50"
-                  >
-                    <div className="flex items-center flex-1">
-                      {getFileIcon(file.type)}
-                      <div className="ml-3">
-                        <p className="font-medium">{file.name}</p>
-                        <p className="text-sm text-gray-500">
-                          {file.type} • {formatBytes(file.size)} • {file.downloads} downloads
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex space-x-2">
-                      <button
-                        onClick={() => triggerDownload(file.downloadURL, file.name)}
-                        className="p-2 bg-blue-500 hover:bg-blue-600 text-white rounded transition"
-                        title="Download"
-                      >
-                        <FiDownload />
-                      </button>
-                      {/* Note: Delete single file functionality would go here */}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="text-center py-8 text-gray-500">
-                <FiFile className="w-12 h-12 mx-auto mb-3 text-gray-400" />
-                <p>No files uploaded yet</p>
-              </div>
-            )}
-          </div>
-
-          {/* Actions (Download All / Delete All) */}
-          <div className="flex justify-between items-center border-t pt-6">
-            <div className="flex space-x-3">
-              <button
+        {/* Modal Body */}
+        <div className="flex-1 overflow-hidden flex">
+          {/* Left Panel - Customer Details */}
+          <div className="w-1/3 border-r p-6 bg-gray-50">
+            <CustomerDetailCard customer={user} />
+            
+            <div className="mt-6">
+              <h4 className="font-semibold text-gray-700 mb-3">Quick Actions</h4>
+              <button 
                 onClick={() => setShowUploadForm(!showUploadForm)}
-                className="px-4 py-2 bg-purple-500 hover:bg-purple-600 text-white rounded-lg transition"
+                className="w-full bg-gradient-to-r from-blue-500 to-blue-600 text-white px-4 py-3 rounded-xl hover:from-blue-600 hover:to-blue-700 transition-all flex items-center justify-center gap-2 mb-3"
               >
-                <FiUploadCloud className="inline w-4 h-4 mr-2" />
-                Upload File
+                <FiUploadCloud /> Upload File as Admin
               </button>
               
-              {user.totalFiles > 0 && (
-                <>
-                  <button
-                    onClick={onDownloadAll}
-                    className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition"
-                  >
-                    <FiDownload className="inline w-4 h-4 mr-2" />
-                    Download All ({user.totalFiles})
-                  </button>
-                  
-                  <button
-                    onClick={onDeleteAll}
-                    className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition"
-                  >
-                    <FiDelete className="inline w-4 h-4 mr-2" />
-                    Delete All
-                  </button>
-                </>
+              {showUploadForm && (
+                <div className="p-4 border border-blue-200 rounded-xl bg-blue-50 mt-3">
+                  <div className="space-y-3">
+                    <input 
+                      type="file" 
+                      onChange={(e) => setSelectedFile(e.target.files[0])} 
+                      className="w-full text-sm p-2 border rounded-lg"
+                    />
+                    <button 
+                      onClick={handleUpload} 
+                      disabled={!selectedFile || uploading}
+                      className="w-full bg-green-500 text-white px-4 py-2 rounded-lg disabled:opacity-50 hover:bg-green-600 transition"
+                    >
+                      {uploading ? "Uploading..." : "Upload File"}
+                    </button>
+                    {uploadError && <p className="text-red-500 text-xs">{uploadError}</p>}
+                  </div>
+                </div>
               )}
             </div>
           </div>
 
-          {/* Upload Form */}
-          {showUploadForm && (
-            <div className="mt-6 p-4 border rounded-lg bg-gray-50">
-              <h5 className="font-medium mb-3">Upload New File</h5>
-              <div className="flex items-center space-x-3">
-                <input
-                  type="file"
-                  onChange={handleFileSelect}
-                  className="border rounded p-2 flex-1"
-                />
-                {selectedFile && (
-                  <span className="text-sm text-gray-600">
-                    {selectedFile.name} ({formatBytes(selectedFile.size)})
-                  </span>
-                )}
-                <button
-                  onClick={handleUpload}
-                  disabled={!selectedFile || uploading}
-                  className="px-4 py-2 bg-green-500 hover:bg-green-600 text-white rounded-lg transition disabled:opacity-50"
-                >
-                  {uploading ? "Uploading..." : "Upload"}
-                </button>
+          {/* Right Panel - Files */}
+          <div className="w-2/3 p-6 overflow-y-auto">
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex space-x-1 bg-gray-100 p-1 rounded-lg">
+                {["all", "admin", "customer"].map(tab => (
+                  <button
+                    key={tab}
+                    onClick={() => setActiveTab(tab)}
+                    className={`px-4 py-2 rounded-md text-sm font-medium capitalize transition-all ${
+                      activeTab === tab 
+                        ? 'bg-white shadow text-blue-600' 
+                        : 'text-gray-600 hover:text-gray-900'
+                    }`}
+                  >
+                    {tab} ({tab === "all" ? user.individualFiles.length : 
+                           tab === "admin" ? user.individualFiles.filter(f => f.adminUploaded).length :
+                           user.individualFiles.filter(f => !f.adminUploaded).length})
+                  </button>
+                ))}
               </div>
-              {uploadError && (
-                <p className="text-red-600 text-sm mt-2">{uploadError}</p>
+            </div>
+
+            <div className="space-y-3">
+              {filteredFiles.length === 0 ? (
+                <div className="text-center py-12">
+                  <FiFile className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                  <p className="text-gray-500">No files found</p>
+                </div>
+              ) : (
+                filteredFiles.map((file) => (
+                  <div key={file.id} className="group p-4 border rounded-xl hover:shadow-md transition-all duration-200 bg-white hover:border-blue-200">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-4 flex-1">
+                        <div className="p-3 bg-gray-50 rounded-xl group-hover:bg-blue-50 transition">
+                          {getFileIcon(file.type)}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="font-medium text-gray-900 truncate">{file.name}</span>
+                            {file.adminUploaded ? getStatusBadge("Admin Uploaded") : getStatusBadge("Customer Uploaded")}
+                          </div>
+                          <div className="flex items-center gap-4 text-xs text-gray-500">
+                            <span className="flex items-center gap-1">
+                              <FiHardDrive className="w-3 h-3" /> {formatBytes(file.size)}
+                            </span>
+                            <span className="flex items-center gap-1">
+                              <FiCalendar className="w-3 h-3" /> {formatDate(file.uploadedAt)}
+                            </span>
+                            <span className="flex items-center gap-1">
+                              <MdDownload className="w-3 h-3" /> {file.downloads || 0} downloads
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                      <button 
+                        onClick={() => window.open(file.downloadURL, '_blank')}
+                        className="ml-4 p-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition"
+                      >
+                        <FiDownload size={20} />
+                      </button>
+                    </div>
+                  </div>
+                ))
               )}
             </div>
-          )}
+          </div>
         </div>
       </div>
     </div>
   );
 };
 
-// --- Main File Dashboard Component ---
-
-export default function FileDashboard({ onSelectUser }) {
-  const [files, setFiles] = useState([]); // User summaries
+// --- Main Dashboard Component ---
+export default function FileDashboard() {
+  const [files, setFiles] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [isLoading, setIsLoading] = useState(true);
-  const [uploadError, setUploadError] = useState(null);
-  const [statusMessage, setStatusMessage] = useState(null);
-  const [error, setError] = useState(null);
   const [selectedUser, setSelectedUser] = useState(null);
-  const [downloadingAll, setDownloadingAll] = useState(false);
-  const [showAllFiles, setShowAllFiles] = useState(false); // Toggle between summary and detailed view
-  const [allFilesList, setAllFilesList] = useState([]); // Flattened list of all files
+  const [allFilesList, setAllFilesList] = useState([]);
+  const [sortConfig, setSortConfig] = useState({ key: 'latestUpload', direction: 'desc' });
 
-  const showStatus = (message, isError = false) => {
-    setStatusMessage({ message, isError });
-    setTimeout(() => setStatusMessage(null), 3000);
-  };
-
-  /**
-   * Fetches all documents from the 'uploadfile' collection, calculates summaries,
-   * creates a flattened list of all files, and SORTS all file arrays by date (newest first).
-   */
   const fetchFiles = useCallback(async () => {
     try {
       setIsLoading(true);
-      setError(null);
-
       const snapshot = await getDocs(collection(db, "uploadfile"));
-      const uploadSummaries = [];
-      const flattenedFiles = [];
+      const summaries = [];
+      const flat = [];
 
       snapshot.forEach((docSnap) => {
-        const docId = docSnap.id;
         const data = docSnap.data();
-
+        const docId = docSnap.id;
         let individualFiles = Array.isArray(data.files) ? data.files : [];
 
-        // 🌟 1. SORTING LOGIC: User Files (Newest First)
-        individualFiles.sort((a, b) => {
-            const dateA = a.uploadedAt?.toDate?.() || new Date(0);
-            const dateB = b.uploadedAt?.toDate?.() || new Date(0);
-            return dateB.getTime() - dateA.getTime(); // Descending order
-        });
-        
-        const totalSizeInBytes = individualFiles.reduce(
-          (sum, f) => sum + (f.fileSize || 0),
-          0
-        );
-        const totalDownloads = individualFiles.reduce(
-          (sum, f) => sum + (f.downloads || 0),
-          0
-        );
+        individualFiles.sort((a, b) => safeToDate(b.uploadedAt) - safeToDate(a.uploadedAt));
 
-        // Get the latest upload timestamp from the now-sorted array (index 0)
-        const latestUpload =
-          individualFiles.length > 0
-            ? individualFiles[0].uploadedAt?.toDate?.()
-                  .toLocaleString() || "N/A"
-            : data.createdAt?.toDate?.().toLocaleString() || "N/A";
-
-        // Summary for the User Summary View
+        const latestFile = individualFiles[0];
         const userSummary = {
           uploadDocId: docId,
-          customerName: data.customerName || "N/A",
-          customerEmail: data.customerEmail || "N/A",
+          customerName: data.customerName || "Unknown Customer",
+          customerEmail: data.customerEmail || "No email",
+          customerPhone: data.customerPhone || "No phone",
+          joinDate: data.createdAt || data.joinDate,
+          status: data.status || "Active",
           totalFiles: individualFiles.length,
-          totalDownloads: totalDownloads,
-          totalSize: formatBytes(totalSizeInBytes),
-          rawTotalSize: totalSizeInBytes,
-          latestUpload: latestUpload,
-          individualFiles: individualFiles.map((file) => ({
-            ...file,
-            uploadDocId: docId,
-            id: file.fileId,
-            name: file.originalName,
-            size: file.fileSize,
-            type: file.fileType,
-          })),
+          totalDownloads: individualFiles.reduce((sum, f) => sum + (f.downloads || 0), 0),
+          totalSize: formatBytes(individualFiles.reduce((sum, f) => sum + (f.fileSize || 0), 0)),
+          rawTotalSize: individualFiles.reduce((sum, f) => sum + (f.fileSize || 0), 0),
+          latestUpload: latestFile ? safeToDate(latestFile.uploadedAt) : null,
+          latestUploadStr: latestFile ? safeToDate(latestFile.uploadedAt).toLocaleString() : "No Files",
+          individualFiles: individualFiles.map(f => ({
+            ...f,
+            id: f.fileId,
+            name: f.originalName,
+            type: f.fileType,
+            size: f.fileSize,
+            uploadedAt: f.uploadedAt,
+          }))
         };
 
-        uploadSummaries.push(userSummary);
-
-        // Flatten files for All Files Detailed View (using the sorted list)
-        individualFiles.forEach(file => {
-          flattenedFiles.push({
-            ...file,
-            uploadDocId: docId,
-            id: file.fileId,
-            name: file.originalName,
-            size: file.fileSize,
-            type: file.fileType,
-            customerName: data.customerName || "N/A",
-            customerEmail: data.customerEmail || "N/A",
-            // Note: Saving as a formatted string here, must parse for global sort
-            uploadedAt: file.uploadedAt?.toDate?.().toLocaleString() || "N/A",
-            downloads: file.downloads || 0,
-          });
-        });
-      });
-      
-      // 🌟 2. SORTING LOGIC: Global All Files List (Newest First)
-      flattenedFiles.sort((a, b) => {
-        const dateA = new Date(a.uploadedAt); 
-        const dateB = new Date(b.uploadedAt);
-        return dateB.getTime() - dateA.getTime(); // Descending order
+        summaries.push(userSummary);
+        individualFiles.forEach(f => flat.push({ ...f, customerName: data.customerName, uploadDocId: docId }));
       });
 
-      setFiles(uploadSummaries);
-      setAllFilesList(flattenedFiles);
+      setFiles(summaries);
+      setAllFilesList(flat);
     } catch (err) {
-      console.error("Error fetching summaries:", err);
-      setError("Failed to fetch upload summaries: " + err.message);
+      console.error("Dashboard Fetch Error:", err);
     } finally {
       setIsLoading(false);
     }
   }, []);
 
-  useEffect(() => {
-    fetchFiles();
-  }, [fetchFiles]);
-  
-  // Download all files as ZIP for a specific user
-  const handleDownloadAllFiles = async (user) => {
-    if (user.totalFiles === 0) {
-      showStatus("No files to download for this user.", true);
-      return;
-    }
+  useEffect(() => { fetchFiles(); }, [fetchFiles]);
 
-    setDownloadingAll(true);
-    showStatus(`Preparing ${user.totalFiles} files for download...`);
-
-    try {
-      const zip = new JSZip();
-      let downloadedCount = 0;
-
-      // Create a folder for the user inside the zip
-      const userFolder = zip.folder(`${user.customerName}_${user.uploadDocId}`);
-
-      // Download each file and add to zip
-      for (const file of user.individualFiles) {
-        try {
-          // Fetch the file content from the downloadURL
-          const response = await fetch(file.downloadURL);
-          const blob = await response.blob();
-          userFolder.file(file.name, blob);
-          downloadedCount++;
-          
-          showStatus(`Downloaded ${downloadedCount}/${user.totalFiles} files...`);
-        } catch (err) {
-          console.error(`Failed to download ${file.name}:`, err);
-        }
-      }
-
-      // Generate and trigger download of the zip file
-      const zipBlob = await zip.generateAsync({ type: "blob" });
-      saveAs(zipBlob, `${user.customerName}_files_${Date.now()}.zip`);
-      
-      // Update download counts in Firestore for all files in the batch
-      const userDoc = doc(db, "uploadfile", user.uploadDocId);
-      const snap = await getDoc(userDoc);
-      const filesArray = snap.data().files || [];
-      
-      const updatedFiles = filesArray.map(f => ({
-        ...f,
-        downloads: (f.downloads || 0) + 1 // Increment download count
-      }));
-      
-      await updateDoc(userDoc, { files: updatedFiles });
-      
-      // Refresh local state
-      fetchFiles();
-      
-      showStatus(`Successfully downloaded ${downloadedCount} files for ${user.customerName}.`);
-    } catch (err) {
-      console.error("Failed to create zip:", err);
-      showStatus("Failed to download files: " + err.message, true);
-    } finally {
-      setDownloadingAll(false);
-    }
-  };
-  
-  // Handle delete all files for a specific user
-  const handleDeleteAllUserFiles = async (user) => {
-    if (user.totalFiles === 0) {
-      showStatus("No files to delete for this user.", true);
-      return;
-    }
-
-    if (!window.confirm(`Are you sure you want to delete ALL ${user.totalFiles} files for ${user.customerName}? This action cannot be undone.`)) {
-      return;
-    }
-
-    try {
-      showStatus(`Deleting ${user.totalFiles} files for ${user.customerName}...`);
-
-      // 1. Delete each file from Firebase Storage
-      for (const file of user.individualFiles) {
-        try {
-          await deleteObject(ref(storage, file.storagePath));
-        } catch (err) {
-          // Log error but continue deletion process for other files/metadata
-          console.error(`Failed to delete ${file.name} from storage:`, err);
-        }
-      }
-
-      // 2. Clear the files array in the Firestore document
-      const userDoc = doc(db, "uploadfile", user.uploadDocId);
-      await updateDoc(userDoc, {
-        files: [] // Set the files array to empty
-      });
-
-      // Refresh local state
-      fetchFiles();
-      setSelectedUser(null);
-      
-      showStatus(`Successfully deleted all files for ${user.customerName}.`);
-    } catch (err) {
-      console.error("Failed to delete user files:", err);
-      showStatus("Failed to delete files: " + err.message, true);
-    }
+  const handleSort = (key) => {
+    setSortConfig(prev => ({
+      key,
+      direction: prev.key === key && prev.direction === 'asc' ? 'desc' : 'asc'
+    }));
   };
 
-  // Filtering Logic
-  const filteredFiles = files.filter(
-    (summary) =>
-      summary.customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      summary.customerEmail.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      summary.uploadDocId.toLowerCase().includes(searchTerm.toLowerCase())
+  const sortedUsers = [...files].sort((a, b) => {
+    if (sortConfig.key === 'customerName') {
+      return sortConfig.direction === 'asc' 
+        ? a.customerName.localeCompare(b.customerName)
+        : b.customerName.localeCompare(a.customerName);
+    }
+    if (sortConfig.key === 'latestUpload') {
+      return sortConfig.direction === 'asc'
+        ? (a.latestUpload || 0) - (b.latestUpload || 0)
+        : (b.latestUpload || 0) - (a.latestUpload || 0);
+    }
+    if (sortConfig.key === 'totalFiles') {
+      return sortConfig.direction === 'asc'
+        ? a.totalFiles - b.totalFiles
+        : b.totalFiles - a.totalFiles;
+    }
+    return 0;
+  });
+
+  const filteredUsers = sortedUsers.filter(u => 
+    u.customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    u.uploadDocId.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    u.customerEmail.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (u.customerPhone && u.customerPhone.includes(searchTerm))
   );
 
-  const filteredAllFiles = allFilesList.filter(
-    (file) =>
-      file.customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      file.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      file.uploadDocId.toLowerCase().includes(searchTerm.toLowerCase())
-  );
-
-  // Calculate Global Stats
-  const totalFiles = files.reduce((sum, s) => sum + s.totalFiles, 0);
-  const totalDownloads = files.reduce((sum, s) => sum + s.totalDownloads, 0);
-  const totalSize = formatBytes(
-    files.reduce((sum, s) => sum + s.rawTotalSize, 0)
-  );
+  const totalStorage = files.reduce((sum, user) => sum + user.rawTotalSize, 0);
+  const avgFilesPerUser = files.length > 0 ? (allFilesList.length / files.length).toFixed(1) : 0;
 
   return (
-    <div className="p-6">
-      <h2 className="text-2xl font-bold mb-6 flex items-center">
-        <FiFileText className="w-6 h-6 mr-3 text-red-600" /> Global File
-        Dashboard
-      </h2>
-
-      {/* Stats */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-8">
-        <StatCard
-          title="Total Files"
-          value={totalFiles}
-          icon={FiFileText}
-          bgColor="bg-purple-600"
-          iconColor="text-white"
-        />
-        <StatCard
-          title="Total Size"
-          value={totalSize}
-          icon={FiUploadCloud}
-          bgColor="bg-green-600"
-          iconColor="text-white"
-        />
-        <StatCard
-          title="Total Downloads"
-          value={totalDownloads}
-          icon={FiDownload}
-          bgColor="bg-orange-600"
-          iconColor="text-white"
-        />
-      </div>
-
-      {/* View Toggle */}
-      <div className="flex justify-between items-center mb-4">
-        <div className="flex space-x-2">
-          <button
-            onClick={() => setShowAllFiles(false)}
-            className={`px-4 py-2 rounded-lg transition ${!showAllFiles ? 'bg-blue-500 text-white' : 'bg-gray-200 text-gray-700'}`}
+    <div className="p-6 max-w-7xl mx-auto">
+      {/* Header */}
+      <div className="mb-8">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-3">
+              <div className="p-2 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl">
+                <FiFileText className="w-7 h-7 text-white" />
+              </div>
+              File Management Dashboard
+            </h1>
+            <p className="text-gray-500 mt-2">Manage customer files, track uploads, and monitor storage usage</p>
+          </div>
+          <button 
+            onClick={fetchFiles}
+            className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl flex items-center gap-2 transition"
           >
-            <FiUser className="inline w-4 h-4 mr-2" />
-            User Summary
-          </button>
-          <button
-            onClick={() => setShowAllFiles(true)}
-            className={`px-4 py-2 rounded-lg transition ${showAllFiles ? 'bg-blue-500 text-white' : 'bg-gray-200 text-gray-700'}`}
-          >
-            <FiFileText className="inline w-4 h-4 mr-2" />
-            All Files ({totalFiles})
+            <FiLoader className={isLoading ? "animate-spin" : ""} />
+            Refresh
           </button>
         </div>
+
+        {/* Stats Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+          <StatCard 
+            title="Total Customers" 
+            value={files.length} 
+            icon={FiUser} 
+            bgColor="bg-gradient-to-br from-indigo-500 to-indigo-600"
+            iconColor="text-indigo-200"
+          />
+          <StatCard 
+            title="Total Files" 
+            value={allFilesList.length} 
+            icon={FiFile} 
+            bgColor="bg-gradient-to-br from-emerald-500 to-emerald-600"
+            iconColor="text-emerald-200"
+            trend="up"
+            trendValue="+12%"
+          />
+          <StatCard 
+            title="Admin Uploads" 
+            value={allFilesList.filter(f => f.adminUploaded).length} 
+            icon={FiShield} 
+            bgColor="bg-gradient-to-br from-blue-500 to-blue-600"
+            iconColor="text-blue-200"
+          />
+          <StatCard 
+            title="Total Storage" 
+            value={formatBytes(totalStorage)} 
+            icon={MdStorage} 
+            bgColor="bg-gradient-to-br from-purple-500 to-purple-600"
+            iconColor="text-purple-200"
+          />
+        </div>
+
+        {/* Additional Stats */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+          <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-gray-500">Avg Files per User</p>
+                <p className="text-2xl font-bold text-gray-900">{avgFilesPerUser}</p>
+              </div>
+              <FiBarChart2 className="w-8 h-8 text-gray-300" />
+            </div>
+          </div>
+          <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-gray-500">Total Downloads</p>
+                <p className="text-2xl font-bold text-gray-900">
+                  {files.reduce((sum, user) => sum + user.totalDownloads, 0)}
+                </p>
+              </div>
+              <FiDownload className="w-8 h-8 text-gray-300" />
+            </div>
+          </div>
+          <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-gray-500">Active Users</p>
+                <p className="text-2xl font-bold text-gray-900">
+                  {files.filter(u => u.status === "Active").length}
+                </p>
+              </div>
+              <FiCheckCircle className="w-8 h-8 text-gray-300" />
+            </div>
+          </div>
+        </div>
       </div>
 
-      {/* Status Messages */}
-      {statusMessage && (
-        <div
-          className={`p-2 mt-2 rounded ${
-            statusMessage.isError
-              ? "bg-red-200 text-red-800"
-              : "bg-green-200 text-green-800"
-          }`}
-        >
-          {statusMessage.message}
+      {/* Main Table */}
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+        <div className="p-6 border-b bg-gradient-to-r from-gray-50 to-white">
+          <div className="flex items-center justify-between">
+            <div className="flex-1 max-w-md">
+              <div className="relative">
+                <FiSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+                <input 
+                  className="w-full pl-10 pr-4 py-3 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
+                  placeholder="Search by name, email, phone, or ID..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                />
+              </div>
+            </div>
+            <div className="flex items-center gap-2 text-sm text-gray-500 ml-4">
+              <span className="px-3 py-1 bg-gray-100 rounded-full">
+                {filteredUsers.length} of {files.length} users
+              </span>
+            </div>
+          </div>
         </div>
-      )}
-      {uploadError && (
-        <div className="p-2 mt-2 rounded bg-red-200 text-red-800">
-          {uploadError}
-        </div>
-      )}
-      {error && (
-        <div className="p-2 mt-2 rounded bg-red-200 text-red-800">
-          Error: {error}
-        </div>
-      )}
 
-      {/* Search */}
-      <div className="my-4 relative">
-        <FiSearch className="absolute left-3 top-3 text-gray-400" />
-        <input
-          className="border rounded w-full p-3 pl-10 focus:ring-purple-500 focus:border-purple-500"
-          placeholder={showAllFiles ? "Search by File Name, Customer Name, or User ID" : "Search by Customer Name, Email, or User ID"}
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-        />
-      </div>
-
-      {/* User Summary View (Default) */}
-      {!showAllFiles && (
-        <div className="overflow-x-auto mt-4 bg-white rounded shadow-md">
-          <table className="min-w-full text-sm">
-            <thead className="bg-gray-100">
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead className="bg-gray-50 border-b">
               <tr>
-                {[
-                  "Customer Name",
-                  "Total Files",
-                  "Total Size",
-                  "Downloads",
-                  "Last Upload (Newest)",
-                  "User ID",
-                  "Actions",
-                ].map((t) => (
-                  <th
-                    key={t}
-                    className="px-4 py-3 text-left font-medium text-gray-600"
+                <th className="px-6 py-4 text-left">
+                  <button 
+                    onClick={() => handleSort('customerName')}
+                    className="flex items-center gap-1 text-xs font-semibold text-gray-500 uppercase tracking-wider hover:text-gray-700"
                   >
-                    {t}
-                  </th>
-                ))}
+                    Customer Details
+                    {sortConfig.key === 'customerName' && (
+                      <span>{sortConfig.direction === 'asc' ? '↑' : '↓'}</span>
+                    )}
+                  </button>
+                </th>
+                <th className="px-6 py-4 text-left">
+                  <button 
+                    onClick={() => handleSort('totalFiles')}
+                    className="flex items-center gap-1 text-xs font-semibold text-gray-500 uppercase tracking-wider hover:text-gray-700"
+                  >
+                    Files & Stats
+                    {sortConfig.key === 'totalFiles' && (
+                      <span>{sortConfig.direction === 'asc' ? '↑' : '↓'}</span>
+                    )}
+                  </button>
+                </th>
+                <th className="px-6 py-4 text-left">
+                  <button 
+                    onClick={() => handleSort('latestUpload')}
+                    className="flex items-center gap-1 text-xs font-semibold text-gray-500 uppercase tracking-wider hover:text-gray-700"
+                  >
+                    Latest Activity
+                    {sortConfig.key === 'latestUpload' && (
+                      <span>{sortConfig.direction === 'asc' ? '↑' : '↓'}</span>
+                    )}
+                  </button>
+                </th>
+                <th className="px-6 py-4 text-left">
+                  <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</span>
+                </th>
+                <th className="px-6 py-4 text-right">
+                  <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Actions</span>
+                </th>
               </tr>
             </thead>
-
-            <tbody>
-              {filteredFiles.length ? (
-                // filteredFiles are not sorted here, but the data inside (latestUpload) reflects the newest file.
-                filteredFiles.map((summary) => (
-                  <tr
-                    key={summary.uploadDocId}
-                    className="border-b hover:bg-gray-50"
-                  >
-                    <td className="px-4 py-3 font-semibold">
-                      {summary.customerName}
+            <tbody className="divide-y divide-gray-100">
+              {isLoading ? (
+                <tr>
+                  <td colSpan="5" className="text-center py-12">
+                    <div className="flex flex-col items-center">
+                      <FiLoader className="animate-spin w-8 h-8 text-blue-500 mb-3" />
+                      <p className="text-gray-500">Loading dashboard data...</p>
+                    </div>
+                  </td>
+                </tr>
+              ) : filteredUsers.length === 0 ? (
+                <tr>
+                  <td colSpan="5" className="text-center py-12">
+                    <div className="flex flex-col items-center">
+                      <FiSearch className="w-12 h-12 text-gray-300 mb-3" />
+                      <p className="text-gray-500">No customers found</p>
+                      <p className="text-gray-400 text-sm mt-1">Try adjusting your search terms</p>
+                    </div>
+                  </td>
+                </tr>
+              ) : (
+                filteredUsers.map(user => (
+                  <tr key={user.uploadDocId} className="hover:bg-gray-50/50 transition-colors group">
+                    <td className="px-6 py-4">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 bg-gradient-to-br from-gray-100 to-gray-200 rounded-lg flex items-center justify-center">
+                          <FiUser className="w-5 h-5 text-gray-600" />
+                        </div>
+                        <div>
+                          <div className="font-semibold text-gray-900">{user.customerName}</div>
+                          <div className="text-sm text-gray-500 flex items-center gap-2 mt-1">
+                            <MdEmail className="w-3 h-3" />
+                            {user.customerEmail}
+                          </div>
+                          {/* {user.customerPhone && (
+                            <div className="text-xs text-gray-400 flex items-center gap-2 mt-1">
+                              <MdPhone className="w-3 h-3" />
+                              {user.customerPhone}
+                            </div>
+                          )} */}
+                          <div className="text-[10px] text-gray-400 font-mono mt-1">
+                            ID: {user.uploadDocId}
+                          </div>
+                        </div>
+                      </div>
                     </td>
-                    <td className="px-4 py-3">{summary.totalFiles}</td>
-                    <td className="px-4 py-3">{summary.totalSize}</td>
-                    <td className="px-4 py-3">{summary.totalDownloads}</td>
-                    <td className="px-4 py-3 text-gray-500">
-                      {summary.latestUpload}
+                    <td className="px-6 py-4">
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2">
+                          <div className="px-3 py-1 bg-blue-50 text-blue-700 rounded-full text-sm">
+                            {user.totalFiles} files
+                          </div>
+                          <div className="px-3 py-1 bg-green-50 text-green-700 rounded-full text-sm">
+                            {user.totalDownloads} downloads
+                          </div>
+                        </div>
+                        <div className="text-sm text-gray-500 flex items-center gap-1">
+                          <FiHardDrive className="w-3 h-3" />
+                          {user.totalSize}
+                        </div>
+                      </div>
                     </td>
-                    <td className="px-4 py-3 font-mono text-xs text-gray-700">
-                      {summary.uploadDocId}
+                    <td className="px-6 py-4">
+                      <div className="text-sm text-gray-600">
+                        {user.latestUpload ? formatDate(user.latestUpload) : "No activity"}
+                      </div>
+                      {user.latestUpload && (
+                        <div className="text-xs text-gray-400 mt-1">
+                          {Math.floor((Date.now() - user.latestUpload.getTime()) / (1000 * 60 * 60 * 24))} days ago
+                        </div>
+                      )}
                     </td>
-
-                    {/* ACTIONS */}
-                    <td className="px-4 py-3 flex space-x-2">
-                      <button
-                        onClick={() => setSelectedUser(summary)}
-                        className="p-2 bg-purple-500 hover:bg-purple-600 text-white rounded transition duration-150"
-                        title="View Files"
-                      >
-                        <FiEye />
-                      </button>
+                    <td className="px-6 py-4">
+                      {getStatusBadge(user.status)}
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="flex justify-end">
+                        <button 
+                          onClick={() => setSelectedUser(user)}
+                          className="px-4 py-2 bg-gradient-to-r from-gray-50 to-white border border-gray-200 text-gray-700 hover:text-blue-600 hover:border-blue-200 hover:from-blue-50 rounded-xl transition-all text-sm font-medium flex items-center gap-2 group-hover:shadow-sm"
+                        >
+                          <FiEye /> View Details
+                          <FiChevronRight className="w-4 h-4" />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))
-              ) : (
-                <tr>
-                  <td colSpan="7" className="text-center py-6 text-gray-500">
-                    No users found matching your criteria.
-                  </td>
-                </tr>
               )}
             </tbody>
           </table>
         </div>
-      )}
-
-      {/* All Files Detailed View */}
-      {showAllFiles && (
-        <div className="overflow-x-auto mt-4 bg-white rounded shadow-md">
-          <table className="min-w-full text-sm">
-            <thead className="bg-gray-100">
-              <tr>
-                {[
-                  "File Name",
-                  "Type",
-                  "Size",
-                  "Downloads",
-                  "Customer",
-                  "User ID",
-                  "Uploaded At (Newest)",
-                  "Action",
-                ].map((t) => (
-                  <th
-                    key={t}
-                    className="px-4 py-3 text-left font-medium text-gray-600"
-                  >
-                    {t}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-
-            <tbody>
-              {filteredAllFiles.length ? (
-                // filteredAllFiles is sorted by upload date (newest first)
-                filteredAllFiles.map((file) => (
-                  <tr
-                    key={`${file.uploadDocId}-${file.id}`}
-                    className="border-b hover:bg-gray-50"
-                  >
-                    <td className="px-4 py-3 flex items-center">
-                      {getFileIcon(file.type)}{" "}
-                      <span className="ml-2 truncate max-w-xs">
-                        {file.name}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3">
-                      <span className="px-2 py-1 bg-gray-100 rounded text-xs">
-                        {file.type.split('/')[1] || file.type}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3">{formatBytes(file.size)}</td>
-                    <td className="px-4 py-3">{file.downloads}</td>
-                    <td className="px-4 py-3 font-medium">
-                      {file.customerName}
-                    </td>
-                    <td className="px-4 py-3 font-mono text-xs text-gray-700">
-                      {file.uploadDocId}
-                    </td>
-                    <td className="px-4 py-3 text-gray-500">
-                      {file.uploadedAt}
-                    </td>
-                    <td className="px-4 py-3">
-                      <button
-                        onClick={() => triggerDownload(file.downloadURL, file.name)}
-                        className="p-2 bg-blue-500 hover:bg-blue-600 text-white rounded transition"
-                        title="Download"
-                      >
-                        <FiDownload />
-                      </button>
-                    </td>
-                  </tr>
-                ))
-              ) : (
-                <tr>
-                  <td colSpan="8" className="text-center py-6 text-gray-500">
-                    No files found matching your criteria.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      {/* Loading State */}
-      {isLoading && (
-        <div className="text-center py-10 text-gray-600">
-          <FiLoader className="w-6 h-6 animate-spin inline-block mr-2" />{" "}
-          {showAllFiles ? "Loading Files..." : "Loading User Summaries..."}
-        </div>
-      )}
+      </div>
 
       {/* User Files Modal */}
       {selectedUser && (
-        <UserFilesView
-          user={selectedUser}
-          onClose={() => setSelectedUser(null)}
+        <UserFilesView 
+          user={selectedUser} 
+          onClose={() => setSelectedUser(null)} 
           onUpload={fetchFiles}
-          onDownloadAll={() => handleDownloadAllFiles(selectedUser)}
-          onDeleteAll={() => handleDeleteAllUserFiles(selectedUser)}
         />
       )}
     </div>

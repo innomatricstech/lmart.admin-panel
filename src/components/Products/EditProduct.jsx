@@ -34,6 +34,7 @@ import {
   getDoc,
   getDocs,
   updateDoc,
+  serverTimestamp,
 } from "firebase/firestore";
 import {
   ref,
@@ -44,14 +45,48 @@ import {
 
 import ProductUpdateSuccessModal from './ProductUpdateSuccessModal';
 
+const normalizeFetchedImages = (data) => {
+  // BULK UPLOAD CASE (array of strings)
+  if (Array.isArray(data.imageUrls) && typeof data.imageUrls[0] === "string") {
+    return data.imageUrls.map((url, index) => ({
+      url,
+      name: `bulk-image-${index}`,
+      path: "",
+      color: "",
+      isMain: index === 0,   // first image = main
+      isExisting: true,
+    }));
+  }
+
+  // MANUAL UPLOAD CASE (already objects)
+  if (Array.isArray(data.imageUrls) && typeof data.imageUrls[0] === "object") {
+    return data.imageUrls;
+  }
+
+  // FALLBACK
+  if (data.mainImageUrl) {
+    return [{
+      url: data.mainImageUrl,
+      name: "main-image",
+      path: "",
+      color: "",
+      isMain: true,
+      isExisting: true,
+    }];
+  }
+
+  return [];
+};
+
+// *** REUSABLE KEYWORD GENERATION FUNCTION ***
 const generateSearchKeywords = (product) => {
   const keywords = new Set();
   const lowerName = product.name.toLowerCase();
-
+  
   for (let i = 1; i <= lowerName.length; i++) {
     keywords.add(lowerName.substring(0, i));
   }
-
+  
   const nameWords = lowerName.split(/\s+/).filter(word => word.length > 1);
   nameWords.forEach(word => {
     for (let i = 1; i <= word.length; i++) {
@@ -59,29 +94,51 @@ const generateSearchKeywords = (product) => {
     }
   });
 
-  const fields = [product.brand, product.sku, product.hsnCode];
-  fields.forEach(field => {
-    const lowerField = (field || '').toLowerCase().trim();
-    if (lowerField) {
-      keywords.add(lowerField);
-      for (let i = 1; i <= Math.min(lowerField.length, 5); i++) {
-        keywords.add(lowerField.substring(0, i));
-      }
+ const fields = [product.brand, product.sku, product.hsnCode];
+
+fields.forEach(field => {
+  const lowerField = String(field || '').toLowerCase().trim();
+  if (lowerField) {
+    keywords.add(lowerField);
+    for (let i = 1; i <= Math.min(lowerField.length, 5); i++) {
+      keywords.add(lowerField.substring(0, i));
     }
-  });
+  }
+});
+
 
   if (product.category.name) keywords.add(product.category.name.toLowerCase());
   if (product.subCategory && product.subCategory.name) keywords.add(product.subCategory.name.toLowerCase());
 
   const uniqueColors = new Set(product.variants.map(v => v.color).filter(Boolean));
   const uniqueSizes = new Set(product.variants.map(v => v.size).filter(Boolean));
-
+  
   uniqueColors.forEach(color => keywords.add(color.toLowerCase()));
   uniqueSizes.forEach(size => keywords.add(size.toLowerCase()));
-
+  
   if (product.productTag) keywords.add(product.productTag.toLowerCase());
 
   return Array.from(keywords).filter(k => k.length > 0 && k.length <= 50);
+};
+
+// *** NORMALIZE IMAGES FUNCTION ***
+const normalizeImages = (imageUrls, mainImageUrl) => {
+  if (Array.isArray(imageUrls) && imageUrls.length > 0) {
+    return imageUrls;
+  }
+
+  if (mainImageUrl) {
+    return [{
+      url: mainImageUrl,
+      isMain: true,
+      color: "",
+      name: "main-image",
+      path: "",
+      isExisting: true,
+    }];
+  }
+
+  return [];
 };
 
 const PRODUCT_TAG_OPTIONS = [
@@ -95,9 +152,11 @@ const EditProductPage = () => {
   const { productId } = useParams();
   const navigate = useNavigate();
 
+  // State for fetched data
   const [categoriesList, setCategoriesList] = useState([]);
   const [subcategoriesList, setSubcategoriesList] = useState([]);
 
+  // Form data state
   const [productData, setProductData] = useState({
     name: '',
     description: '',
@@ -111,6 +170,7 @@ const EditProductPage = () => {
     variants: [],
   });
 
+  // Variant management state
   const [newVariant, setNewVariant] = useState({
     color: '',
     size: '',
@@ -119,31 +179,52 @@ const EditProductPage = () => {
     stock: '',
   });
 
-  const [mainImageState, setMainImageState] = useState(null);
-  const [galleryImagesState, setGalleryImagesState] = useState([]);
-  const [videoFileState, setVideoFileState] = useState(null);
+  // Image & Video management state
+  const [mainImageFile, setMainImageFile] = useState(null);
+  const [galleryFiles, setGalleryFiles] = useState([]);
+  const [videoFile, setVideoFile] = useState(null);
   const [imagesToDelete, setImagesToDelete] = useState([]);
+  const [videoToDelete, setVideoToDelete] = useState(null);
 
+  // Other utility states
   const [loading, setLoading] = useState(false);
   const [loadingData, setLoadingData] = useState(true);
   const [message, setMessage] = useState('');
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [activeSection, setActiveSection] = useState('basic');
 
-  const filteredCategories = categoriesList.filter(cat =>
+  // Calculate filtered categories/subcategories
+  const filteredCategories = categoriesList.filter(cat => 
     !productData.productTag || (cat.label && cat.label.toLowerCase() === productData.productTag.toLowerCase())
   );
 
   const filteredSubcategories = subcategoriesList
-    .filter(sub =>
+    .filter(sub => 
       !productData.productTag || (sub.label && sub.label.toLowerCase() === productData.productTag.toLowerCase())
     )
     .filter(sub => !productData.category || sub.categoryId === productData.category);
 
+  // Function to create image object
+  const createImageObject = (imgData, isMain = false, isExisting = true) => {
+    return {
+      url: imgData.url,
+      name: imgData.name || (isMain ? 'main-image' : 'gallery-image'),
+      path: imgData.path || '',
+      color: imgData.color || '',
+      id: imgData.path ? `img-${imgData.path}` : `img-${Date.now()}-${Math.random()}`,
+      isExisting: isExisting,
+      isMain: isMain,
+      // Add file property only for new uploads
+      file: isExisting ? undefined : imgData.file
+    };
+  };
+
+  // Fetch product data
   useEffect(() => {
     const fetchProductData = async () => {
       setLoadingData(true);
       try {
+        // Fetch categories and subcategories
         const [catSnapshot, subSnap] = await Promise.all([
           getDocs(collection(db, "categories")),
           getDocs(collection(db, "subcategories"))
@@ -159,12 +240,14 @@ const EditProductPage = () => {
         }));
         setSubcategoriesList(fetchedSubCats);
 
+        // Fetch product data
         const docRef = doc(db, "products", productId);
         const docSnap = await getDoc(docRef);
 
         if (docSnap.exists()) {
           const data = docSnap.data();
 
+          // Set product data
           setProductData({
             name: data.name || '',
             description: data.description || '',
@@ -178,64 +261,149 @@ const EditProductPage = () => {
             variants: data.variants || [],
           });
 
-          const fetchedImages = data.imageUrls || [];
-          const mainImage = fetchedImages.find(img => img.isMain);
-          const galleryImages = fetchedImages.filter(img => !img.isMain);
+          // Handle images - matching AddProductPage structure
+          const fetchedImages = normalizeFetchedImages(data);
 
-          if (mainImage) {
-            setMainImageState({
-              url: mainImage.url,
-              color: mainImage.color || '',
-              name: mainImage.name,
-              id: `main-${mainImage.path}`,
-              path: mainImage.path,
-              isMain: true,
-              isExisting: true,
-            });
-          }
+          console.log("Fetched images from DB:", fetchedImages);
+          
+          // Find main image 
+        const mainImage = fetchedImages.find(img => img.isMain) || fetchedImages[0];
+const galleryImages = fetchedImages.filter(img => !img.isMain);
 
-          setGalleryImagesState(galleryImages.map(img => ({
-            url: img.url,
-            color: img.color || '',
-            name: img.name,
-            id: `gallery-${img.path}`,
-            path: img.path,
-            isMain: false,
-            isExisting: true,
-          })));
+if (mainImage?.url) {
+  setMainImageFile(createImageObject(mainImage, true, true));
+}
 
-          if (data.videoUrl && data.videoPath) {
-            setVideoFileState({
+if (galleryImages.length > 0) {
+  setGalleryFiles(
+    galleryImages.map(img => createImageObject(img, false, true))
+  );
+}
+
+          // Set video (if exists)
+          if (data.videoUrl) {
+            setVideoFile({
               url: data.videoUrl,
-              name: data.videoUrl.split('/').pop().split('?')[0],
-              id: `video-${data.videoPath}`,
-              path: data.videoPath,
+              name: data.videoUrl.split('/').pop().split('?')[0] || 'product-video',
+              path: data.videoPath || '',
+              id: `video-${data.videoPath || Date.now()}`,
               isExisting: true,
             });
           }
+
         } else {
-          setMessage("No such product found.");
+          setMessage("❌ No such product found.");
         }
       } catch (err) {
         console.error("Error fetching data:", err);
-        setMessage("Failed to load product data.");
+        setMessage("❌ Failed to load product data.");
       }
       setLoadingData(false);
     };
     fetchProductData();
   }, [productId]);
 
+  // Cleanup object URLs on unmount
+  useEffect(() => {
+    return () => {
+      // Cleanup function to revoke object URLs
+      if (mainImageFile && mainImageFile.url && !mainImageFile.isExisting) {
+        URL.revokeObjectURL(mainImageFile.url);
+      }
+      
+      galleryFiles.forEach(img => {
+        if (img.url && !img.isExisting) {
+          URL.revokeObjectURL(img.url);
+        }
+      });
+      
+      if (videoFile && videoFile.url && !videoFile.isExisting) {
+        URL.revokeObjectURL(videoFile.url);
+      }
+    };
+  }, [mainImageFile, galleryFiles, videoFile]);
+
+  // Product & category change handler
   const handleChange = (e) => {
     const { name, value } = e.target;
+
     if (name === "productTag") {
-      setProductData(prev => ({ ...prev, [name]: value, category: '', subCategory: '' }));
+      setProductData(prev => ({ 
+        ...prev, 
+        [name]: value,
+        category: '',
+        subCategory: '',
+      }));
       return;
     }
+    
     if (name === "category") {
-      setProductData(prev => ({ ...prev, category: value, subCategory: '' }));
+      const subsByCat = subcategoriesList.filter(sub => sub.categoryId === value);
+      const subsByCatAndLabel = subsByCat.filter(sub => 
+        !productData.productTag || (sub.label && productData.productTag && sub.label.toLowerCase() === productData.productTag.toLowerCase())
+      );
+      
+      const newSubCatId = subsByCatAndLabel.length > 0 ? subsByCatAndLabel[0].id : '';
+
+      setProductData(prev => ({
+        ...prev,
+        category: value,
+        subCategory: newSubCatId,
+      }));
     } else {
       setProductData(prev => ({ ...prev, [name]: value }));
     }
+  };
+
+  // Variant handlers
+  const handleNewVariantChange = (e) => {
+    const { name, value } = e.target;
+    setNewVariant(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleAddVariant = () => {
+    const { color, size, price, offerPrice, stock } = newVariant;
+    const cleanColor = color.trim();
+    const cleanSize = size.trim().toUpperCase();
+    const cleanPrice = price ? parseFloat(price) : 0;
+    const cleanOfferPrice = offerPrice ? parseFloat(offerPrice) : null;
+    const cleanStock = stock ? parseInt(stock, 10) : 0;
+
+    if (cleanOfferPrice !== null && cleanOfferPrice > 0 && cleanOfferPrice >= cleanPrice) {
+      setMessage("❌ Variant Offer Price cannot be greater than or equal to the regular Price.");
+      return;
+    }
+
+    const exists = productData.variants.some(
+      v => v.color.toLowerCase() === cleanColor.toLowerCase() && v.size.toLowerCase() === cleanSize.toLowerCase()
+    );
+
+    if (exists && cleanColor && cleanSize) { 
+      setMessage("❌ A variant with this Color and Size already exists.");
+      return;
+    }
+
+    if (!cleanColor && !cleanSize && cleanPrice === 0 && cleanStock === 0) {
+      setMessage("❌ Please provide at least Color, Size, Price, or Stock to add a variant.");
+      return;
+    }
+
+    const newVariantObject = {
+      variantId: Date.now().toString(),
+      color: cleanColor || 'N/A',
+      size: cleanSize || 'N/A',
+      price: cleanPrice,
+      offerPrice: cleanOfferPrice,
+      stock: cleanStock,
+    };
+
+    setProductData(prev => ({
+      ...prev,
+      variants: [...prev.variants, newVariantObject],
+    }));
+
+    setNewVariant({ color: '', size: '', price: '', offerPrice: '', stock: '' });
+    setMessage("✅ New variant added successfully.");
   };
 
   const handleVariantEdit = (variantId, field, value) => {
@@ -247,202 +415,372 @@ const EditProductPage = () => {
     }));
   };
 
-  const handleNewVariantChange = (e) => {
-    const { name, value } = e.target;
-    setNewVariant(prev => ({ ...prev, [name]: value }));
-  };
-
-  const handleAddVariant = () => {
-    const { color, size, price, offerPrice, stock } = newVariant;
-    const cleanColor = color.trim() || 'N/A';
-    const cleanSize = size.trim().toUpperCase() || 'N/A';
-    const cleanPrice = parseFloat(price) || 0;
-    const cleanOfferPrice = offerPrice ? parseFloat(offerPrice) : null;
-    const cleanStock = parseInt(stock, 10) || 0;
-
-    if (cleanOfferPrice !== null && cleanOfferPrice >= cleanPrice) {
-      setMessage("Offer Price must be lower than Price.");
-      return;
-    }
-
-    const newVariantObject = {
-      variantId: Date.now().toString(),
-      color: cleanColor,
-      size: cleanSize,
-      price: cleanPrice,
-      offerPrice: cleanOfferPrice,
-      stock: cleanStock,
-    };
-
-    setProductData(prev => ({ ...prev, variants: [...prev.variants, newVariantObject] }));
-    setNewVariant({ color: '', size: '', price: '', offerPrice: '', stock: '' });
-  };
-
   const removeVariant = (variantId) => {
     setProductData(prev => ({
       ...prev,
       variants: prev.variants.filter(v => v.variantId !== variantId),
     }));
+    setMessage("✅ Variant removed.");
   };
 
-  const availableColors = Array.from(new Set(productData.variants.map(v => v.color))).filter(c => c && c !== 'N/A');
+  const availableColors = Array.from(new Set(productData.variants.map(v => v.color))).filter(c => c.trim() !== '' && c.trim() !== 'N/A');
 
+  // Image management logic
   const handleMainImageChange = (e) => {
-    const file = e.target.files[0];
+    const file = e.target.files ? e.target.files[0] : null;
     if (file) {
-      if (mainImageState?.isExisting) setImagesToDelete(prev => [...prev, mainImageState.path]);
-      setMainImageState({
-        file,
-        url: URL.createObjectURL(file),
-        color: '',
+      // Revoke old URL if replacing
+      if (mainImageFile && mainImageFile.url && !mainImageFile.isExisting) {
+        URL.revokeObjectURL(mainImageFile.url);
+      }
+      
+      // Mark existing image for deletion if it exists
+      if (mainImageFile && mainImageFile.isExisting && mainImageFile.path) {
+        setImagesToDelete(prev => [...prev, mainImageFile.path]);
+      }
+
+      const previewUrl = URL.createObjectURL(file);
+      console.log("Main image preview URL created:", previewUrl);
+      
+      setMainImageFile({
+        file: file,
+        url: previewUrl,
         name: file.name,
+        color: '',
         id: `main-${Date.now()}`,
-        isMain: true,
         isExisting: false,
+        isMain: true,
       });
+      setMessage(`✅ Main Image uploaded: ${file.name}.`);
+    } else {
+      setMainImageFile(null);
     }
+    e.target.value = null;
   };
 
+  // FIXED: Bulk upload gallery images handler
   const handleGalleryImageChange = (e) => {
     const files = Array.from(e.target.files || []);
-    const newImages = files.map(file => ({
-      file,
-      url: URL.createObjectURL(file),
-      color: '',
-      name: file.name,
-      id: `gallery-${Date.now()}-${Math.random()}`,
-      isMain: false,
-      isExisting: false,
-    }));
-    setGalleryImagesState(prev => [...prev, ...newImages]);
+    
+    if (files.length === 0) return;
+    
+    console.log("Selected gallery files:", files.length);
+    
+    const newImages = files.map(file => {
+      // Generate a preview URL for the file
+      const previewUrl = URL.createObjectURL(file);
+      console.log(`Created preview URL for ${file.name}:`, previewUrl);
+      
+      return {
+        file: file,
+        url: previewUrl,
+        color: '',
+        name: file.name,
+        id: `gallery-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        isExisting: false,
+        isMain: false,
+      };
+    });
+
+    // Filter out duplicates by file name
+    const uniqueNewImages = newImages.filter(newImg => {
+      return !galleryFiles.some(existingImg => 
+        existingImg.name === newImg.name && 
+        existingImg.isExisting === false
+      );
+    });
+
+    if (uniqueNewImages.length > 0) {
+      setGalleryFiles(prev => [...prev, ...uniqueNewImages]);
+      setMessage(`✅ Added ${uniqueNewImages.length} gallery image(s).`);
+      console.log("Added gallery images:", uniqueNewImages);
+    } else {
+      setMessage("⚠️ Some images were duplicates and not added.");
+    }
+    
+    // Reset the file input
+    e.target.value = null;
   };
 
   const handleColorChangeOnImage = (id, newColor) => {
-    if (mainImageState?.id === id) {
-      setMainImageState(prev => ({ ...prev, color: newColor }));
+    // Check if it's main image
+    if (mainImageFile && mainImageFile.id === id) {
+      setMainImageFile(prev => ({ ...prev, color: newColor }));
     } else {
-      setGalleryImagesState(prev => prev.map(img => img.id === id ? { ...img, color: newColor } : img));
+      // It's a gallery image
+      setGalleryFiles(prev => 
+        prev.map(img => 
+          img.id === id ? { ...img, color: newColor } : img
+        )
+      );
     }
   };
 
   const removeMainImage = () => {
-    if (mainImageState?.isExisting) setImagesToDelete(prev => [...prev, mainImageState.path]);
-    setMainImageState(null);
+    if (mainImageFile) {
+      // Mark for deletion if it's an existing image
+      if (mainImageFile.isExisting && mainImageFile.path) {
+        setImagesToDelete(prev => [...prev, mainImageFile.path]);
+      }
+      
+      // Revoke object URL if it's a new file
+      if (mainImageFile.url && !mainImageFile.isExisting) {
+        URL.revokeObjectURL(mainImageFile.url);
+      }
+      
+      setMainImageFile(null);
+    }
+    if (document.getElementById("mainImageFile")) {
+      document.getElementById("mainImageFile").value = "";
+    }
+    setMessage("✅ Main Image removed.");
   };
 
-  const removeGalleryImage = (id) => {
-    const img = galleryImagesState.find(p => p.id === id);
-    if (img?.isExisting) setImagesToDelete(prev => [...prev, img.path]);
-    setGalleryImagesState(prev => prev.filter(p => p.id !== id));
+  const removeGalleryImage = (idToRemove) => {
+    const imageObject = galleryFiles.find(p => p.id === idToRemove);
+    if (imageObject) {
+      console.log("Removing gallery image:", imageObject);
+      
+      // Mark for deletion if it's an existing image
+      if (imageObject.isExisting && imageObject.path) {
+        setImagesToDelete(prev => [...prev, imageObject.path]);
+      }
+      
+      // Revoke object URL if it's a new file
+      if (imageObject.url && !imageObject.isExisting) {
+        URL.revokeObjectURL(imageObject.url);
+      }
+      
+      setGalleryFiles(prevFiles => prevFiles.filter(p => p.id !== idToRemove));
+      setMessage("✅ Gallery image removed.");
+    }
   };
 
+  // Video management logic
   const handleVideoChange = (e) => {
-    const file = e.target.files[0];
+    const file = e.target.files ? e.target.files[0] : null;
     if (file) {
-      if (videoFileState?.isExisting) setImagesToDelete(prev => [...prev, videoFileState.path]);
-      setVideoFileState({
-        file,
+      // Revoke old URL if replacing
+      if (videoFile && videoFile.url && !videoFile.isExisting) {
+        URL.revokeObjectURL(videoFile.url);
+      }
+      
+      // Mark existing video for deletion
+      if (videoFile && videoFile.isExisting && videoFile.path) {
+        setVideoToDelete(videoFile.path);
+      }
+
+      setVideoFile({
+        file: file,
         url: URL.createObjectURL(file),
         name: file.name,
         id: `video-${Date.now()}`,
         isExisting: false,
       });
+      setMessage(`✅ Product Video uploaded: ${file.name}.`);
+    } else {
+      setVideoFile(null);
     }
+    e.target.value = null;
   };
 
   const removeVideo = () => {
-    if (videoFileState?.isExisting) setImagesToDelete(prev => [...prev, videoFileState.path]);
-    setVideoFileState(null);
+    if (videoFile) {
+      // Mark for deletion if it's an existing video
+      if (videoFile.isExisting && videoFile.path) {
+        setVideoToDelete(videoFile.path);
+      }
+      
+      // Revoke object URL if it's a new file
+      if (videoFile.url && !videoFile.isExisting) {
+        URL.revokeObjectURL(videoFile.url);
+      }
+      
+      setVideoFile(null);
+    }
+    if (document.getElementById("videoFile")) {
+      document.getElementById("videoFile").value = "";
+    }
+    setMessage("✅ Product Video removed.");
   };
 
-  const handleModalClose = useCallback((shouldNavigate) => {
-    setShowSuccessModal(false);
-    if (shouldNavigate) navigate('/products');
-  }, [navigate]);
-
+  // Submit handler
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setMessage('');
     setLoading(true);
+
     try {
-      await Promise.all(imagesToDelete.map(async (path) => {
-        try { await deleteObject(ref(storage, path)); } catch (e) { }
-      }));
+      // 1. Delete old images/videos marked for removal
+      const deletePromises = [];
+      
+      // Delete old images
+      imagesToDelete.forEach(path => {
+        if (path) {
+          deletePromises.push(deleteObject(ref(storage, path)).catch(err => {
+            console.warn("Failed to delete image:", err);
+          }));
+        }
+      });
+      
+      // Delete old video
+      if (videoToDelete) {
+        deletePromises.push(deleteObject(ref(storage, videoToDelete)).catch(err => {
+          console.warn("Failed to delete video:", err);
+        }));
+      }
+      
+      await Promise.all(deletePromises);
 
+      // 2. Upload new main image if it exists and is new
+      let mainDownloadURL = mainImageFile?.isExisting ? mainImageFile.url : null;
+      let mainImagePath = mainImageFile?.isExisting ? mainImageFile.path : null;
+      
+      if (mainImageFile && !mainImageFile.isExisting) {
+        const mainFile = mainImageFile.file;
+        const mainFileName = `products/${Date.now()}_main_${mainFile.name.replace(/\s+/g, "_")}`;
+        const mainStorageRef = ref(storage, mainFileName);
+        await uploadBytes(mainStorageRef, mainFile);
+        mainDownloadURL = await getDownloadURL(mainStorageRef);
+        mainImagePath = mainFileName;
+      }
+
+      // 3. Upload new gallery images
       let imageUrls = [];
-      let mainDownloadURL = '';
-      let videoDownloadURL = videoFileState?.url || null;
-      let videoStoragePath = videoFileState?.path || null;
+      
+      // Add main image to imageUrls array
+      if (mainImageFile) {
+        const mainImageObject = {
+          url: mainDownloadURL || mainImageFile.url,
+          name: mainImageFile.name,
+          path: mainImagePath || mainImageFile.path,
+          type: 'file',
+          isMain: true,
+          color: mainImageFile.color || '',
+        };
+        imageUrls.push(mainImageObject);
+      }
 
-      if (mainImageState) {
-        if (!mainImageState.isExisting) {
-          const path = `products/${Date.now()}_main_${mainImageState.file.name}`;
-          const sRef = ref(storage, path);
-          await uploadBytes(sRef, mainImageState.file);
-          mainDownloadURL = await getDownloadURL(sRef);
-          imageUrls.push({ url: mainDownloadURL, name: mainImageState.name, path, isMain: true, color: mainImageState.color });
+      // Upload and add gallery images
+      for (const imageObject of galleryFiles) {
+        if (!imageObject.isExisting) {
+          // Upload new gallery image
+          const galleryFile = imageObject.file;
+          const galleryFileName = `products/${Date.now()}_gallery_${galleryFile.name.replace(/\s+/g, "_")}`;
+          const galleryStorageRef = ref(storage, galleryFileName);
+          await uploadBytes(galleryStorageRef, galleryFile);
+          const galleryDownloadURL = await getDownloadURL(galleryStorageRef);
+
+          imageUrls.push({
+            url: galleryDownloadURL,
+            name: galleryFile.name,
+            path: galleryFileName,
+            type: "file",
+            isMain: false,
+            color: imageObject.color || "",
+          });
         } else {
-          mainDownloadURL = mainImageState.url;
-          imageUrls.push({ ...mainImageState });
+          // Keep existing gallery image
+          imageUrls.push({
+            url: imageObject.url,
+            name: imageObject.name,
+            path: imageObject.path,
+            type: 'file',
+            isMain: false,
+            color: imageObject.color || "",
+          });
         }
       }
 
-      for (const img of galleryImagesState) {
-        if (!img.isExisting) {
-          const path = `products/${Date.now()}_gallery_${img.file.name}`;
-          const sRef = ref(storage, path);
-          await uploadBytes(sRef, img.file);
-          const url = await getDownloadURL(sRef);
-          imageUrls.push({ url, name: img.name, path, isMain: false, color: img.color });
-        } else {
-          imageUrls.push({ ...img });
-        }
+      // 4. Upload new video if exists
+      let videoDownloadURL = videoFile?.isExisting ? videoFile.url : null;
+      let videoStoragePath = videoFile?.isExisting ? videoFile.path : null;
+      
+      if (videoFile && !videoFile.isExisting) {
+        const file = videoFile.file;
+        const fileName = `products/${Date.now()}_video_${file.name.replace(/\s+/g, "_")}`;
+        const storageRef = ref(storage, fileName);
+        await uploadBytes(storageRef, file);
+        videoDownloadURL = await getDownloadURL(storageRef);
+        videoStoragePath = fileName;
       }
 
-      if (videoFileState && !videoFileState.isExisting) {
-        videoStoragePath = `products/${Date.now()}_video_${videoFileState.file.name}`;
-        const sRef = ref(storage, videoStoragePath);
-        await uploadBytes(sRef, videoFileState.file);
-        videoDownloadURL = await getDownloadURL(sRef);
-      }
+      // 5. Prepare data for Firestore
+      const selectedCategory = categoriesList.find(cat => cat.id === productData.category);
+      const selectedSubCategory = subcategoriesList.find(sub => sub.id === productData.subCategory);
 
-      const selectedCat = categoriesList.find(c => c.id === productData.category);
-      const selectedSub = subcategoriesList.find(s => s.id === productData.subCategory);
+      const finalMainImage = mainDownloadURL || 
+                           imageUrls.find(img => img.isMain)?.url || 
+                           imageUrls[0]?.url || 
+                           null;
 
-      const productToUpdate = {
-        ...productData,
-        category: { id: productData.category, name: selectedCat?.name || '' },
-        subCategory: productData.subCategory ? { id: productData.subCategory, name: selectedSub?.name || '' } : null,
-        imageUrls,
-        mainImageUrl: mainDownloadURL,
-        videoUrl: videoDownloadURL,
-        videoPath: videoStoragePath,
-        searchKeywords: generateSearchKeywords({ ...productData, category: { name: selectedCat?.name }, subCategory: { name: selectedSub?.name } }),
-        updatedAt: new Date(),
-      };
+      const normalizedImages = normalizeImages(imageUrls, finalMainImage);
 
+ const productToUpdate = {
+  name: productData.name,
+  description: productData.description,
+  sku: productData.sku,
+  hsnCode: productData.hsnCode,   // ✅ FIXED
+  brand: productData.brand,
+
+  category: selectedCategory
+    ? { id: selectedCategory.id, name: selectedCategory.name }
+    : null,
+
+  subCategory: selectedSubCategory
+    ? { id: selectedSubCategory.id, name: selectedSubCategory.name }
+    : null,
+
+  sellerId: productData.sellerId || "Admin",
+  productTag: productData.productTag,
+
+  mainImageUrl: finalMainImage || null,
+  imageUrls: normalizedImages,
+
+  videoUrl: videoDownloadURL || null,
+  videoPath: videoStoragePath || null,
+
+  variants: productData.variants || [],
+
+  imageStatus: "completed",
+  status: "Active",
+
+  searchKeywords: generateSearchKeywords({
+    ...productData,
+    category: { name: selectedCategory?.name || "" },
+    subCategory: selectedSubCategory
+      ? { name: selectedSubCategory.name }
+      : null,
+  }),
+
+  updatedAt: serverTimestamp(),
+};
+
+
+      console.log("Updating product with data:", productToUpdate);
+
+      // 6. Update in Firestore
       await updateDoc(doc(db, "products", productId), productToUpdate);
+
+      // 7. Success
       setShowSuccessModal(true);
+      setMessage("✅ Product updated successfully!");
+
     } catch (error) {
-      console.error(error);
-      setMessage("Update failed. Please try again.");
+      console.error("Firebase update error:", error);
+      setMessage(`❌ Failed to update product: ${error.message}`);
     } finally {
       setLoading(false);
     }
   };
 
-  const isFormDisabled = loading || loadingData;
+  // Modal handler
+  const handleModalClose = useCallback((shouldNavigate) => {
+    setShowSuccessModal(false);
+    if (shouldNavigate) navigate('/products');
+  }, [navigate]);
 
-  if (loadingData) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center">
-        <div className="text-center">
-          <FiRefreshCw className="animate-spin text-4xl text-orange-500 mx-auto mb-4" />
-          <p className="text-gray-600">Loading product data...</p>
-        </div>
-      </div>
-    );
-  }
-
+  // UI Components
   const SectionButton = ({ id, icon, label, active }) => (
     <button
       type="button"
@@ -485,6 +823,19 @@ const EditProductPage = () => {
     </div>
   );
 
+  const isFormDisabled = loading || loadingData;
+
+  if (loadingData) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center">
+        <div className="text-center">
+          <FiRefreshCw className="animate-spin text-4xl text-orange-500 mx-auto mb-4" />
+          <p className="text-gray-600">Loading product data...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 py-6 px-4">
       <div className="max-w-6xl mx-auto">
@@ -512,11 +863,13 @@ const EditProductPage = () => {
         </div>
 
         {message && (
-          <div className="mb-6 bg-red-50 border-l-4 border-red-500 p-4 rounded-lg">
-            <div className="flex items-center">
-              <FiAlertCircle className="text-red-500 mr-3" />
-              <p className="text-red-700">{message}</p>
-            </div>
+          <div className={`mb-6 p-4 rounded-lg flex items-center ${
+            message.startsWith('✅') 
+              ? 'bg-green-50 border-l-4 border-green-500 text-green-700'
+              : 'bg-red-50 border-l-4 border-red-500 text-red-700'
+          }`}>
+            {message.startsWith('✅') ? <FiCheck className="mr-3" /> : <FiAlertCircle className="mr-3" />}
+            <p>{message}</p>
           </div>
         )}
 
@@ -539,6 +892,7 @@ const EditProductPage = () => {
                     onChange={handleChange}
                     placeholder="Enter product name"
                     required
+                    disabled={isFormDisabled}
                   />
                   <InputField
                     icon={<FiUser className="text-orange-500" />}
@@ -547,6 +901,7 @@ const EditProductPage = () => {
                     value={productData.sellerId}
                     onChange={handleChange}
                     placeholder="Enter seller ID"
+                    disabled={isFormDisabled}
                   />
                 </div>
 
@@ -562,6 +917,7 @@ const EditProductPage = () => {
                     placeholder="Enter detailed product description"
                     rows="4"
                     className="w-full border border-gray-300 rounded-xl p-3 focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all duration-300"
+                    disabled={isFormDisabled}
                   />
                 </div>
               </div>
@@ -583,6 +939,7 @@ const EditProductPage = () => {
                     value={productData.sku}
                     onChange={handleChange}
                     placeholder="Enter SKU"
+                    disabled={isFormDisabled}
                   />
                   <InputField
                     icon={<FiTag className="text-blue-500" />}
@@ -591,6 +948,7 @@ const EditProductPage = () => {
                     value={productData.brand}
                     onChange={handleChange}
                     placeholder="Enter brand"
+                    disabled={isFormDisabled}
                   />
                   <InputField
                     icon={<FiTag className="text-blue-500" />}
@@ -599,6 +957,7 @@ const EditProductPage = () => {
                     value={productData.hsnCode}
                     onChange={handleChange}
                     placeholder="Enter HSN code"
+                    disabled={isFormDisabled}
                   />
                 </div>
               </div>
@@ -619,6 +978,7 @@ const EditProductPage = () => {
                     name="productTag"
                     value={productData.productTag}
                     onChange={handleChange}
+                    disabled={isFormDisabled}
                   >
                     {PRODUCT_TAG_OPTIONS.map(o => (
                       <option key={o.value} value={o.value}>
@@ -633,6 +993,7 @@ const EditProductPage = () => {
                     name="category"
                     value={productData.category}
                     onChange={handleChange}
+                    disabled={isFormDisabled || filteredCategories.length === 0}
                   >
                     <option value="">Select Category</option>
                     {filteredCategories.map(c => (
@@ -646,7 +1007,7 @@ const EditProductPage = () => {
                     name="subCategory"
                     value={productData.subCategory}
                     onChange={handleChange}
-                    disabled={!productData.category}
+                    disabled={isFormDisabled || !productData.category}
                   >
                     <option value="">Select Subcategory</option>
                     {filteredSubcategories.map(s => (
@@ -683,6 +1044,7 @@ const EditProductPage = () => {
                       onChange={handleNewVariantChange}
                       name="color"
                       className="border border-purple-200 bg-white p-3 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                      disabled={isFormDisabled}
                     />
                     <input
                       placeholder="Size"
@@ -690,6 +1052,7 @@ const EditProductPage = () => {
                       onChange={handleNewVariantChange}
                       name="size"
                       className="border border-purple-200 bg-white p-3 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                      disabled={isFormDisabled}
                     />
                     <input
                       placeholder="Price"
@@ -698,6 +1061,7 @@ const EditProductPage = () => {
                       onChange={handleNewVariantChange}
                       name="price"
                       className="border border-purple-200 bg-white p-3 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                      disabled={isFormDisabled}
                     />
                     <input
                       placeholder="Offer Price"
@@ -706,6 +1070,7 @@ const EditProductPage = () => {
                       onChange={handleNewVariantChange}
                       name="offerPrice"
                       className="border border-purple-200 bg-white p-3 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                      disabled={isFormDisabled}
                     />
                     <input
                       placeholder="Stock"
@@ -714,11 +1079,13 @@ const EditProductPage = () => {
                       onChange={handleNewVariantChange}
                       name="stock"
                       className="border border-purple-200 bg-white p-3 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                      disabled={isFormDisabled}
                     />
                     <button
                       type="button"
                       onClick={handleAddVariant}
-                      className="bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-xl flex items-center justify-center gap-2 hover:shadow-lg hover:scale-105 transition-all duration-300"
+                      className="bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-xl flex items-center justify-center gap-2 hover:shadow-lg hover:scale-105 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                      disabled={isFormDisabled}
                     >
                       <FiPlus className="text-lg" />
                       Add
@@ -748,34 +1115,40 @@ const EditProductPage = () => {
                             value={v.color}
                             onChange={(e) => handleVariantEdit(v.variantId, 'color', e.target.value)}
                             className="border-none bg-transparent focus:outline-none focus:ring-2 focus:ring-purple-200 p-2 rounded"
+                            disabled={isFormDisabled}
                           />
                           <input
                             value={v.size}
                             onChange={(e) => handleVariantEdit(v.variantId, 'size', e.target.value)}
                             className="border-none bg-transparent focus:outline-none focus:ring-2 focus:ring-purple-200 p-2 rounded"
+                            disabled={isFormDisabled}
                           />
                           <input
                             type="number"
                             value={v.price}
                             onChange={(e) => handleVariantEdit(v.variantId, 'price', e.target.value)}
                             className="border-none bg-transparent focus:outline-none focus:ring-2 focus:ring-purple-200 p-2 rounded"
+                            disabled={isFormDisabled}
                           />
                           <input
                             type="number"
                             value={v.offerPrice || ''}
                             onChange={(e) => handleVariantEdit(v.variantId, 'offerPrice', e.target.value)}
                             className="border-none bg-transparent focus:outline-none focus:ring-2 focus:ring-purple-200 p-2 rounded text-red-500"
+                            disabled={isFormDisabled}
                           />
                           <input
                             type="number"
                             value={v.stock}
                             onChange={(e) => handleVariantEdit(v.variantId, 'stock', e.target.value)}
                             className="border-none bg-transparent focus:outline-none focus:ring-2 focus:ring-purple-200 p-2 rounded"
+                            disabled={isFormDisabled}
                           />
                           <button
                             type="button"
                             onClick={() => removeVariant(v.variantId)}
-                            className="text-red-500 hover:text-red-700 hover:bg-red-50 p-2 rounded-full transition-colors duration-200 flex items-center justify-center"
+                            className="text-red-500 hover:text-red-700 hover:bg-red-50 p-2 rounded-full transition-colors duration-200 flex items-center justify-center disabled:opacity-50"
+                            disabled={isFormDisabled}
                           >
                             <FiTrash2 />
                           </button>
@@ -787,7 +1160,7 @@ const EditProductPage = () => {
               </div>
             )}
 
-            {/* Media Section */}
+            {/* Media Section - FIXED GALLERY DISPLAY */}
             {(activeSection === 'media' || activeSection === 'all') && (
               <div className="space-y-8">
                 <div className="flex items-center gap-2 mb-4">
@@ -804,25 +1177,44 @@ const EditProductPage = () => {
                       Main Image
                     </label>
                     <div
-                      className={`border-2 ${mainImageState
+                      className={`border-2 ${mainImageFile
                           ? 'border-solid border-gray-200'
                           : 'border-dashed border-gray-300 hover:border-orange-400'
                         } rounded-2xl p-4 text-center transition-all duration-300 h-48 flex flex-col justify-center items-center cursor-pointer relative bg-gradient-to-br from-gray-50 to-white`}
                     >
-                      {mainImageState ? (
+                      {mainImageFile ? (
                         <>
-                          <img
-                            src={mainImageState.url}
-                            alt="Main product"
-                            className="h-32 w-auto object-contain rounded-lg"
-                          />
+                          <div className="h-32 w-full flex items-center justify-center">
+                            <img
+                              src={mainImageFile.url}
+                              alt="Main product"
+                              className="h-full w-full object-contain rounded-lg"
+                              onError={(e) => {
+                                e.target.onerror = null;
+                                e.target.style.display = 'none';
+                                const parent = e.target.parentElement;
+                                parent.innerHTML = `
+                                  <div class="flex flex-col items-center justify-center h-full w-full text-gray-400">
+                                    <FiImage class="w-10 h-10 mb-2" />
+                                    <span class="text-xs">Image not available</span>
+                                  </div>
+                                `;
+                              }}
+                            />
+                          </div>
                           <button
                             type="button"
                             onClick={removeMainImage}
-                            className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-2 hover:bg-red-600 transition-colors duration-200 shadow-lg"
+                            className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-2 hover:bg-red-600 transition-colors duration-200 shadow-lg disabled:opacity-50"
+                            disabled={isFormDisabled}
                           >
                             <FiX />
                           </button>
+                          {mainImageFile.isExisting && (
+                            <span className="absolute top-2 left-2 bg-green-500 text-white text-xs px-2 py-1 rounded">
+                              Existing
+                            </span>
+                          )}
                         </>
                       ) : (
                         <label className="cursor-pointer flex flex-col items-center gap-3">
@@ -830,7 +1222,14 @@ const EditProductPage = () => {
                             <FiUpload className="text-2xl text-orange-500" />
                           </div>
                           <p className="text-gray-600">Click to upload main image</p>
-                          <input type="file" className="hidden" onChange={handleMainImageChange} />
+                          <input 
+                            type="file" 
+                            className="hidden" 
+                            onChange={handleMainImageChange} 
+                            accept="image/*"
+                            id="mainImageFile"
+                            disabled={isFormDisabled}
+                          />
                         </label>
                       )}
                     </div>
@@ -843,24 +1242,30 @@ const EditProductPage = () => {
                       Product Video
                     </label>
                     <div
-                      className={`border-2 ${videoFileState
+                      className={`border-2 ${videoFile
                           ? 'border-solid border-gray-200'
                           : 'border-dashed border-gray-300 hover:border-orange-400'
                         } rounded-2xl p-4 text-center transition-all duration-300 h-48 flex flex-col justify-center items-center cursor-pointer relative bg-gradient-to-br from-gray-50 to-white`}
                     >
-                      {videoFileState ? (
+                      {videoFile ? (
                         <>
                           <div className="w-16 h-16 bg-gradient-to-br from-blue-100 to-cyan-100 rounded-full flex items-center justify-center mb-3">
                             <FiVideo className="text-2xl text-blue-500" />
                           </div>
-                          <p className="text-sm text-gray-600 truncate max-w-full px-4">{videoFileState.name}</p>
+                          <p className="text-sm text-gray-600 truncate max-w-full px-4">{videoFile.name}</p>
                           <button
                             type="button"
                             onClick={removeVideo}
-                            className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-2 hover:bg-red-600 transition-colors duration-200 shadow-lg"
+                            className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-2 hover:bg-red-600 transition-colors duration-200 shadow-lg disabled:opacity-50"
+                            disabled={isFormDisabled}
                           >
                             <FiX />
                           </button>
+                          {videoFile.isExisting && (
+                            <span className="absolute top-2 left-2 bg-green-500 text-white text-xs px-2 py-1 rounded">
+                              Existing
+                            </span>
+                          )}
                         </>
                       ) : (
                         <label className="cursor-pointer flex flex-col items-center gap-3">
@@ -868,71 +1273,304 @@ const EditProductPage = () => {
                             <FiVideo className="text-2xl text-blue-500" />
                           </div>
                           <p className="text-gray-600">Click to upload video</p>
-                          <input type="file" className="hidden" onChange={handleVideoChange} />
+                          <input 
+                            type="file" 
+                            className="hidden" 
+                            onChange={handleVideoChange} 
+                            accept="video/*"
+                            id="videoFile"
+                            disabled={isFormDisabled}
+                          />
                         </label>
                       )}
                     </div>
                   </div>
                 </div>
 
-                {/* Gallery Images */}
+                {/* Gallery Images - FIXED BULK UPLOAD DISPLAY */}
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
                     <label className="text-sm font-medium text-gray-700 flex items-center gap-2">
                       <FiImage className="text-amber-500" />
                       Gallery Images
                     </label>
-                    <span className="text-sm text-gray-500 bg-amber-50 px-3 py-1 rounded-full">
-                      {galleryImagesState.length} images
-                    </span>
+                    <div className="flex items-center gap-3">
+                      <span className="text-sm text-gray-500 bg-amber-50 px-3 py-1 rounded-full">
+                        {galleryFiles.length} images
+                      </span>
+                      {galleryFiles.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            // Clear only new images, keep existing ones
+                            const existingImages = galleryFiles.filter(img => img.isExisting);
+                            const newImages = galleryFiles.filter(img => !img.isExisting);
+                            
+                            // Revoke object URLs for new images
+                            newImages.forEach(img => {
+                              if (img.url) {
+                                URL.revokeObjectURL(img.url);
+                              }
+                            });
+                            
+                            setGalleryFiles(existingImages);
+                            setMessage("✅ All new gallery images cleared.");
+                          }}
+                          className="text-xs text-red-500 hover:text-red-700 px-2 py-1 hover:bg-red-50 rounded disabled:opacity-50"
+                          disabled={isFormDisabled}
+                        >
+                          Clear New
+                        </button>
+                      )}
+                    </div>
                   </div>
 
-                  <label className="block border-2 border-dashed border-gray-300 hover:border-orange-400 rounded-2xl p-6 text-center cursor-pointer bg-gradient-to-br from-gray-50 to-white transition-all duration-300">
-                    <div className="flex flex-col items-center gap-3">
-                      <div className="w-16 h-16 bg-gradient-to-br from-amber-100 to-orange-100 rounded-full flex items-center justify-center">
-                        <FiPlus className="text-2xl text-amber-500" />
-                      </div>
-                      <div>
-                        <p className="font-medium text-gray-700">Add Gallery Images</p>
-                        <p className="text-sm text-gray-500">Upload multiple images</p>
-                      </div>
-                    </div>
-                    <input type="file" multiple className="hidden" onChange={handleGalleryImageChange} />
-                  </label>
-
-                  {galleryImagesState.length > 0 && (
-                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-                      {galleryImagesState.map(img => (
-                        <div
-                          key={img.id}
-                          className="relative bg-white rounded-xl border border-gray-200 p-3 hover:shadow-lg transition-all duration-300 group"
-                        >
-                          <img
-                            src={img.url}
-                            alt="Gallery"
-                            className="h-32 w-full object-cover rounded-lg mb-2"
-                          />
-                          <select
-                            value={img.color}
-                            onChange={(e) => handleColorChangeOnImage(img.id, e.target.value)}
-                            className="w-full text-xs p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-                          >
-                            <option value="">No Color</option>
-                            {availableColors.map(c => (
-                              <option key={c} value={c}>{c}</option>
-                            ))}
-                          </select>
-                          <button
-                            type="button"
-                            onClick={() => removeGalleryImage(img.id)}
-                            className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-2 hover:bg-red-600 transition-all duration-300 opacity-0 group-hover:opacity-100 shadow-lg"
-                          >
-                            <FiX className="text-sm" />
-                          </button>
+                  {/* Upload Area */}
+                  <div className="space-y-4">
+                    {/* Upload Button */}
+                    <div className="relative">
+                      <label className={`block border-2 border-dashed rounded-2xl p-8 text-center cursor-pointer transition-all duration-300 ${
+                        isFormDisabled 
+                          ? 'border-gray-200 bg-gray-50 cursor-not-allowed' 
+                          : 'border-orange-300 hover:border-orange-500 bg-gradient-to-br from-orange-50 to-white hover:shadow-md'
+                      }`}>
+                        <div className="flex flex-col items-center gap-4">
+                          <div className={`w-20 h-20 rounded-full flex items-center justify-center ${
+                            isFormDisabled 
+                              ? 'bg-gray-200' 
+                              : 'bg-gradient-to-br from-orange-100 to-amber-100 shadow-md'
+                          }`}>
+                            <FiUpload className={`text-3xl ${
+                              isFormDisabled ? 'text-gray-400' : 'text-orange-500'
+                            }`} />
+                          </div>
+                          <div>
+                            <p className={`font-semibold text-lg mb-1 ${
+                              isFormDisabled ? 'text-gray-400' : 'text-gray-800'
+                            }`}>
+                              {galleryFiles.length === 0 ? 'Upload Gallery Images' : 'Add More Images'}
+                            </p>
+                            <p className={`text-sm ${
+                              isFormDisabled ? 'text-gray-400' : 'text-gray-600'
+                            }`}>
+                              Click to select multiple images
+                            </p>
+                            <p className="text-xs text-gray-500 mt-2">
+                              Supports: JPG, PNG, WebP
+                            </p>
+                          </div>
                         </div>
-                      ))}
+                        <input 
+                          type="file" 
+                          multiple 
+                          className="hidden" 
+                          onChange={handleGalleryImageChange} 
+                          accept="image/*"
+                          id="galleryImages"
+                          disabled={isFormDisabled}
+                        />
+                      </label>
                     </div>
-                  )}
+
+                    {/* Gallery Images Display */}
+                    {galleryFiles.length > 0 && (
+                      <div className="mt-6">
+                        <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center">
+                          <FiImage className="mr-2" />
+                          Image Previews ({galleryFiles.length})
+                          <span className="ml-2 text-xs text-gray-500">
+                            ({galleryFiles.filter(img => img.isExisting).length} existing, 
+                            {galleryFiles.filter(img => !img.isExisting).length} new)
+                          </span>
+                        </h3>
+                        
+                        {/* Existing Images */}
+                        {galleryFiles.filter(img => img.isExisting).length > 0 && (
+                          <div className="mb-6">
+                            <h4 className="text-xs font-medium text-gray-600 mb-2 flex items-center">
+                              <FiCheck className="w-3 h-3 mr-1 text-green-500" />
+                              Existing Images ({galleryFiles.filter(img => img.isExisting).length})
+                            </h4>
+                            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                              {galleryFiles
+                                .filter(img => img.isExisting)
+                                .map((img, index) => (
+                                  <div
+                                    key={img.id}
+                                    className="relative bg-white rounded-xl border border-green-200 shadow-sm hover:shadow-lg transition-all duration-300 group"
+                                  >
+                                    {/* Image Preview */}
+                                    <div className="h-32 w-full flex items-center justify-center bg-gray-50 rounded-t-xl overflow-hidden">
+                                      {img.url ? (
+                                        <img
+                                          src={img.url}
+                                          alt={`Gallery ${index + 1}: ${img.name}`}
+                                          className="h-full w-full object-cover"
+                                          onError={(e) => {
+                                            e.target.onerror = null;
+                                            e.target.style.display = 'none';
+                                            const parent = e.target.parentElement;
+                                            parent.innerHTML = `
+                                              <div class="flex flex-col items-center justify-center h-full w-full text-gray-400">
+                                                <FiImage class="w-8 h-8 mb-1" />
+                                                <span class="text-xs">Image not loading</span>
+                                              </div>
+                                            `;
+                                          }}
+                                        />
+                                      ) : (
+                                        <div className="flex flex-col items-center justify-center text-gray-400">
+                                          <FiImage className="w-8 h-8 mb-1" />
+                                          <span className="text-xs">No preview</span>
+                                        </div>
+                                      )}
+                                    </div>
+                                    
+                                    {/* Image Info & Controls */}
+                                    <div className="p-3 border-t border-green-100 bg-green-50">
+                                      <div className="flex justify-between items-start mb-2">
+                                        <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                          <FiCheck className="w-3 h-3 mr-1" />
+                                          Existing
+                                        </span>
+                                        <button
+                                          type="button"
+                                          onClick={() => removeGalleryImage(img.id)}
+                                          className="text-red-500 hover:text-red-700 p-1"
+                                          disabled={isFormDisabled}
+                                          title="Remove image"
+                                        >
+                                          <FiTrash2 className="w-3 h-3" />
+                                        </button>
+                                      </div>
+                                      
+                                      {/* Color selector */}
+                                      <div className="mb-2">
+                                        <select
+                                          value={img.color || ''}
+                                          onChange={(e) => handleColorChangeOnImage(img.id, e.target.value)}
+                                          className="w-full text-xs p-1.5 border border-gray-300 rounded-lg focus:ring-1 focus:ring-green-500 focus:border-transparent bg-white"
+                                          disabled={isFormDisabled || availableColors.length === 0}
+                                        >
+                                          <option value="">-- Select Color --</option>
+                                          {availableColors.map(c => (
+                                            <option key={c} value={c}>{c}</option>
+                                          ))}
+                                        </select>
+                                      </div>
+                                      
+                                      {/* Image name */}
+                                      <p 
+                                        className="text-xs text-gray-800 font-medium truncate" 
+                                        title={img.name}
+                                      >
+                                        {img.name}
+                                      </p>
+                                    </div>
+                                  </div>
+                                ))}
+                            </div>
+                          </div>
+                        )}
+                        
+                        {/* New Images */}
+                        {galleryFiles.filter(img => !img.isExisting).length > 0 && (
+                          <div>
+                            <h4 className="text-xs font-medium text-gray-600 mb-2 flex items-center">
+                              <FiUpload className="w-3 h-3 mr-1 text-blue-500" />
+                              New Uploads ({galleryFiles.filter(img => !img.isExisting).length})
+                            </h4>
+                            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                              {galleryFiles
+                                .filter(img => !img.isExisting)
+                                .map((img, index) => (
+                                  <div
+                                    key={img.id}
+                                    className="relative bg-white rounded-xl border border-blue-200 shadow-sm hover:shadow-lg transition-all duration-300 group"
+                                  >
+                                    {/* Image Number */}
+                                    <div className="absolute top-2 left-2 bg-blue-500 text-white text-xs px-2 py-1 rounded">
+                                      New {index + 1}
+                                    </div>
+                                    
+                                    {/* Image Preview */}
+                                    <div className="h-32 w-full flex items-center justify-center bg-gray-50 rounded-t-xl overflow-hidden">
+                                      {img.url ? (
+                                        <img
+                                          src={img.url}
+                                          alt={`New upload ${index + 1}: ${img.name}`}
+                                          className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+                                          onError={(e) => {
+                                            e.target.onerror = null;
+                                            e.target.style.display = 'none';
+                                            const parent = e.target.parentElement;
+                                            parent.innerHTML = `
+                                              <div class="flex flex-col items-center justify-center h-full w-full text-gray-400">
+                                                <FiImage class="w-8 h-8 mb-1" />
+                                                <span class="text-xs">Preview error</span>
+                                              </div>
+                                            `;
+                                          }}
+                                        />
+                                      ) : (
+                                        <div className="flex flex-col items-center justify-center text-gray-400">
+                                          <FiImage className="w-8 h-8 mb-1" />
+                                          <span className="text-xs">No preview</span>
+                                        </div>
+                                      )}
+                                    </div>
+                                    
+                                    {/* Image Info & Controls */}
+                                    <div className="p-3 border-t border-blue-100">
+                                      {/* Remove button */}
+                                      <button
+                                        type="button"
+                                        onClick={() => removeGalleryImage(img.id)}
+                                        className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-1 hover:bg-red-600 transition-all duration-300 shadow-md"
+                                        disabled={isFormDisabled}
+                                        title="Remove image"
+                                      >
+                                        <FiX className="w-3 h-3" />
+                                      </button>
+                                      
+                                      {/* Color selector */}
+                                      <div className="mb-2">
+                                        <select
+                                          value={img.color || ''}
+                                          onChange={(e) => handleColorChangeOnImage(img.id, e.target.value)}
+                                          className="w-full text-xs p-1.5 border border-gray-300 rounded-lg focus:ring-1 focus:ring-blue-500 focus:border-transparent"
+                                          disabled={isFormDisabled || availableColors.length === 0}
+                                        >
+                                          <option value="">-- Select Color --</option>
+                                          {availableColors.map(c => (
+                                            <option key={c} value={c}>{c}</option>
+                                          ))}
+                                        </select>
+                                      </div>
+                                      
+                                      {/* Image name */}
+                                      <p 
+                                        className="text-xs text-gray-800 font-medium truncate mb-1" 
+                                        title={img.name}
+                                      >
+                                        {img.name}
+                                      </p>
+                                      
+                                      {/* File size */}
+                                      {img.file && (
+                                        <p className="text-xs text-gray-500">
+                                          {(img.file.size / 1024 / 1024).toFixed(2)} MB
+                                        </p>
+                                      )}
+                                    </div>
+                                  </div>
+                                ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
             )}
@@ -971,7 +1609,8 @@ const EditProductPage = () => {
               <button
                 type="button"
                 onClick={() => navigate('/products')}
-                className="px-8 py-4 border-2 border-gray-300 text-gray-700 rounded-xl font-medium hover:bg-gray-50 hover:border-gray-400 transition-all duration-300"
+                className="px-8 py-4 border-2 border-gray-300 text-gray-700 rounded-xl font-medium hover:bg-gray-50 hover:border-gray-400 transition-all duration-300 disabled:opacity-50"
+                disabled={isFormDisabled}
               >
                 Cancel
               </button>

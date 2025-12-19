@@ -36,6 +36,23 @@ import { db } from "../../../firerbase";
 // UTILITY FUNCTIONS (Unchanged)
 // ==========================================================
 
+const getProductImage = (product) => {
+  if (product?.mainImageUrl) return product.mainImageUrl;
+
+  if (Array.isArray(product?.imageUrls)) {
+    const main = product.imageUrls.find(img => img.isMain);
+    if (main?.url) return main.url;
+    if (product.imageUrls[0]?.url) return product.imageUrls[0].url;
+  }
+
+  if (Array.isArray(product?.sourceImages?.gallery)) {
+    const img = product.sourceImages.gallery[0];
+    if (typeof img === "string") return img;
+    if (img?.url) return img.url;
+  }
+
+  return "/no-image.png";
+};
 // Helper function to aggregate variant data for the list view
 const getVariantSummary = (variants) => {
     if (!variants || variants.length === 0) {
@@ -340,9 +357,7 @@ const Products = () => {
             const productRef = doc(db, "products", productToDelete.id);
             await deleteDoc(productRef);
             
-            // 3. 🚨 Show the success modal
-            // We set productToDelete back for the success modal to have the name, 
-            // then we'll clear it after the success modal is closed.
+        
             setShowSuccessModal(true); 
 
             console.log(`Product '${productName}' deleted successfully.`);
@@ -355,25 +370,9 @@ const Products = () => {
              setSelectedProductId(null);
         }
     };
+// 🔥 SHARED IMAGE RESOLVER (ADMIN + SELLER SAFE)
 
- const getProductImage = (product) => {
-  // 1️⃣ Cloud Function final image
-  if (product.mainImageUrl) return product.mainImageUrl;
 
-  // 2️⃣ Gallery images (string OR object)
-  if (product.imageUrls && product.imageUrls.length > 0) {
-    const first = product.imageUrls[0];
-    return typeof first === "string" ? first : first?.url;
-  }
-
-  // 3️⃣ Old source image (Drive / external)
-  if (product.sourceImages?.main) {
-    return product.sourceImages.main;
-  }
-
-  // 4️⃣ Fallback
-  return "https://via.placeholder.com/80x80/f3f4f6/9ca3af?text=No+Image";
-};
 
     // --- Loading/Error States ---
     if (loading) {
@@ -906,13 +905,13 @@ const IntegratedProductView = ({ productId, onClose, navigate, onDelete }) => {
                     </button>
                     <div className="flex space-x-3">
                          {/* Re-enable Delete button for IntegratedProductView if needed */}
-                         <button
+                         {/* <button
                             onClick={() => onDelete(product)}
                             className="flex items-center space-x-2 bg-red-500 text-white px-4 py-2 rounded-xl font-semibold shadow-md hover:bg-red-600 transition"
                         >
                             <TrashIcon className="h-5 w-5" />
                             <span>Delete Product</span>
-                        </button>
+                        </button> */}
                         <button
                             onClick={() => navigate(`/products/edit/${product.id}`)}
                             className="flex items-center space-x-2 bg-green-500 text-white px-4 py-2 rounded-xl font-semibold shadow-md hover:bg-green-600 transition"
@@ -921,11 +920,11 @@ const IntegratedProductView = ({ productId, onClose, navigate, onDelete }) => {
                             <span>Edit Product</span>
                         </button>
                     </div>
-                </div>
+                </div>  
 
                 <div className="bg-white rounded-2xl shadow-2xl p-8 border border-gray-100">
 
-                    {/* Main Product Info and Image */}
+                    {/* Main Product Info and Image */}     
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 border-b pb-6 mb-6">
 
                         {/* Image Gallery */}
@@ -934,14 +933,12 @@ const IntegratedProductView = ({ productId, onClose, navigate, onDelete }) => {
                                 <PhotoIcon className="h-6 w-6 mr-2 text-indigo-500" />
                                 Product Images
                             </h3>
-                           <img
-  src={
-    product.mainImageUrl ||
-    product.imageUrls?.[0]?.url ||
-    product.sourceImages?.main ||
-    "https://via.placeholder.com/400x400/f3f4f6/9ca3af?text=No+Image"
-  }
+ <img
+  src={getProductImage(product)}
   alt={product.name}
+  onError={(e) => {
+    e.currentTarget.src = FALLBACK_IMAGE;
+  }}
 />
 
                            <div className="flex space-x-2 mt-4 overflow-x-auto">

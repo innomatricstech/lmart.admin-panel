@@ -27,6 +27,8 @@ import {
   getDocs,
   doc,
   updateDoc,
+serverTimestamp,
+
 } from "firebase/firestore";
 import {
   ref,
@@ -34,6 +36,24 @@ import {
   getDownloadURL
 } from "firebase/storage";
 
+const normalizeImages = (imageUrls, mainImageUrl) => {
+  if (Array.isArray(imageUrls) && imageUrls.length > 0) {
+    return imageUrls;
+  }
+
+  if (mainImageUrl) {
+    return [{
+      url: mainImageUrl,
+      isMain: true,
+      color: "",
+      name: "main-image",
+      path: "",
+      isExisting: true,
+    }];
+  }
+
+  return [];
+};
 
 // *** REUSABLE KEYWORD GENERATION FUNCTION *** (UNMODIFIED)
 const generateSearchKeywords = (product) => {
@@ -430,22 +450,26 @@ const AddProductPage = () => {
             }
 
             // B. Gallery Images Upload
-            for (const imageObject of galleryFiles) {
-                const galleryFile = imageObject.file;
-                const galleryFileName = `products/${Date.now()}_gallery_${galleryFile.name}`;
-                const galleryStorageRef = ref(storage, galleryFile.name);
-                await uploadBytes(galleryStorageRef, galleryFile);
-                const galleryDownloadURL = await getDownloadURL(galleryStorageRef);
+         // B. Gallery Images Upload (FIXED)
+for (const imageObject of galleryFiles) {
+  const galleryFile = imageObject.file;
 
-                imageUrls.push({
-                    url: galleryDownloadURL,
-                    name: galleryFile.name,
-                    path: galleryFileName,
-                    type: 'file',
-                    isMain: false,
-                    color: imageObject.color,
-                });
-            }
+  const galleryFileName = `products/${Date.now()}_gallery_${galleryFile.name.replace(/\s+/g, "_")}`;
+  const galleryStorageRef = ref(storage, galleryFileName); // ✅ FIXED
+
+  await uploadBytes(galleryStorageRef, galleryFile);
+  const galleryDownloadURL = await getDownloadURL(galleryStorageRef);
+
+  imageUrls.push({
+    url: galleryDownloadURL,
+    name: galleryFile.name,
+    path: galleryFileName,
+    type: "file",
+    isMain: false,
+    color: imageObject.color || "",
+  });
+}
+
 
             // C. Video Upload
             if (videoFile) {
@@ -471,28 +495,49 @@ const AddProductPage = () => {
                     name: selectedSubCategory ? selectedSubCategory.name : 'N/A',
                 } : null,
             };
+            const finalMainImage =
+  mainDownloadURL ||
+  imageUrls.find(img => img.isMain)?.url ||
+  imageUrls[0]?.url ||
+  null;
 
-            const productToSave = {
-                name: productData.name || '', 
-                description: productData.description || '',
-                sku: productData.sku || '',
-                hsnCode: productData.hsnCode || '',
-                brand: productData.brand || '',
-                category: tempProductForKeywords.category,
-                subCategory: tempProductForKeywords.subCategory,
-                sellerId: productData.sellerId || '', 
-                productTag: productData.productTag || '', 
-                variants: productData.variants,
-                
-                imageUrls: imageUrls,
-                mainImageUrl: mainDownloadURL, 
-                videoUrl: videoDownloadURL,
-                
-                searchKeywords: generateSearchKeywords(tempProductForKeywords),
-                createdAt: new Date(),
-                updatedAt: new Date(),
-                status: 'Active', 
-            };
+const normalizedImages = normalizeImages(imageUrls, finalMainImage);
+
+const productToSave = {
+  name: productData.name,
+  description: productData.description,
+  sku: productData.sku,
+  hsnCode: productData.hsnCode,
+  brand: productData.brand,
+
+  category: selectedCategory
+    ? { id: selectedCategory.id, name: selectedCategory.name }
+    : null,
+
+  subCategory: selectedSubCategory
+    ? { id: selectedSubCategory.id, name: selectedSubCategory.name }
+    : null,
+
+  sellerId: productData.sellerId || "Admin",
+  productTag: productData.productTag,
+
+  // ✅ IMAGE STANDARD (THIS FIXES SELLER)
+  mainImageUrl: finalMainImage || null,
+  imageUrls: normalizedImages,
+
+  // ✅ VIDEO
+  videoUrl: videoDownloadURL || null,
+  videoPath: videoFile?.path || null,
+
+  variants: productData.variants || [],
+
+  imageStatus: "completed",
+  status: "Active",
+
+  createdAt: serverTimestamp(),
+  updatedAt: serverTimestamp(),
+};
+
 
             // --- 5. SAVE TO FIRESTORE ---
             const docRef = await addDoc(collection(db, "products"), productToSave);

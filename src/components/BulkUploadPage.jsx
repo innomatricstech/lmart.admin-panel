@@ -22,9 +22,12 @@ import {
   BarChart3
 } from "lucide-react";
 
+
+
 /* ===============================
    🔍 HELPERS (same as before)
 ================================ */
+
 const isYouTubeUrl = (url) =>
   typeof url === "string" &&
   (url.includes("youtube.com") || url.includes("youtu.be"));
@@ -315,6 +318,7 @@ const BulkUploadPage = () => {
                     </div>
                   </button>
                 </div>
+                
 
                 <input
                   ref={fileRef}
@@ -375,6 +379,7 @@ const BulkUploadPage = () => {
                     </div>
                   ))}
                 </div>
+                
 
                 {products.length > 3 && (
                   <p className="text-center text-gray-500 text-sm">
@@ -413,7 +418,9 @@ const BulkUploadPage = () => {
                 </div>
               </div>
             )}
+            
           </div>
+
 
           {/* Right Column - Info & Stats */}
           <div className="space-y-6">
@@ -450,10 +457,56 @@ const BulkUploadPage = () => {
                   </span>
                 </div>
               </div>
+              
             </div>
 
             {/* Requirements Card */}
             <div className="bg-white rounded-2xl shadow-lg p-6">
+  <h3 className="font-bold text-gray-900 mb-4 flex items-center">
+    <Package className="w-5 h-5 mr-2 text-indigo-600" />
+    Variant Rules
+  </h3>
+
+  <ul className="space-y-3 text-sm text-gray-700">
+    <li className="flex items-start">
+      <CheckSquare className="w-5 h-5 text-green-500 mr-2 mt-0.5" />
+      <span>
+        Each row represents <b>one variant</b> of a product
+      </span>
+    </li>
+
+    <li className="flex items-start">
+      <CheckSquare className="w-5 h-5 text-green-500 mr-2 mt-0.5" />
+      <span>
+        Products are grouped using the same <b>SKU</b>
+      </span>
+    </li>
+
+    <li className="flex items-start">
+      <CheckSquare className="w-5 h-5 text-green-500 mr-2 mt-0.5" />
+      <span>
+        Variant columns: <b>Variant_Color, Variant_Size</b>
+      </span>
+    </li>
+
+    <li className="flex items-start">
+      <CheckSquare className="w-5 h-5 text-green-500 mr-2 mt-0.5" />
+      <span>
+        Price & stock must be filled per variant
+      </span>
+    </li>
+
+    <li className="flex items-start">
+      <AlertCircle className="w-5 h-5 text-red-500 mr-2 mt-0.5" />
+      <span>
+        Do not merge multiple variants in a single cell
+      </span>
+    </li>
+  </ul>
+</div>
+
+            <div className="bg-white rounded-2xl shadow-lg p-6">
+              
               <h3 className="font-bold text-gray-900 mb-4 flex items-center">
                 <AlertTriangle className="w-5 h-5 mr-2 text-amber-600" />
                 Excel Requirements
@@ -476,10 +529,16 @@ const BulkUploadPage = () => {
                   <span className="text-gray-700 text-sm">Video URLs auto-detected for YouTube/upload</span>
                 </li>
               </ul>
-              <button className="mt-4 w-full text-center text-blue-600 hover:text-blue-800 text-sm font-medium flex items-center justify-center">
-                <FileText className="w-4 h-4 mr-2" />
-                Download Template
-              </button>
+  <a
+  href="/templates/Book1.xlsx"
+  download
+  className="mt-4 w-full text-center text-blue-600 hover:text-blue-800 text-sm font-medium flex items-center justify-center"
+>
+  <FileText className="w-4 h-4 mr-2" />
+  Download Template
+</a>
+
+
             </div>
 
             {/* Quick Tips */}
