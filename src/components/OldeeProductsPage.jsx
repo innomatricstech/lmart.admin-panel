@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom"; 
 import { 
     collection, 
@@ -39,7 +39,9 @@ import {
     FiMail,
     FiShoppingBag,
     FiInfo,
-    FiPercent
+    FiPercent,
+    FiSearch,
+    FiFilter
 } from "react-icons/fi";
 
 // Format Firestore timestamp
@@ -829,6 +831,111 @@ const DeleteConfirmationModal = ({ product, onConfirm, onCancel, isDeleting }) =
     );
 };
 
+// --- FILTER AND SEARCH COMPONENT ---
+const SearchAndFilterBar = ({ 
+    searchTerm, 
+    onSearchChange, 
+    selectedStatus, 
+    onStatusChange, 
+    selectedCategory, 
+    onCategoryChange, 
+    categories,
+    onClearFilters 
+}) => {
+    return (
+        <div className="bg-white shadow-md rounded-lg p-4 mb-6">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                {/* Search Input */}
+                <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                        <FiSearch className="h-5 w-5 text-gray-400" />
+                    </div>
+                    <input
+                        type="text"
+                        value={searchTerm}
+                        onChange={onSearchChange}
+                        placeholder="Search products..."
+                        className="pl-10 pr-4 py-2 w-full border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    />
+                </div>
+
+                {/* Status Filter */}
+                <div>
+                    <div className="relative">
+                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                            <FiFilter className="h-5 w-5 text-gray-400" />
+                        </div>
+                        <select
+                            value={selectedStatus}
+                            onChange={onStatusChange}
+                            className="pl-10 pr-4 py-2 w-full border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 appearance-none"
+                        >
+                            <option value="all">All Statuses</option>
+                            <option value="active">Active</option>
+                            <option value="inactive">Inactive</option>
+                            <option value="Pending">Pending</option>
+                        </select>
+                    </div>
+                </div>
+
+                {/* Category Filter */}
+                <div>
+                    <div className="relative">
+                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                            <FiTag className="h-5 w-5 text-gray-400" />
+                        </div>
+                        <select
+                            value={selectedCategory}
+                            onChange={onCategoryChange}
+                            className="pl-10 pr-4 py-2 w-full border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 appearance-none"
+                        >
+                            <option value="all">All Categories</option>
+                            {categories.map((category, index) => (
+                                <option key={index} value={category}>
+                                    {category}
+                                </option>
+                            ))}
+                        </select>
+                    </div>
+                </div>
+
+                {/* Clear Filters Button */}
+                <div>
+                    <button
+                        onClick={onClearFilters}
+                        className="flex items-center justify-center w-full px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition duration-150"
+                    >
+                        <FiX className="w-4 h-4 mr-2" />
+                        Clear Filters
+                    </button>
+                </div>
+            </div>
+            
+            {/* Active Filters Display */}
+            {(searchTerm || selectedStatus !== 'all' || selectedCategory !== 'all') && (
+                <div className="mt-3 flex items-center space-x-2 text-sm">
+                    <span className="text-gray-600">Active filters:</span>
+                    {searchTerm && (
+                        <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded-full">
+                            Search: "{searchTerm}"
+                        </span>
+                    )}
+                    {selectedStatus !== 'all' && (
+                        <span className="bg-green-100 text-green-800 px-2 py-1 rounded-full">
+                            Status: {selectedStatus}
+                        </span>
+                    )}
+                    {selectedCategory !== 'all' && (
+                        <span className="bg-purple-100 text-purple-800 px-2 py-1 rounded-full">
+                            Category: {selectedCategory}
+                        </span>
+                    )}
+                </div>
+            )}
+        </div>
+    );
+};
+
 // --- MAIN COMPONENT: OldeeProductsPage ---
 const OldeeProductsPage = () => {
     const [products, setProducts] = useState([]); 
@@ -842,6 +949,11 @@ const OldeeProductsPage = () => {
     const [editingProduct, setEditingProduct] = useState(null); 
     const [showCategoryModal, setShowCategoryModal] = useState(false);
     const [viewingProduct, setViewingProduct] = useState(null); // State for view modal
+    
+    // Search and Filter States
+    const [searchTerm, setSearchTerm] = useState("");
+    const [selectedStatus, setSelectedStatus] = useState("all");
+    const [selectedCategory, setSelectedCategory] = useState("all");
 
     const navigate = useNavigate();
 
@@ -1189,6 +1301,49 @@ const OldeeProductsPage = () => {
         setNotification(message);
     };
 
+    // Handle search input change
+    const handleSearchChange = (e) => {
+        setSearchTerm(e.target.value);
+    };
+
+    // Handle status filter change
+    const handleStatusChange = (e) => {
+        setSelectedStatus(e.target.value);
+    };
+
+    // Handle category filter change
+    const handleCategoryChange = (e) => {
+        setSelectedCategory(e.target.value);
+    };
+
+    // Clear all filters
+    const handleClearFilters = () => {
+        setSearchTerm("");
+        setSelectedStatus("all");
+        setSelectedCategory("all");
+    };
+
+    // Filter products based on search and filters
+    const filteredProducts = useMemo(() => {
+        return products.filter(product => {
+            // Search filter
+            const matchesSearch = searchTerm === "" || 
+                product.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                product.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                product.seller?.displayName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                product.category?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                product.address?.toLowerCase().includes(searchTerm.toLowerCase());
+
+            // Status filter
+            const matchesStatus = selectedStatus === "all" || product.status === selectedStatus;
+
+            // Category filter
+            const matchesCategory = selectedCategory === "all" || product.category === selectedCategory;
+
+            return matchesSearch && matchesStatus && matchesCategory;
+        });
+    }, [products, searchTerm, selectedStatus, selectedCategory]);
+
     // --- UI RENDERING ---
 
     if (loading) {
@@ -1220,6 +1375,7 @@ const OldeeProductsPage = () => {
                         <FiUser className="w-10 h-10 text-purple-600" />
                         <div>
                             <h1 className="text-3xl font-bold text-gray-900">All Oldee Products</h1>
+                            <p className="text-gray-600 mt-1">Manage and search all products in your inventory</p>
                         </div>
                     </div>
                     <button
@@ -1231,16 +1387,28 @@ const OldeeProductsPage = () => {
                     </button>
                 </div>
 
+                {/* SEARCH AND FILTER BAR */}
+                <SearchAndFilterBar 
+                    searchTerm={searchTerm}
+                    onSearchChange={handleSearchChange}
+                    selectedStatus={selectedStatus}
+                    onStatusChange={handleStatusChange}
+                    selectedCategory={selectedCategory}
+                    onCategoryChange={handleCategoryChange}
+                    categories={categories}
+                    onClearFilters={handleClearFilters}
+                />
+
                 {/* COUNTER & CATEGORY STATS */}
-                <div className="grid grid-cols-2 gap-6 mb-8">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
                     <div className="bg-white rounded-xl shadow p-6">
                         <div className="flex items-center">
                             <FiClock className="w-6 h-6 text-indigo-600 mr-3" />
                             <div>
                                 <span className="text-xl font-semibold text-gray-700">
-                                    {products.length} Total Products
+                                    {filteredProducts.length} Products
                                 </span>
-                                <p className="text-sm text-gray-500">Loaded from Firestore</p>
+                                <p className="text-sm text-gray-500">Showing {filteredProducts.length} of {products.length} total</p>
                             </div>
                         </div>
                     </div>
@@ -1252,6 +1420,19 @@ const OldeeProductsPage = () => {
                                     {categories.length} Categories
                                 </span>
                                 <p className="text-sm text-gray-500">Click "Manage Categories" to edit</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div className="bg-white rounded-xl shadow p-6">
+                        <div className="flex items-center">
+                            <FiFilter className="w-6 h-6 text-green-600 mr-3" />
+                            <div>
+                                <span className="text-xl font-semibold text-gray-700">
+                                    Filtered Results
+                                </span>
+                                <p className="text-sm text-gray-500">
+                                    {searchTerm ? `Search: "${searchTerm}"` : 'No search active'}
+                                </p>
                             </div>
                         </div>
                     </div>
@@ -1271,8 +1452,8 @@ const OldeeProductsPage = () => {
                             </thead>
 
                             <tbody className="bg-white divide-y divide-gray-100">
-                                {products.length > 0 ? (
-                                    products.map((product) => (
+                                {filteredProducts.length > 0 ? (
+                                    filteredProducts.map((product) => (
                                         <tr key={product.id} className="hover:bg-gray-50">
                                             {/* PRODUCT CELL */}
                                             <td className="px-6 py-4">
@@ -1338,7 +1519,7 @@ const OldeeProductsPage = () => {
                                             <td className="px-6 py-4 text-center">
                                                 <div className="flex flex-col space-y-2"> 
                                                     
-                                                    {/* View Button - Added this button */}
+                                                    {/* View Button */}
                                                     <button
                                                         onClick={() => handleViewProduct(product)}
                                                         disabled={processingId === product.id}
@@ -1347,49 +1528,6 @@ const OldeeProductsPage = () => {
                                                         <FiEye className="w-4 h-4 mr-1" />
                                                         View Details
                                                     </button>
-
-                                                    {/* Status Toggle Button */}
-                                                    {/* <button
-                                                        onClick={() => handleUpdateStatus(product.id, product.status)}
-                                                        disabled={processingId === product.id || product.status === 'rejected'}
-                                                        className={`text-white px-3 py-2 rounded-lg disabled:opacity-50 text-sm font-medium transition duration-150 ease-in-out ${
-                                                            product.status === 'active' ? 'bg-red-500 hover:bg-red-600' : 'bg-green-500 hover:bg-green-600'
-                                                        }`}
-                                                    >
-                                                        {processingId === product.id ? (
-                                                            <FiRefreshCw className="w-4 h-4 animate-spin inline mr-1" />
-                                                        ) : (
-                                                            <>
-                                                                {product.status === 'active' ? (<FiXCircle className="inline w-4 h-4 mr-1" />) : (<FiCheckCircle className="inline w-4 h-4 mr-1" />)}
-                                                                {product.status === 'active' ? 'Deactivate' : 'Activate'}
-                                                            </>
-                                                        )}
-                                                    </button> */}
-
-                                                    {/* Edit Button */}
-                                                    {/* <button
-                                                        onClick={() => handleEditProduct(product.id)}
-                                                        disabled={processingId === product.id}
-                                                        className="flex items-center justify-center bg-blue-500 hover:bg-blue-600 text-white px-3 py-2 rounded-lg text-sm font-medium disabled:opacity-50 transition duration-150 ease-in-out"
-                                                    >
-                                                        <FiEdit className="w-4 h-4 mr-1" />
-                                                        Edit
-                                                    </button>
-                                                     */}
-                                                    {/* Delete Button */}
-                                                    {/* <button
-                                                        onClick={() => handleDeleteClick(product)}
-                                                        disabled={processingId === product.id}
-                                                        className="flex items-center justify-center bg-gray-400 hover:bg-gray-500 text-white px-3 py-2 rounded-lg text-sm font-medium disabled:opacity-50 transition duration-150 ease-in-out"
-                                                    >
-                                                        {processingId === product.id ? (
-                                                            <FiRefreshCw className="w-4 h-4 animate-spin inline mr-1" />
-                                                        ) : (
-                                                            <FiTrash2 className="w-4 h-4 mr-1" />
-                                                        )}
-                                                        Delete
-                                                    </button> */}
-                                                    
                                                 </div>
                                             </td>
                                         </tr>
@@ -1397,9 +1535,20 @@ const OldeeProductsPage = () => {
                                 ) : (
                                     <tr>
                                         <td colSpan="4" className="py-16 text-center text-gray-500">
-                                            <FiPackage className="w-12 h-12 text-gray-400 mx-auto mb-3" />
-                                            <p className="text-lg font-medium">No products found.</p>
-                                            <p className="text-sm">Check your Firestore "oldee" collection.</p>
+                                            <FiSearch className="w-12 h-12 text-gray-400 mx-auto mb-3" />
+                                            <p className="text-lg font-medium">No products found matching your criteria.</p>
+                                            <p className="text-sm">
+                                                Try adjusting your search or filters. 
+                                                {products.length > 0 && ` You have ${products.length} total products.`}
+                                            </p>
+                                            {(searchTerm || selectedStatus !== 'all' || selectedCategory !== 'all') && (
+                                                <button
+                                                    onClick={handleClearFilters}
+                                                    className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition duration-150"
+                                                >
+                                                    Clear All Filters
+                                                </button>
+                                            )}
                                         </td>
                                     </tr>
                                 )}
