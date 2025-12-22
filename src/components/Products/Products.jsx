@@ -541,7 +541,7 @@ const Products = () => {
                                     <tr key={product.id} className="hover:bg-indigo-50/30 transition-colors duration-150">
 
                                         {/* PRODUCT COLUMN */}
-                                        <td className="px-6 py-4">
+                                        <td className="px-2 py-4">
                                             <div className="flex items-center space-x-4">
                                                 <div className="flex-shrink-0">
                                                     <img
