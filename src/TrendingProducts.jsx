@@ -211,8 +211,8 @@ export default function TrendingProducts() {
   // Format price
   const formatPrice = (price) => {
     const num = Number(price);
-    if (Number.isNaN(num)) return "$0.00";
-    return `$${num.toFixed(2)}`;
+    if (Number.isNaN(num)) return "₹0.00";
+    return `₹${num.toFixed(2)}`;
   };
 
   /* ---------- Error-state full screen ---------- */

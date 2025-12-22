@@ -636,28 +636,27 @@ useEffect(() => {
     }
   };
 
-  // Upload File to Firebase Storage
-  const uploadFileToFirebase = async (file, folder, prefix) => {
-    try {
-      const cleanFileName = file.name.replace(/\s+/g, '_').replace(/[^a-zA-Z0-9._-]/g, '');
-      const fileName = `${folder}/${prefix}_${Date.now()}_${cleanFileName}`;
-      const storageRef = ref(storage, fileName);
-      
-      await uploadBytes(storageRef, file);
-      const downloadURL = await getDownloadURL(storageRef);
-      
-      return {
-        url: downloadURL,
-        path: fileName,
-        name: file.name,
-        type: file.type,
-        size: file.size
-      };
-    } catch (error) {
-      console.error("Error uploading file:", error);
-      throw error;
-    }
-  };
+ const uploadFileToFirebase = async (file, folder, customName) => {
+  try {
+    const extension = file.name.split('.').pop();
+    const fileName = `${folder}/${customName}.${extension}`;
+    const storageRef = ref(storage, fileName);
+
+    await uploadBytes(storageRef, file);
+    const downloadURL = await getDownloadURL(storageRef);
+
+    return {
+      url: downloadURL,
+      path: fileName,
+      name: `${customName}.${extension}`,
+      type: file.type,
+      size: file.size
+    };
+  } catch (error) {
+    console.error("Error uploading file:", error);
+    throw error;
+  }
+};
 
   // Main Submit Handler - FIXED with safeTrim
   const handleSubmit = async (e) => {
@@ -706,23 +705,29 @@ useEffect(() => {
       
       const newGalleryImages = galleryFiles.filter(img => !img.isExisting && img.file);
 
-      const galleryUploadPromises = newGalleryImages.map(async (imageObj, index) => {
-        try {
-          const result = await uploadFileToFirebase(imageObj.file, 'products', 'gallery');
-          
-          return {
-            url: result.url,
-            name: result.name,
-            path: result.path,
-            type: 'file',
-            isMain: false,
-            color: imageObj.color || '',
-          };
-        } catch (error) {
-          console.error(`Failed to upload ${imageObj.name}:`, error);
-          throw error;
-        }
-      });
+    // Count existing gallery images
+const existingGalleryCount = imageUrls.filter(img => !img.isMain).length;
+
+const galleryUploadPromises = newGalleryImages.map(async (imageObj, index) => {
+  const galleryIndex = existingGalleryCount + index + 1; // 1-based index
+  const customName = `galleryimage${galleryIndex}`;
+
+  const result = await uploadFileToFirebase(
+    imageObj.file,
+    'products',
+    customName
+  );
+
+  return {
+    url: result.url,
+    name: result.name,
+    path: result.path,
+    type: 'file',
+    isMain: false,
+    color: imageObj.color || '',
+  };
+});
+
 
       const uploadedGalleryImages = await Promise.all(galleryUploadPromises);
       
