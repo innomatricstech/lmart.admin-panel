@@ -4,7 +4,6 @@ import { useNavigate } from "react-router-dom";
 import {
     FiTrash2,
     FiSearch,
-    FiFilter,
     FiCalendar,
     FiTag,
     FiFileText,
@@ -12,6 +11,9 @@ import {
     FiLoader,
     FiAlertTriangle,
     FiX,
+    FiEye,
+    FiImage,
+    FiClock
 } from 'react-icons/fi';
 
 import { 
@@ -71,6 +73,18 @@ const formatDate = (dateValue) => {
     }
 };
 
+// Format creation date
+const formatCreationDate = (timestamp) => {
+    if (!timestamp || !timestamp.toDate) return 'N/A';
+    return timestamp.toDate().toLocaleDateString('en-IN', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+    });
+};
+
 // Modal Component for Delete Confirmation
 const DeleteConfirmationModal = ({ isOpen, onClose, onConfirm, newsItem }) => {
     if (!isOpen) return null;
@@ -105,7 +119,7 @@ const DeleteConfirmationModal = ({ isOpen, onClose, onConfirm, newsItem }) => {
                     <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
                         <h4 className="font-bold text-gray-900 text-lg mb-1">{newsItem?.title}</h4>
                         <p className="text-gray-600 text-sm">
-                            Category: <span className="font-medium">{newsItem?.subcategory || "N/A"}</span>
+                            Category: <span className="font-medium">{newsItem?.category || "N/A"}</span>
                         </p>
                         <p className="text-gray-600 text-sm">
                             Date: <span className="font-medium">{formatDate(newsItem?.date)}</span>
@@ -138,18 +152,153 @@ const DeleteConfirmationModal = ({ isOpen, onClose, onConfirm, newsItem }) => {
     );
 };
 
+// View Details Modal Component
+const ViewDetailsModal = ({ isOpen, onClose, newsItem }) => {
+    if (!isOpen || !newsItem) return null;
+
+    return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-70 overflow-y-auto">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-hidden border border-gray-200 my-4">
+                {/* Modal Header */}
+                <div className="flex items-center justify-between p-6 border-b border-gray-200 bg-gradient-to-r from-purple-50 to-blue-50">
+                    <div className="flex items-center">
+                        <div className="w-12 h-12 flex items-center justify-center bg-gradient-to-r from-purple-600 to-blue-600 rounded-full mr-4">
+                            <FiFileText className="w-6 h-6 text-white" />
+                        </div>
+                        <div>
+                            <h3 className="text-xl font-bold text-gray-900">News Article Details</h3>
+                            <p className="text-sm text-gray-600">Complete information about the news article</p>
+                        </div>
+                    </div>
+                    <button
+                        onClick={onClose}
+                        className="text-gray-400 hover:text-gray-600 transition-colors p-2 hover:bg-gray-100 rounded-lg"
+                    >
+                        <FiX className="w-6 h-6" />
+                    </button>
+                </div>
+
+                {/* Modal Body */}
+                <div className="p-6 overflow-y-auto max-h-[calc(90vh-200px)]">
+                    {/* Title */}
+                    <div className="mb-6">
+                        <h4 className="text-lg font-semibold text-gray-700 mb-2 flex items-center">
+                            <FiFileText className="w-5 h-5 mr-2 text-purple-600" />
+                            Title
+                        </h4>
+                        <div className="bg-gray-50 border border-gray-200 rounded-xl p-4">
+                            <p className="text-xl font-bold text-gray-900">{newsItem.title || "Untitled Article"}</p>
+                        </div>
+                    </div>
+
+                    {/* Category and Date Row */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                        {/* Category */}
+                        <div>
+                            <h4 className="text-lg font-semibold text-gray-700 mb-2 flex items-center">
+                                <FiTag className="w-5 h-5 mr-2 text-purple-600" />
+                                Category
+                            </h4>
+                            <div className="bg-purple-50 border border-purple-200 rounded-xl p-4">
+                                <span className="inline-flex items-center px-4 py-2 bg-purple-100 text-purple-800 rounded-full text-sm font-semibold">
+                                    <FiTag className="w-4 h-4 mr-2" />
+                                    {newsItem.category || "N/A"}
+                                </span>
+                            </div>
+                        </div>
+
+                        {/* Publication Date */}
+                        <div>
+                            <h4 className="text-lg font-semibold text-gray-700 mb-2 flex items-center">
+                                <FiCalendar className="w-5 h-5 mr-2 text-green-600" />
+                                Publication Date
+                            </h4>
+                            <div className="bg-green-50 border border-green-200 rounded-xl p-4">
+                                <div className="flex items-center text-gray-700">
+                                    <FiCalendar className="w-5 h-5 mr-2 text-green-600" />
+                                    <span className="text-lg font-medium">{formatDate(newsItem.date)}</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Creation Date */}
+                    {newsItem.createdAt && (
+                        <div className="mb-6">
+                            <h4 className="text-lg font-semibold text-gray-700 mb-2 flex items-center">
+                                <FiClock className="w-5 h-5 mr-2 text-blue-600" />
+                                Created On
+                            </h4>
+                            <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
+                                <div className="flex items-center text-gray-700">
+                                    <FiClock className="w-5 h-5 mr-2 text-blue-600" />
+                                    <span className="text-md font-medium">{formatCreationDate(newsItem.createdAt)}</span>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Featured Image */}
+                    {newsItem.imageUrl && (
+                        <div className="mb-6">
+                            <h4 className="text-lg font-semibold text-gray-700 mb-2 flex items-center">
+                                <FiImage className="w-5 h-5 mr-2 text-red-600" />
+                                Featured Image
+                            </h4>
+                            <div className="border border-gray-200 rounded-xl overflow-hidden shadow-lg">
+                                <img 
+                                    src={newsItem.imageUrl} 
+                                    alt={newsItem.title || "News Image"} 
+                                    className="w-full h-64 object-cover"
+                                    onError={(e) => {
+                                        e.target.src = "https://via.placeholder.com/800x400?text=Image+Not+Available";
+                                    }}
+                                />
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Excerpt/Content */}
+                    <div>
+                        <h4 className="text-lg font-semibold text-gray-700 mb-2 flex items-center">
+                            <FiFileText className="w-5 h-5 mr-2 text-gray-600" />
+                            Content / Excerpt
+                        </h4>
+                        <div className="bg-gray-50 border border-gray-200 rounded-xl p-4">
+                            <p className="text-gray-700 whitespace-pre-line">
+                                {newsItem.excerpt || "No content available for this article."}
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Modal Footer */}
+                <div className="flex justify-end space-x-3 p-6 bg-gray-50 border-t border-gray-200">
+                    <button
+                        onClick={onClose}
+                        className="px-6 py-3 border border-gray-300 text-gray-700 font-medium rounded-xl hover:bg-gray-50 active:bg-gray-100 transition-colors duration-150"
+                    >
+                        Close
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
 const ViewNews = () => {
     const navigate = useNavigate(); 
     
     const [searchTerm, setSearchTerm] = useState('');
-    const [filterSubcategory, setFilterSubcategory] = useState('');
     const [newsData, setNewsData] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     
-    // State for delete confirmation modal
+    // State for modals
     const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+    const [viewModalOpen, setViewModalOpen] = useState(false);
     const [newsToDelete, setNewsToDelete] = useState(null);
+    const [newsToView, setNewsToView] = useState(null);
     const [isDeleting, setIsDeleting] = useState(false);
 
     // ----------------------------------------------------
@@ -187,13 +336,13 @@ const ViewNews = () => {
     }, []); 
 
     // ----------------------------------------------------
-    // 2. DYNAMIC SUBCATEGORY EXTRACTION (For Filter)
+    // 2. DYNAMIC CATEGORY EXTRACTION
     // ----------------------------------------------------
-    const subcategories = useMemo(() => {
-        const subs = newsData
-            .map(news => news.subcategory)
-            .filter(sub => sub); 
-        return [...new Set(subs)].sort();
+    const categories = useMemo(() => {
+        const cats = newsData
+            .map(news => news.category)
+            .filter(cat => cat); 
+        return [...new Set(cats)].sort();
     }, [newsData]);
 
     // ----------------------------------------------------
@@ -204,11 +353,10 @@ const ViewNews = () => {
 
         const matchesSearchTerm = 
             news.title?.toLowerCase().includes(searchLower) ||
-            news.excerpt?.toLowerCase().includes(searchLower);
+            news.excerpt?.toLowerCase().includes(searchLower) ||
+            news.category?.toLowerCase().includes(searchLower);
 
-        const matchesSubcategory = filterSubcategory ? news.subcategory === filterSubcategory : true;
-
-        return matchesSearchTerm && matchesSubcategory;
+        return matchesSearchTerm;
     });
 
     // ----------------------------------------------------
@@ -220,10 +368,20 @@ const ViewNews = () => {
         setDeleteModalOpen(true);
     };
 
+    const openViewModal = (news) => {
+        setNewsToView(news);
+        setViewModalOpen(true);
+    };
+
     const closeDeleteModal = () => {
         setDeleteModalOpen(false);
         setNewsToDelete(null);
         setIsDeleting(false);
+    };
+
+    const closeViewModal = () => {
+        setViewModalOpen(false);
+        setNewsToView(null);
     };
 
     const handleDeleteConfirm = async () => {
@@ -237,12 +395,9 @@ const ViewNews = () => {
             // Success - close modal and reset state
             closeDeleteModal();
             
-            // Optional: You could add a toast notification here instead
-            // For now, we'll just close the modal
         } catch (error) {
             console.error("Error deleting news:", error);
             setIsDeleting(false);
-            // You could add an error state to the modal here
         }
     };
     
@@ -263,6 +418,12 @@ const ViewNews = () => {
                 isDeleting={isDeleting}
             />
 
+            <ViewDetailsModal
+                isOpen={viewModalOpen}
+                onClose={closeViewModal}
+                newsItem={newsToView}
+            />
+
             <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50 p-6">
                 <div className="max-w-7xl mx-auto">
                     {/* Header */}
@@ -270,7 +431,7 @@ const ViewNews = () => {
                         <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-r from-purple-600 to-blue-600 rounded-full mb-4">
                             <FiFileText className="w-8 h-8 text-white" />
                         </div>
-                        <h1 className="text-4xl font-bold bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent mb-2">
+                        <h1 className="text-3xl font-bold bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent mb-5">
                             News Management Dashboard 🗞️
                         </h1>
                         <p className="text-gray-600 text-lg">Manage and view all news articles with real-time updates.</p>
@@ -296,31 +457,22 @@ const ViewNews = () => {
                                         <FiSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
                                         <input
                                             type="text"
-                                            placeholder="Search title or excerpt..."
+                                            placeholder="Search title, content, or category..."
                                             value={searchTerm}
                                             onChange={(e) => setSearchTerm(e.target.value)}
                                             className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 w-full sm:w-64 transition-shadow"
                                         />
                                     </div>
 
-                                    {/* Filter by Subcategory */}
-                                    <div className="relative">
-                                        <FiFilter className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-                                        <select
-                                            value={filterSubcategory}
-                                            onChange={(e) => setFilterSubcategory(e.target.value)}
-                                            className="pl-10 pr-8 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 w-full sm:w-48 appearance-none bg-white cursor-pointer transition-shadow"
-                                            disabled={loading}
-                                        >
-                                            <option value="">All Categories</option>
-                                            {subcategories.map((subcat) => (
-                                                <option key={subcat} value={subcat}>{subcat}</option>
-                                            ))}
-                                        </select>
-                                        <span className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none text-gray-400">
-                                            ▼
-                                        </span>
-                                    </div>
+                                    {/* Category Statistics Badge (Optional) */}
+                                    {!loading && categories.length > 0 && (
+                                        <div className="flex items-center px-4 py-2 bg-blue-50 border border-blue-200 rounded-lg">
+                                            <FiTag className="w-4 h-4 text-blue-600 mr-2" />
+                                            <span className="text-sm text-blue-800">
+                                                {categories.length} categor{categories.length === 1 ? 'y' : 'ies'}
+                                            </span>
+                                        </div>
+                                    )}
 
                                     {/* Add News Button */}
                                     <button 
@@ -343,13 +495,13 @@ const ViewNews = () => {
                                                     ARTICLE DETAILS
                                                 </th>
                                                 <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider min-w-36">
-                                                    SUBCATEGORY
+                                                    CATEGORY
                                                 </th>
                                                 <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider min-w-32">
                                                     PUBLICATION DATE
                                                 </th>
-                                                <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider min-w-28">
-                                                    ACTION
+                                                <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider min-w-48">
+                                                    ACTIONS
                                                 </th>
                                             </tr>
                                         </thead>
@@ -375,7 +527,7 @@ const ViewNews = () => {
                                                         <FiFileText className="w-12 h-12 mx-auto mb-4 text-gray-300" />
                                                         <p className="text-xl font-medium">No articles match your criteria.</p>
                                                         <p className="text-sm mt-1">
-                                                            {searchTerm || filterSubcategory ? "Clear your search/filter to see all articles." : "Start by adding your first news article."}
+                                                            {searchTerm ? "Clear your search to see all articles." : "Start by adding your first news article."}
                                                         </p>
                                                     </td>
                                                 </tr>
@@ -385,27 +537,27 @@ const ViewNews = () => {
                                                         key={news.id} 
                                                         className="group hover:bg-purple-50 transition-colors duration-150"
                                                     >
-                                                        {/* ARTICLE DETAILS (Title and Excerpt) - Made more attractive */}
+                                                        {/* ARTICLE DETAILS (Title and Excerpt) */}
                                                         <td className="px-6 py-4">
                                                             <div className="flex items-start">
                                                                 <div className="w-3 h-3 bg-blue-500 rounded-full mt-2 mr-3 flex-shrink-0"></div>
                                                                 <div>
-                                                                    {/* Increased Title prominence */}
-                                                                    <div className="text-lg text-gray-900 group-hover:text-purple-700 transition-colors">
+                                                                    <div className="text-lg text-gray-900 group-hover:text-purple-700 transition-colors cursor-pointer hover:underline"
+                                                                        onClick={() => openViewModal(news)}
+                                                                    >
                                                                         {news.title || "Untitled Article"}
                                                                     </div>
-                                                                    {/* Focused on Excerpt for description - made it italic and softer color */}
                                                                     <div className="text-gray-500 text-sm italic mt-1 line-clamp-2 max-w-lg">
                                                                         {news.excerpt || "No excerpt available for this article."}
                                                                     </div>
                                                                 </div>
                                                             </div>
                                                         </td>
-                                                        {/* SUBCATEGORY */}
+                                                        {/* CATEGORY */}
                                                         <td className="px-6 py-4 whitespace-nowrap">
                                                             <span className="inline-flex items-center px-4 py-1.5 bg-purple-100 text-purple-800 rounded-full text-sm font-semibold border border-purple-300 shadow-sm">
                                                                 <FiTag className="w-3.5 h-3.5 mr-1.5" />
-                                                                {news.subcategory || "N/A"}
+                                                                {news.category || "N/A"}
                                                             </span>
                                                         </td>
                                                         {/* DATE */}
@@ -417,15 +569,27 @@ const ViewNews = () => {
                                                                 </span>
                                                             </div>
                                                         </td>
-                                                        {/* ACTION */}
+                                                        {/* ACTIONS */}
                                                         <td className="px-6 py-4 whitespace-nowrap">
                                                             <div className="flex space-x-2">
+                                                                <button
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        openViewModal(news);
+                                                                    }}
+                                                                    className="flex items-center space-x-1 bg-blue-100 text-blue-600 hover:bg-blue-200 active:bg-blue-300 px-3 py-2 rounded-lg transition-all duration-150 border border-blue-200 shadow-sm text-sm font-medium"
+                                                                    title="View Details"
+                                                                >
+                                                                    <FiEye className="w-4 h-4" />
+                                                                    <span>View</span>
+                                                                </button>
                                                                 <button
                                                                     onClick={(e) => {
                                                                         e.stopPropagation();
                                                                         openDeleteModal(news);
                                                                     }}
                                                                     className="flex items-center space-x-1 bg-red-100 text-red-600 hover:bg-red-200 active:bg-red-300 px-3 py-2 rounded-lg transition-all duration-150 border border-red-200 shadow-sm text-sm font-medium"
+                                                                    title="Delete Article"
                                                                 >
                                                                     <FiTrash2 className="w-4 h-4" />
                                                                     <span>Delete</span>
