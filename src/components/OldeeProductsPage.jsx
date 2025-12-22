@@ -33,7 +33,13 @@ import {
     FiCheck,
     FiPlus,
     FiX,
-    FiMoreVertical
+    FiMoreVertical,
+    FiEye,
+    FiMapPin,
+    FiMail,
+    FiShoppingBag,
+    FiInfo,
+    FiPercent
 } from "react-icons/fi";
 
 // Format Firestore timestamp
@@ -45,6 +51,276 @@ const formatDate = (timestamp) => {
     } catch {
         return "Invalid Date";
     }
+};
+
+// --- PRODUCT VIEW MODAL ---
+const ProductViewModal = ({ product, onClose, onEdit, onDelete, onToggleStatus, processingId }) => {
+    if (!product) return null;
+
+    const calculateDiscount = () => {
+        if (!product.offerPrice || !product.price || product.offerPrice >= product.price) return 0;
+        return Math.round(((product.price - product.offerPrice) / product.price) * 100);
+    };
+
+    const discount = calculateDiscount();
+
+    return (
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-75 overflow-y-auto h-full w-full z-50">
+            <div className="relative top-10 mx-auto p-5 border w-full max-w-4xl shadow-lg rounded-md bg-white">
+                
+                {/* Modal Header */}
+                <div className="flex justify-between items-center mb-6 pb-4 border-b">
+                    <div className="flex items-center">
+                        <FiEye className="w-6 h-6 text-blue-600 mr-3" />
+                        <h2 className="text-2xl font-bold text-gray-900">
+                            Product Details: <span className="text-blue-600">{product.name}</span>
+                        </h2>
+                    </div>
+                    <button
+                        onClick={onClose}
+                        className="text-gray-400 hover:text-gray-600 transition-colors"
+                    >
+                        <FiX className="w-6 h-6" />
+                    </button>
+                </div>
+
+                {/* Product Content */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    
+                    {/* Left Column - Images & Basic Info */}
+                    <div>
+                        {/* Product Image */}
+                        <div className="mb-6">
+                            <div className="bg-gray-100 rounded-lg p-4 flex items-center justify-center h-64">
+                                <img
+                                    src={product.imageURLs?.[0] || "https://via.placeholder.com/300x200"}
+                                    alt={product.name}
+                                    className="max-h-56 max-w-full object-contain rounded-lg"
+                                />
+                            </div>
+                            {product.imageURLs && product.imageURLs.length > 1 && (
+                                <div className="flex mt-2 space-x-2 overflow-x-auto">
+                                    {product.imageURLs.slice(1).map((url, index) => (
+                                        <img
+                                            key={index}
+                                            src={url}
+                                            alt={`${product.name} ${index + 2}`}
+                                            className="w-16 h-16 object-cover rounded border"
+                                        />
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Status & Actions */}
+                        <div className="bg-gray-50 rounded-lg p-4">
+                            <div className="flex items-center justify-between mb-4">
+                                <span className={`font-bold uppercase text-sm px-3 py-1 rounded-full ${
+                                    product.status === 'active' ? 'bg-green-100 text-green-700' :
+                                    product.status === 'Pending' ? 'bg-yellow-100 text-yellow-700' :
+                                    'bg-red-100 text-red-700'
+                                }`}>
+                                    <FiTag className="inline w-3 h-3 mr-1" />{product.status || 'N/A'}
+                                </span>
+                                
+                                {product.isSold && (
+                                    <span className="font-bold uppercase text-xs px-2 py-1 rounded-full bg-red-100 text-red-700">SOLD</span>
+                                )}
+                            </div>
+
+                            {/* Action Buttons */}
+                            <div className="grid grid-cols-2 gap-3">
+                                <button
+                                    onClick={() => onToggleStatus(product.id, product.status)}
+                                    disabled={processingId === product.id}
+                                    className={`flex items-center justify-center px-4 py-2 rounded-lg text-sm font-medium transition duration-150 ${
+                                        product.status === 'active' 
+                                            ? 'bg-red-500 hover:bg-red-600 text-white' 
+                                            : 'bg-green-500 hover:bg-green-600 text-white'
+                                    } disabled:opacity-50`}
+                                >
+                                    {processingId === product.id ? (
+                                        <FiRefreshCw className="w-4 h-4 animate-spin" />
+                                    ) : product.status === 'active' ? (
+                                        <>
+                                            <FiXCircle className="w-4 h-4 mr-2" />
+                                            Deactivate
+                                        </>
+                                    ) : (
+                                        <>
+                                            <FiCheckCircle className="w-4 h-4 mr-2" />
+                                            Activate
+                                        </>
+                                    )}
+                                </button>
+
+                                <button
+                                    onClick={() => {
+                                        onClose();
+                                        onEdit(product.id);
+                                    }}
+                                    disabled={processingId === product.id}
+                                    className="flex items-center justify-center bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium disabled:opacity-50 transition duration-150"
+                                >
+                                    <FiEdit className="w-4 h-4 mr-2" />
+                                    Edit
+                                </button>
+
+                                <button
+                                    onClick={() => {
+                                        onClose();
+                                        onDelete(product);
+                                    }}
+                                    disabled={processingId === product.id}
+                                    className="flex items-center justify-center bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-lg text-sm font-medium disabled:opacity-50 transition duration-150 col-span-2"
+                                >
+                                    <FiTrash2 className="w-4 h-4 mr-2" />
+                                    Delete Product
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Right Column - Details */}
+                    <div>
+                        {/* Price Section */}
+                        <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg p-4 mb-6">
+                            <div className="flex items-center justify-between">
+                                <div>
+                                    <h3 className="text-lg font-bold text-gray-900">{product.name}</h3>
+                                    {product.category && (
+                                        <span className="inline-block bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-sm font-medium mt-2">
+                                            {product.category}
+                                        </span>
+                                    )}
+                                </div>
+                                <div className="text-right">
+                                    <div className="text-2xl font-bold text-gray-900">
+                                        ₹{product.offerPrice || product.price || '0'}
+                                    </div>
+                                    {product.offerPrice && product.offerPrice < product.price && (
+                                        <div className="flex items-center justify-end mt-1">
+                                            <span className="text-sm text-gray-500 line-through mr-2">
+                                                ₹{product.price}
+                                            </span>
+                                            <span className="text-sm font-bold text-red-600 flex items-center">
+                                                <FiPercent className="w-3 h-3 mr-1" />
+                                                {discount}% OFF
+                                            </span>
+                                        </div>
+                                    )}
+                                    <div className="text-sm text-gray-600 mt-1">
+                                        {product.negotiation === 'Negotiable' ? 'Negotiable Price' : 'Fixed Price'}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Description */}
+                        <div className="mb-6">
+                            <h4 className="flex items-center text-lg font-semibold text-gray-800 mb-2">
+                                <FiInfo className="w-5 h-5 mr-2 text-blue-600" />
+                                Description
+                            </h4>
+                            <p className="text-gray-700 bg-gray-50 p-4 rounded-lg">
+                                {product.description || 'No description provided.'}
+                            </p>
+                        </div>
+
+                        {/* Seller Information */}
+                        <div className="mb-6">
+                            <h4 className="flex items-center text-lg font-semibold text-gray-800 mb-3">
+                                <FiUser className="w-5 h-5 mr-2 text-green-600" />
+                                Seller Information
+                            </h4>
+                            <div className="space-y-3">
+                                <div className="flex items-center">
+                                    <FiUser className="w-4 h-4 text-gray-500 mr-3" />
+                                    <div>
+                                        <div className="font-medium text-gray-900">
+                                            {product.seller?.displayName || product.sellerId || 'N/A'}
+                                        </div>
+                                        <div className="text-sm text-gray-500">Seller Name</div>
+                                    </div>
+                                </div>
+                                <div className="flex items-center">
+                                    <FiMail className="w-4 h-4 text-gray-500 mr-3" />
+                                    <div>
+                                        <div className="font-medium text-gray-900">
+                                            {product.seller?.email || 'N/A'}
+                                        </div>
+                                        <div className="text-sm text-gray-500">Email</div>
+                                    </div>
+                                </div>
+                                <div className="flex items-center">
+                                    <FiPhone className="w-4 h-4 text-gray-500 mr-3" />
+                                    <div>
+                                        <div className="font-medium text-gray-900">
+                                            {product.contactNumber || 'N/A'}
+                                        </div>
+                                        <div className="text-sm text-gray-500">Contact Number</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Location & Dates */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <h4 className="flex items-center text-lg font-semibold text-gray-800 mb-2">
+                                    <FiMapPin className="w-5 h-5 mr-2 text-orange-600" />
+                                    Location
+                                </h4>
+                                <p className="text-gray-700 bg-gray-50 p-3 rounded-lg text-sm">
+                                    {product.address || 'No address provided.'}
+                                </p>
+                            </div>
+                            <div>
+                                <h4 className="flex items-center text-lg font-semibold text-gray-800 mb-2">
+                                    <FiClock className="w-5 h-5 mr-2 text-purple-600" />
+                                    Timeline
+                                </h4>
+                                <div className="space-y-2 text-sm">
+                                    <div className="flex justify-between">
+                                        <span className="text-gray-600">Created:</span>
+                                        <span className="font-medium">{formatDate(product.createdAt)}</span>
+                                    </div>
+                                    <div className="flex justify-between">
+                                        <span className="text-gray-600">Published:</span>
+                                        <span className="font-medium">{formatDate(product.publishedAt)}</span>
+                                    </div>
+                                    <div className="flex justify-between">
+                                        <span className="text-gray-600">Last Updated:</span>
+                                        <span className="font-medium">{formatDate(product.updatedAt) || 'N/A'}</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Modal Footer */}
+                <div className="mt-8 pt-4 border-t flex justify-end space-x-3">
+                    <button
+                        onClick={onClose}
+                        className="px-5 py-2 border border-gray-300 rounded-lg text-gray-700 bg-white hover:bg-gray-50 transition duration-150"
+                    >
+                        Close
+                    </button>
+                    <button
+                        onClick={() => {
+                            onClose();
+                            onEdit(product.id);
+                        }}
+                        className="flex items-center px-5 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition duration-150"
+                    >
+                        <FiEdit className="w-4 h-4 mr-2" />
+                        Edit Product
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
 };
 
 // --- SUCCESS NOTIFICATION TOAST ---
@@ -565,6 +841,7 @@ const OldeeProductsPage = () => {
     const [productToDelete, setProductToDelete] = useState(null); 
     const [editingProduct, setEditingProduct] = useState(null); 
     const [showCategoryModal, setShowCategoryModal] = useState(false);
+    const [viewingProduct, setViewingProduct] = useState(null); // State for view modal
 
     const navigate = useNavigate();
 
@@ -824,6 +1101,13 @@ const OldeeProductsPage = () => {
                 status: newStatus,
                 updatedAt: new Date(),
             });
+            // If viewing the product, update the view modal
+            if (viewingProduct && viewingProduct.id === productId) {
+                setViewingProduct(prev => ({
+                    ...prev,
+                    status: newStatus
+                }));
+            }
         } catch (e) {
             console.error(`Error updating product status to ${newStatus}:`, e);
         } finally {
@@ -851,6 +1135,11 @@ const OldeeProductsPage = () => {
         }
     };
     
+    // Open View Modal
+    const handleViewProduct = (product) => {
+        setViewingProduct(product);
+    };
+
     // Open Delete Confirmation Modal
     const handleDeleteClick = (product) => {
         setProductToDelete(product);
@@ -883,6 +1172,10 @@ const OldeeProductsPage = () => {
             
             setNotification(`Product "${productToDelete.name}" moved to deleted collection.`); 
             setProductToDelete(null); 
+            // Close view modal if open
+            if (viewingProduct && viewingProduct.id === productId) {
+                setViewingProduct(null);
+            }
         } catch (e) {
             console.error("Error moving/deleting product:", e);
             setNotification(`Failed to delete product: ${e.message}`);
@@ -1045,8 +1338,18 @@ const OldeeProductsPage = () => {
                                             <td className="px-6 py-4 text-center">
                                                 <div className="flex flex-col space-y-2"> 
                                                     
-                                                    {/* Status Toggle Button */}
+                                                    {/* View Button - Added this button */}
                                                     <button
+                                                        onClick={() => handleViewProduct(product)}
+                                                        disabled={processingId === product.id}
+                                                        className="flex items-center justify-center bg-purple-500 hover:bg-purple-600 text-white px-3 py-2 rounded-lg text-sm font-medium disabled:opacity-50 transition duration-150 ease-in-out"
+                                                    >
+                                                        <FiEye className="w-4 h-4 mr-1" />
+                                                        View Details
+                                                    </button>
+
+                                                    {/* Status Toggle Button */}
+                                                    {/* <button
                                                         onClick={() => handleUpdateStatus(product.id, product.status)}
                                                         disabled={processingId === product.id || product.status === 'rejected'}
                                                         className={`text-white px-3 py-2 rounded-lg disabled:opacity-50 text-sm font-medium transition duration-150 ease-in-out ${
@@ -1061,10 +1364,10 @@ const OldeeProductsPage = () => {
                                                                 {product.status === 'active' ? 'Deactivate' : 'Activate'}
                                                             </>
                                                         )}
-                                                    </button>
+                                                    </button> */}
 
                                                     {/* Edit Button */}
-                                                    <button
+                                                    {/* <button
                                                         onClick={() => handleEditProduct(product.id)}
                                                         disabled={processingId === product.id}
                                                         className="flex items-center justify-center bg-blue-500 hover:bg-blue-600 text-white px-3 py-2 rounded-lg text-sm font-medium disabled:opacity-50 transition duration-150 ease-in-out"
@@ -1072,9 +1375,9 @@ const OldeeProductsPage = () => {
                                                         <FiEdit className="w-4 h-4 mr-1" />
                                                         Edit
                                                     </button>
-                                                    
+                                                     */}
                                                     {/* Delete Button */}
-                                                    <button
+                                                    {/* <button
                                                         onClick={() => handleDeleteClick(product)}
                                                         disabled={processingId === product.id}
                                                         className="flex items-center justify-center bg-gray-400 hover:bg-gray-500 text-white px-3 py-2 rounded-lg text-sm font-medium disabled:opacity-50 transition duration-150 ease-in-out"
@@ -1085,7 +1388,7 @@ const OldeeProductsPage = () => {
                                                             <FiTrash2 className="w-4 h-4 mr-1" />
                                                         )}
                                                         Delete
-                                                    </button>
+                                                    </button> */}
                                                     
                                                 </div>
                                             </td>
@@ -1108,6 +1411,18 @@ const OldeeProductsPage = () => {
             </div>
             
             {/* CONDITIONAL RENDER OF MODALS */}
+            {/* View Product Modal */}
+            {viewingProduct && (
+                <ProductViewModal
+                    product={viewingProduct}
+                    onClose={() => setViewingProduct(null)}
+                    onEdit={handleEditProduct}
+                    onDelete={handleDeleteClick}
+                    onToggleStatus={handleUpdateStatus}
+                    processingId={processingId}
+                />
+            )}
+
             {editingProduct && (
                 <InlineEditForm 
                     productData={editingProduct}
