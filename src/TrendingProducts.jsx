@@ -423,7 +423,7 @@ export default function TrendingProducts() {
                           <img
                             src={p.mainImageUrl}
                             alt={p.name}
-                            className="w-full h-full object-cover transition-transform duration-500 hover:scale-110"
+                            className="w-full h-full object-contain transition-transform duration-500 hover:scale-110"
                             onError={(e) => {
                               e.target.style.display = "none";
                               e.target.parentElement.innerHTML = "";
@@ -513,7 +513,7 @@ export default function TrendingProducts() {
                                 <img
                                   src={p.mainImageUrl}
                                   alt={p.name}
-                                  className="w-full h-full object-cover"
+                                  className="w-full h-full object-contain"
                                   onError={(e) => {
                                     e.target.style.display = "none";
                                     e.target.parentElement.innerHTML = "";

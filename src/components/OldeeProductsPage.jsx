@@ -242,7 +242,7 @@ const ProductViewModal = ({ product, onClose, onEdit, onDelete, onToggleStatus, 
                                         <div className="font-medium text-gray-900">
                                             {product.seller?.displayName || product.sellerId || 'N/A'}
                                         </div>
-                                        <div className="text-sm text-gray-500">Seller Name</div>
+                                        
                                     </div>
                                 </div>
                                 <div className="flex items-center">
@@ -251,7 +251,7 @@ const ProductViewModal = ({ product, onClose, onEdit, onDelete, onToggleStatus, 
                                         <div className="font-medium text-gray-900">
                                             {product.seller?.email || 'N/A'}
                                         </div>
-                                        <div className="text-sm text-gray-500">Email</div>
+                                        
                                     </div>
                                 </div>
                                 <div className="flex items-center">
@@ -260,7 +260,7 @@ const ProductViewModal = ({ product, onClose, onEdit, onDelete, onToggleStatus, 
                                         <div className="font-medium text-gray-900">
                                             {product.contactNumber || 'N/A'}
                                         </div>
-                                        <div className="text-sm text-gray-500">Contact Number</div>
+                                       
                                     </div>
                                 </div>
                             </div>
@@ -309,16 +309,7 @@ const ProductViewModal = ({ product, onClose, onEdit, onDelete, onToggleStatus, 
                     >
                         Close
                     </button>
-                    <button
-                        onClick={() => {
-                            onClose();
-                            onEdit(product.id);
-                        }}
-                        className="flex items-center px-5 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition duration-150"
-                    >
-                        <FiEdit className="w-4 h-4 mr-2" />
-                        Edit Product
-                    </button>
+         
                 </div>
             </div>
         </div>
@@ -1461,7 +1452,7 @@ const OldeeProductsPage = () => {
                                                     <img
                                                         src={product.imageURLs?.[0] || "https://via.placeholder.com/80"}
                                                         alt={product.name}
-                                                        className="w-12 h-12 rounded-lg border object-cover"
+                                                        className="w-20 h-22 rounded-lg border object-fit"
                                                     />
                                                     <div>
                                                         <div className="font-semibold text-gray-900">{product.name}</div>

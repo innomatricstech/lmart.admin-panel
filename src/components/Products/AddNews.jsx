@@ -5,21 +5,22 @@ import {
     FiTag,
     FiCalendar,
     FiImage,
+    FiVideo,
     FiX,
     FiSave,
     FiUpload,
     FiRefreshCw,
     FiPlus,
-    FiChevronDown
+    FiChevronDown,
+    FiTrash2,
+    FiGlobe
 } from 'react-icons/fi';
 import { 
     collection, 
     doc,
     setDoc,
     getDocs,
-    serverTimestamp,
-    query,
-    orderBy
+    serverTimestamp
 } from "firebase/firestore";
 import { 
     ref,
@@ -36,21 +37,26 @@ const AddNewsToday = () => {
         excerpt: '',
         category: '',
         date: '',
-        image: null      
+        image: null,
+        video: null,
     });
 
-    const [allCategories, setAllCategories] = useState([]); // Store all unique categories from existing news
+    const [imagePreview, setImagePreview] = useState(null);
+    const [videoPreview, setVideoPreview] = useState(null);
+
+    const [allCategories, setAllCategories] = useState([]);
     const [showCategoryInput, setShowCategoryInput] = useState(false);
     const [newCategory, setNewCategory] = useState('');
     const [isAddingCategory, setIsAddingCategory] = useState(false);
-    const [imagePreview, setImagePreview] = useState(null);
     const [isSaving, setIsSaving] = useState(false);
     const [saveMessage, setSaveMessage] = useState('');
     const [loadingCategories, setLoadingCategories] = useState(false);
 
     const isFormDisabled = isSaving;
 
-    // Fetch all unique categories from existing news
+    // -------------------------
+    // Fetch Categories
+    // -------------------------
     useEffect(() => {
         fetchExistingCategories();
     }, []);
@@ -58,74 +64,25 @@ const AddNewsToday = () => {
     const fetchExistingCategories = async () => {
         try {
             setLoadingCategories(true);
-            const newsCollectionRef = collection(db, "news");
-            const snapshot = await getDocs(newsCollectionRef);
-            
-            // Extract unique categories from all news
-            const categoriesSet = new Set();
+            const snapshot = await getDocs(collection(db, "news"));
+            const categories = new Set();
+
             snapshot.docs.forEach(doc => {
-                const data = doc.data();
-                if (data.category && data.category.trim()) {
-                    categoriesSet.add(data.category.trim());
+                if (doc.data().category) {
+                    categories.add(doc.data().category.trim());
                 }
             });
-            
-            // Convert Set to Array and sort alphabetically
-            const uniqueCategories = Array.from(categoriesSet).sort();
-            setAllCategories(uniqueCategories);
-            
+
+            setAllCategories([...categories].sort());
         } catch (error) {
-            console.error("Error fetching categories:", error);
+            console.error(error);
         } finally {
             setLoadingCategories(false);
         }
     };
 
     // -------------------------
-    // Category Handler
-    // -------------------------
-    const handleAddCategory = () => {
-        if (!newCategory.trim()) {
-            setSaveMessage("❌ Please enter a category name.");
-            return;
-        }
-
-        setIsAddingCategory(true);
-        try {
-            const trimmedCategory = newCategory.trim();
-            
-            // Check if category already exists
-            const categoryExists = allCategories.some(
-                cat => cat.toLowerCase() === trimmedCategory.toLowerCase()
-            );
-            
-            if (!categoryExists) {
-                // Add to local state if it's new
-                setAllCategories(prev => [...prev, trimmedCategory].sort());
-            }
-            
-            // Set the category in the form
-            setFormData(prev => ({ ...prev, category: trimmedCategory }));
-            
-            // Reset and close
-            setNewCategory('');
-            setShowCategoryInput(false);
-            setSaveMessage(`✅ Category "${trimmedCategory}" added!`);
-            
-            setTimeout(() => {
-                setSaveMessage('');
-            }, 2000);
-            
-        } catch (error) {
-            console.error("Error adding category:", error);
-            setSaveMessage(`❌ Failed to add category: ${error.message}`);
-        } finally {
-            setIsAddingCategory(false);
-        }
-    };
-
-    // -------------------------
-    // Input Handlers
+    // Handlers
     // -------------------------
     const handleChange = (e) => {
         const { name, value } = e.target;
@@ -140,26 +97,53 @@ const AddNewsToday = () => {
         }
     };
 
+    const handleVideoChange = (e) => {
+        const file = e.target.files[0];
+        if (file) {
+            setFormData(prev => ({ ...prev, video: file }));
+            setVideoPreview(URL.createObjectURL(file));
+        }
+    };
+
     const handleRemoveImage = () => {
-        if (formData.image) URL.revokeObjectURL(imagePreview);
+        URL.revokeObjectURL(imagePreview);
         setFormData(prev => ({ ...prev, image: null }));
         setImagePreview(null);
     };
 
+    const handleRemoveVideo = () => {
+        URL.revokeObjectURL(videoPreview);
+        setFormData(prev => ({ ...prev, video: null }));
+        setVideoPreview(null);
+    };
+
+    const handleAddCategory = () => {
+        if (!newCategory.trim()) return;
+
+        const trimmed = newCategory.trim();
+        if (!allCategories.some(c => c.toLowerCase() === trimmed.toLowerCase())) {
+            setAllCategories(prev => [...prev, trimmed].sort());
+        }
+
+        setFormData(prev => ({ ...prev, category: trimmed }));
+        setNewCategory('');
+        setShowCategoryInput(false);
+    };
+
     const handleCancel = () => {
-        if (window.confirm("Are you sure you want to cancel? Any unsaved data will be lost.")) {
+        if (window.confirm("Unsaved data will be lost. Continue?")) {
             navigate('/news/view');
         }
     };
 
     // -------------------------
-    // Submit Handler
+    // SAVE NEWS
     // -------------------------
     const handleSave = async (e) => {
         e.preventDefault();
 
-        if (!formData.title || !formData.excerpt || !formData.date || !formData.category) {
-            setSaveMessage("❌ Please fill in all required fields.");
+        if (!formData.title || !formData.excerpt || !formData.category || !formData.date) {
+            setSaveMessage("Please fill all required fields.");
             return;
         }
 
@@ -167,325 +151,348 @@ const AddNewsToday = () => {
         setSaveMessage('');
 
         try {
-            let imageUrl = null;
-            let imagePath = null;
-            
-            // Upload image if available
-            if (formData.image) {
-                const imageFile = formData.image;
-                const fileName = `news/${Date.now()}_${imageFile.name}`;
-                const storageRef = ref(storage, fileName);
+            let imageUrl = null, imagePath = null;
+            let videoUrl = null, videoPath = null;
 
-                const snapshot = await uploadBytes(storageRef, imageFile);
-                imageUrl = await getDownloadURL(snapshot.ref);
-                imagePath = fileName;
+            // Upload Image
+            if (formData.image) {
+                imagePath = `news/images/${Date.now()}_${formData.image.name}`;
+                const imageRef = ref(storage, imagePath);
+                await uploadBytes(imageRef, formData.image);
+                imageUrl = await getDownloadURL(imageRef);
             }
 
-            const newsCollectionRef = collection(db, "news");
-            const docRef = doc(newsCollectionRef);
-            const newsId = docRef.id;
-            
-            const newNewsData = {
-                id: newsId,
+            // Upload Video
+            if (formData.video) {
+                videoPath = `news/videos/${Date.now()}_${formData.video.name}`;
+                const videoRef = ref(storage, videoPath);
+                await uploadBytes(videoRef, formData.video);
+                videoUrl = await getDownloadURL(videoRef);
+            }
+
+            const docRef = doc(collection(db, "news"));
+
+            await setDoc(docRef, {
+                id: docRef.id,
                 title: formData.title.trim(),
                 excerpt: formData.excerpt.trim(),
                 category: formData.category.trim(),
                 date: formData.date,
                 imageUrl,
                 imagePath,
+                videoUrl,
+                videoPath,
                 createdAt: serverTimestamp(),
-            };
+            });
 
-            await setDoc(docRef, newNewsData);
-
-            setSaveMessage(`✅ News article added successfully!`);
-
-            setTimeout(() => {
-                navigate('/news/view');
-            }, 1200);
+            setSaveMessage("News article added successfully!");
+            setTimeout(() => navigate('/news/view'), 1200);
 
         } catch (error) {
-            console.error("Error adding news:", error);
-            setSaveMessage(`❌ Failed to add news: ${error.message}`);
+            console.error(error);
+            setSaveMessage("Failed to save news. Please try again.");
         } finally {
             setIsSaving(false);
         }
     };
 
+    // -------------------------
+    // UI
+    // -------------------------
     return (
-        <div className="min-h-screen bg-gray-50 py-8 px-4">
+        <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50 py-8 px-4">
             <div className="max-w-4xl mx-auto">
-                <div className="text-center mb-8">
-                    <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-r from-green-600 to-blue-600 rounded-full mb-4">
-                        <FiFileText className="w-8 h-8 text-white" />
+                {/* Header */}
+                <div className="mb-8 text-center">
+                    <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full mb-4 shadow-lg">
+                        <FiGlobe className="w-8 h-8 text-white" />
                     </div>
-                    <h1 className="text-4xl font-bold bg-gradient-to-r from-green-600 to-blue-600 bg-clip-text text-transparent mb-2">
+                    <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
                         Add News Today
                     </h1>
-                    <p className="text-gray-600 text-lg">Create and publish a new news article</p>
+                    <p className="text-gray-600 mt-2">Share the latest updates with your audience</p>
                 </div>
 
-                {saveMessage && (
-                    <div 
-                        className={`p-4 mb-6 border-l-4 rounded-lg shadow-sm 
-                            ${saveMessage.startsWith("✅") ? "bg-green-100 border-green-500 text-green-700" : "bg-red-100 border-red-500 text-red-700"}`}
-                    >
-                        {saveMessage}
-                    </div>
-                )}
-
-                <div className="bg-white rounded-2xl shadow-xl p-8">
-                    <form onSubmit={handleSave} className="space-y-6">
-
-                        {/* Title + Category */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            
-                            <div>
-                                <label htmlFor="title" className="block text-lg font-medium text-gray-700 mb-2">
-                                    Title <span className="text-red-500">*</span>
-                                </label>
-                                <input
-                                    type="text"
-                                    id="title"
-                                    name="title"
-                                    value={formData.title}
-                                    onChange={handleChange}
-                                    placeholder="Enter news headline or title"
-                                    className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl 
-                                            focus:ring-blue-500 focus:border-blue-500"
-                                    disabled={isFormDisabled}
-                                    required
-                                />
-                            </div>
-
-                            <div>
-                                <label htmlFor="category" className="block text-lg font-medium text-gray-700 mb-2 flex items-center">
-                                    <FiTag className="w-5 h-5 mr-2 text-purple-600" />
-                                    Category <span className="text-red-500">*</span>
-                                </label>
-                                
-                                <div className="space-y-2">
-                                    <div className="flex space-x-2">
-                                        {/* Category Dropdown */}
-                                        <div className="relative flex-1">
-                                            <select
-                                                id="category"
-                                                name="category"
-                                                value={formData.category}
-                                                onChange={handleChange}
-                                                className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl 
-                                                        focus:ring-blue-500 focus:border-blue-500 appearance-none bg-white cursor-pointer"
-                                                disabled={isFormDisabled || loadingCategories}
-                                                required
-                                            >
-                                                <option value="">Select a category</option>
-                                                {loadingCategories ? (
-                                                    <option disabled>Loading categories...</option>
-                                                ) : allCategories.length === 0 ? (
-                                                    <option disabled>No categories found. Add one below.</option>
-                                                ) : (
-                                                    allCategories.map((category, index) => (
-                                                        <option key={index} value={category}>
-                                                            {category}
-                                                        </option>
-                                                    ))
-                                                )}
-                                            </select>
-                                            <FiChevronDown className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5 pointer-events-none" />
-                                        </div>
-                                        
-                                        {/* Add New Category Button */}
-                                        <button
-                                            type="button"
-                                            onClick={() => setShowCategoryInput(true)}
-                                            className="flex-shrink-0 px-4 py-3 bg-purple-600 text-white rounded-xl 
-                                                    hover:bg-purple-700 transition-colors flex items-center"
-                                            disabled={isFormDisabled}
-                                            title="Add New Category"
-                                        >
-                                            <FiPlus className="w-5 h-5" />
-                                        </button>
-                                    </div>
-
-                                    {/* Or type manually option */}
-                                    <div className="flex items-center">
-                                        {/* <span className="text-sm text-gray-500 mr-2">or</span>
-                                        <input
-                                            type="text"
-                                            value={formData.category}
-                                            onChange={handleChange}
-                                            placeholder="Type custom category"
-                                            className="flex-1 px-4 py-2 border border-gray-300 rounded-lg 
-                                                    focus:ring-blue-500 focus:border-blue-500 text-sm"
-                                            disabled={isFormDisabled}
-                                        /> */}
-                                    </div>
+                {/* Main Form Card */}
+                <div className="bg-white rounded-2xl shadow-2xl overflow-hidden">
+                    <div className="p-8">
+                        {/* Status Message */}
+                        {saveMessage && (
+                            <div className={`mb-6 p-4 rounded-lg ${saveMessage.includes('✅') || saveMessage.includes('successfully') 
+                                ? 'bg-green-50 text-green-700 border border-green-200' 
+                                : 'bg-red-50 text-red-700 border border-red-200'}`}>
+                                <div className="flex items-center">
+                                    {saveMessage.includes('✅') || saveMessage.includes('successfully') ? (
+                                        <svg className="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                                            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                        </svg>
+                                    ) : (
+                                        <svg className="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                                            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                                        </svg>
+                                    )}
+                                    {saveMessage.replace('❌', '').replace('✅', '')}
                                 </div>
-                            </div>
-                        </div>
-
-                        {/* Add Category Input Field - Shows when button is clicked */}
-                        {showCategoryInput && (
-                            <div className="bg-purple-50 border-l-4 border-purple-500 rounded-xl p-4 mb-6">
-                                <h3 className="text-lg font-semibold text-purple-800 mb-3 flex items-center">
-                                    <FiPlus className="w-5 h-5 mr-2" />
-                                    Add New Category
-                                </h3>
-                                <div className="flex space-x-2">
-                                    <input
-                                        type="text"
-                                        value={newCategory}
-                                        onChange={(e) => setNewCategory(e.target.value)}
-                                        placeholder="Enter new category name"
-                                        className="flex-grow px-4 py-3 border-2 border-purple-300 rounded-xl 
-                                                focus:ring-purple-500 focus:border-purple-500"
-                                        disabled={isAddingCategory}
-                                        autoFocus
-                                        onKeyPress={(e) => {
-                                            if (e.key === 'Enter') {
-                                                e.preventDefault();
-                                                handleAddCategory();
-                                            }
-                                        }}
-                                    />
-                                    <button
-                                        type="button"
-                                        onClick={handleAddCategory}
-                                        className="px-6 py-3 bg-purple-600 text-white rounded-xl 
-                                                hover:bg-purple-700 transition-colors disabled:opacity-50"
-                                        disabled={isAddingCategory || !newCategory.trim()}
-                                    >
-                                        {isAddingCategory ? 'Adding...' : 'Add'}
-                                    </button>
-                                    <button
-                                        type="button"
-                                        onClick={() => {
-                                            setShowCategoryInput(false);
-                                            setNewCategory('');
-                                        }}
-                                        className="px-6 py-3 border-2 border-gray-300 text-gray-700 rounded-xl 
-                                                hover:bg-gray-50 transition-colors"
-                                        disabled={isAddingCategory}
-                                    >
-                                        Cancel
-                                    </button>
-                                </div>
-                                <p className="text-sm text-purple-600 mt-2">
-                                    This category will be added to the dropdown for future use.
-                                </p>
                             </div>
                         )}
 
-                        {/* Image Upload */}
-                        <div>
-                            <label className="block text-lg font-medium text-gray-700 mb-2 flex items-center">
-                                <FiImage className="w-5 h-5 mr-2 text-red-600" />
-                                Featured Image
-                            </label>
-
-                            {!imagePreview ? (
-                                <label 
-                                    htmlFor="image-upload" 
-                                    className="block cursor-pointer border-2 border-dashed border-gray-300 rounded-xl p-8 text-center hover:bg-gray-50 transition-colors"
-                                >
-                                    <FiUpload className="mx-auto w-10 h-10 text-gray-400 mb-2" />
-                                    <p className="text-gray-600">Click or drag an image here to upload</p>
-                                    <input 
-                                        type="file" 
-                                        id="image-upload" 
-                                        name="image"
-                                        accept="image/*"
-                                        className="hidden" 
-                                        onChange={handleImageChange}
-                                        disabled={isFormDisabled}
-                                    />
+                        <form onSubmit={handleSave} className="space-y-8">
+                            {/* Title */}
+                            <div>
+                                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                                    <FiFileText className="inline mr-2" />
+                                    News Title *
                                 </label>
-                            ) : (
-                                <div className="relative w-full h-48 rounded-xl overflow-hidden shadow-lg border-2 border-green-500">
-                                    <img src={imagePreview} alt="Preview" className="w-full h-full object-cover" />
+                                <input
+                                    type="text"
+                                    name="title"
+                                    placeholder="Enter a compelling headline..."
+                                    value={formData.title}
+                                    onChange={handleChange}
+                                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition duration-200"
+                                    required
+                                    disabled={isFormDisabled}
+                                />
+                            </div>
+
+                            {/* Category Section */}
+                            <div>
+                                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                                    <FiTag className="inline mr-2" />
+                                    Category *
+                                </label>
+                                <div className="flex gap-2">
+                                    <div className="flex-1 relative">
+                                        <select
+                                            name="category"
+                                            value={formData.category}
+                                            onChange={handleChange}
+                                            className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 appearance-none transition duration-200"
+                                            required
+                                            disabled={isFormDisabled}
+                                        >
+                                            <option value="">Select a category</option>
+                                            {loadingCategories ? (
+                                                <option disabled>Loading categories...</option>
+                                            ) : (
+                                                allCategories.map((c, i) => (
+                                                    <option key={i} value={c}>{c}</option>
+                                                ))
+                                            )}
+                                        </select>
+                                        <FiChevronDown className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+                                    </div>
                                     <button
                                         type="button"
-                                        onClick={handleRemoveImage}
-                                        className="absolute top-2 right-2 p-2 bg-red-600 text-white rounded-full hover:bg-red-700 transition-colors"
-                                        title="Remove Image"
+                                        onClick={() => setShowCategoryInput(!showCategoryInput)}
+                                        className="px-4 py-3 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-xl hover:from-blue-600 hover:to-blue-700 transition duration-200 flex items-center whitespace-nowrap"
+                                        disabled={isFormDisabled}
                                     >
-                                        <FiX className="w-5 h-5" />
+                                        <FiPlus className="mr-2" />
+                                        New Category
                                     </button>
                                 </div>
-                            )}
-                        </div>
-
-                        {/* Excerpt */}
-                        <div>
-                            <label htmlFor="excerpt" className="block text-lg font-medium text-gray-700 mb-2">
-                                Excerpt / Content <span className="text-red-500">*</span>
-                            </label>
-                            <textarea
-                                id="excerpt"
-                                name="excerpt"
-                                value={formData.excerpt}
-                                onChange={handleChange}
-                                rows="5"
-                                placeholder="Write a brief excerpt or the full news content"
-                                className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:ring-blue-500 focus:border-blue-500"
-                                disabled={isFormDisabled}
-                                required
-                            />
-                        </div>
-
-                        {/* Date */}
-                        <div>
-                            <label htmlFor="date" className="block text-lg font-medium text-gray-700 mb-2 flex items-center">
-                                <FiCalendar className="w-5 h-5 mr-2 text-green-600" />
-                                Publication Date (DD/MM/YYYY) <span className="text-red-500">*</span>
-                            </label>
-                            <input
-                                type="text"
-                                id="date"
-                                name="date"
-                                value={formData.date}
-                                onChange={handleChange}
-                                placeholder="e.g., 25/11/2025"
-                                className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:ring-blue-500 focus:border-blue-500"
-                                disabled={isFormDisabled}
-                                required
-                            />
-                        </div>
-
-                        {/* Action Buttons */}
-                        <div className="flex justify-end space-x-4 pt-4">
-                            <button
-                                type="button"
-                                onClick={handleCancel}
-                                className="flex items-center justify-center space-x-3 px-8 py-4 border-2 border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 transition-all duration-200 font-semibold text-lg w-full sm:w-auto"
-                                disabled={isSaving || isAddingCategory}
-                            >
-                                <FiX className="w-5 h-5" />
-                                <span>Cancel</span>
-                            </button>
-
-                            <button
-                                type="submit"
-                                className="flex items-center justify-center space-x-3 bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700 text-white px-8 py-4 rounded-xl font-semibold transition-all duration-200 transform hover:scale-[1.02] text-lg w-full sm:w-auto disabled:opacity-50 disabled:cursor-not-allowed"
-                                disabled={isSaving || isAddingCategory}
-                            >
-                                {isSaving ? (
-                                    <>
-                                        <FiRefreshCw className="w-5 h-5 animate-spin" />
-                                        <span>Saving...</span>
-                                    </>
-                                ) : (
-                                    <>
-                                        <FiSave className="w-5 h-5" />
-                                        <span>Save News</span>
-                                    </>
+                                
+                                {showCategoryInput && (
+                                    <div className="mt-3 p-4 bg-blue-50 rounded-xl border border-blue-200 animate-fadeIn">
+                                        <div className="flex gap-2">
+                                            <input
+                                                type="text"
+                                                value={newCategory}
+                                                onChange={(e) => setNewCategory(e.target.value)}
+                                                placeholder="Enter new category name"
+                                                className="flex-1 px-4 py-2 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                                disabled={isFormDisabled}
+                                            />
+                                            <button
+                                                type="button"
+                                                onClick={handleAddCategory}
+                                                className="px-4 py-2 bg-gradient-to-r from-green-500 to-green-600 text-white rounded-lg hover:from-green-600 hover:to-green-700 transition duration-200"
+                                                disabled={isFormDisabled}
+                                            >
+                                                Add
+                                            </button>
+                                        </div>
+                                    </div>
                                 )}
-                            </button>
-                        </div>
+                            </div>
 
-                    </form>
+                            {/* Media Upload Section */}
+                            <div>
+                                <label className="block text-sm font-semibold text-gray-700 mb-3">
+                                    <FiImage className="inline mr-2" />
+                                    Media Uploads
+                                </label>
+                                <div className="grid md:grid-cols-2 gap-6">
+                                    {/* Image Upload */}
+                                    <div className="relative">
+                                        {!imagePreview ? (
+                                            <label className={`block border-2 border-dashed ${isFormDisabled ? 'border-gray-300 bg-gray-50' : 'border-blue-300 hover:border-blue-500 hover:bg-blue-50'} rounded-2xl p-6 text-center cursor-pointer transition duration-200 group`}>
+                                                <div className="flex flex-col items-center justify-center h-40">
+                                                    <div className="w-12 h-12 bg-gradient-to-r from-blue-100 to-blue-200 rounded-full flex items-center justify-center mb-3 group-hover:scale-110 transition duration-200">
+                                                        <FiImage className="w-6 h-6 text-blue-600" />
+                                                    </div>
+                                                    <p className="text-gray-700 font-medium mb-1">Upload Image</p>
+                                                    <p className="text-sm text-gray-500">JPG, PNG, or WebP</p>
+                                                    <p className="text-xs text-gray-400 mt-2">Click or drag to upload</p>
+                                                </div>
+                                                <input 
+                                                    type="file" 
+                                                    accept="image/*" 
+                                                    hidden 
+                                                    onChange={handleImageChange} 
+                                                    disabled={isFormDisabled}
+                                                />
+                                            </label>
+                                        ) : (
+                                            <div className="relative rounded-2xl overflow-hidden shadow-lg">
+                                                <img 
+                                                    src={imagePreview} 
+                                                    alt="preview" 
+                                                    className="w-full h-48 object-contain"
+                                                />
+                                                <button
+                                                    type="button"
+                                                    onClick={handleRemoveImage}
+                                                    className="absolute top-3 right-3 bg-red-500 text-white p-2 rounded-full hover:bg-red-600 transition duration-200 shadow-lg"
+                                                    disabled={isFormDisabled}
+                                                >
+                                                    <FiX className="w-4 h-4" />
+                                                </button>
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* Video Upload */}
+                                    <div className="relative">
+                                        {!videoPreview ? (
+                                            <label className={`block border-2 border-dashed ${isFormDisabled ? 'border-gray-300 bg-gray-50' : 'border-purple-300 hover:border-purple-500 hover:bg-purple-50'} rounded-2xl p-6 text-center cursor-pointer transition duration-200 group`}>
+                                                <div className="flex flex-col items-center justify-center h-40">
+                                                    <div className="w-12 h-12 bg-gradient-to-r from-purple-100 to-purple-200 rounded-full flex items-center justify-center mb-3 group-hover:scale-110 transition duration-200">
+                                                        <FiVideo className="w-6 h-6 text-purple-600" />
+                                                    </div>
+                                                    <p className="text-gray-700 font-medium mb-1">Upload Video</p>
+                                                    <p className="text-sm text-gray-500">MP4, MOV, or AVI</p>
+                                                    <p className="text-xs text-gray-400 mt-2">Click or drag to upload</p>
+                                                </div>
+                                                <input 
+                                                    type="file" 
+                                                    accept="video/*" 
+                                                    hidden 
+                                                    onChange={handleVideoChange} 
+                                                    disabled={isFormDisabled}
+                                                />
+                                            </label>
+                                        ) : (
+                                            <div className="relative rounded-2xl overflow-hidden shadow-lg">
+                                                <video 
+                                                    src={videoPreview} 
+                                                    controls 
+                                                    className="w-full h-48 object-cover bg-black"
+                                                />
+                                                <button
+                                                    type="button"
+                                                    onClick={handleRemoveVideo}
+                                                    className="absolute top-3 right-3 bg-red-500 text-white p-2 rounded-full hover:bg-red-600 transition duration-200 shadow-lg"
+                                                    disabled={isFormDisabled}
+                                                >
+                                                    <FiX className="w-4 h-4" />
+                                                </button>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Content */}
+                            <div>
+                                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                                    <FiFileText className="inline mr-2" />
+                                    News Content *
+                                </label>
+                                <textarea
+                                    name="excerpt"
+                                    rows="5"
+                                    placeholder="Write your news content here..."
+                                    value={formData.excerpt}
+                                    onChange={handleChange}
+                                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition duration-200 resize-none"
+                                    required
+                                    disabled={isFormDisabled}
+                                />
+                            </div>
+
+                            {/* Date */}
+                            <div>
+                                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                                    <FiCalendar className="inline mr-2" />
+                                    Publication Date *
+                                </label>
+                                <input
+                                    type="text"
+                                    name="date"
+                                    placeholder="DD/MM/YYYY"
+                                    value={formData.date}
+                                    onChange={handleChange}
+                                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition duration-200"
+                                    required
+                                    disabled={isFormDisabled}
+                                />
+                                <p className="text-sm text-gray-500 mt-1">Format: Day/Month/Year (e.g., 25/12/2023)</p>
+                            </div>
+
+                            {/* Action Buttons */}
+                            <div className="flex justify-end gap-4 pt-4 border-t border-gray-200">
+                                <button
+                                    type="button"
+                                    onClick={handleCancel}
+                                    className={`px-6 py-3 border ${isFormDisabled ? 'border-gray-300 text-gray-400' : 'border-gray-300 text-gray-700 hover:bg-gray-50'} rounded-xl font-medium transition duration-200`}
+                                    disabled={isFormDisabled}
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    type="submit"
+                                    disabled={isFormDisabled}
+                                    className={`px-8 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl font-medium shadow-lg hover:shadow-xl hover:from-blue-700 hover:to-purple-700 transition duration-200 flex items-center ${isFormDisabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                >
+                                    {isSaving ? (
+                                        <>
+                                            <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                            </svg>
+                                            Saving...
+                                        </>
+                                    ) : (
+                                        <>
+                                            <FiSave className="mr-2" />
+                                            Publish News
+                                        </>
+                                    )}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+
+                {/* Info Footer */}
+                <div className="mt-8 text-center text-sm text-gray-500">
+                    <p>Fields marked with * are required</p>
+                    <p className="mt-1">All uploaded media will be stored securely</p>
                 </div>
             </div>
+
+            {/* Add custom animations */}
+            <style jsx>{`
+                @keyframes fadeIn {
+                    from { opacity: 0; transform: translateY(-10px); }
+                    to { opacity: 1; transform: translateY(0); }
+                }
+                .animate-fadeIn {
+                    animation: fadeIn 0.3s ease-out;
+                }
+            `}</style>
         </div>
     );
 };
