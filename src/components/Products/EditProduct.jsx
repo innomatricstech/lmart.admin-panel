@@ -89,7 +89,7 @@ const generateSearchKeywords = (product) => {
 };
 
 const PRODUCT_TAG_OPTIONS = [
-  { value: '', label: 'Select Product Label' },
+ 
   { value: 'E-Store', label: 'E-Store' },
   { value: 'Local Market', label: 'Local Market' },
   { value: 'Printing', label: 'Printing' },
