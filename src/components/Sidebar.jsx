@@ -171,7 +171,7 @@ export default function Sidebar({ onCloseSidebar, onLogout }) {
     },
 
     { text: "Files", icon: FiFileText, key: "Files", path: "/files" },
-    { text: "Banners", icon: FiImage, key: "Banners", path: "/banners" },
+    { text: "Posters", icon: FiImage, key: "Banners", path: "/banners" },
 
     {
       text: "Sellers",
