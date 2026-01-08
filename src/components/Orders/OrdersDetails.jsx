@@ -184,106 +184,121 @@ const OrderDetail = () => {
   // ---------------------------------------------------------
   // UPDATE ORDER STATUS
   // ---------------------------------------------------------
-  const updateOrderStatus = async (newStatus) => {
-    if (isLegacyOrder || !orderId || !order || newStatus === order.status) {
-      if (isLegacyOrder)
-        alert("Cannot update legacy orders stored in root collection.");
+const updateOrderStatus = async (newStatus) => {
+  if (isLegacyOrder || !orderId || !order || newStatus === order.status) {
+    if (isLegacyOrder)
+      alert("Cannot update legacy orders stored in root collection.");
+    return;
+  }
+
+  const oldStatus = order.status;
+  const oldUpdatedAt = order.updatedAt;
+
+  setIsUpdatingStatus(true);
+
+  try {
+    const newTimestamp = Timestamp.fromDate(new Date());
+
+    setOrder((prev) =>
+      prev ? { ...prev, status: newStatus, updatedAt: newTimestamp } : null
+    );
+
+    const orderRef = isLegacyOrder
+      ? doc(db, "orders", orderId)
+      : doc(db, "users", userId, "orders", orderId);
+
+    await updateDoc(orderRef, {
+      status: newStatus,
+      updatedAt: newTimestamp,
+    });
+  } catch (err) {
+    console.error("Update Status Error:", err);
+    alert(`Failed to update status: ${err.message}`);
+
+    setOrder((prev) =>
+      prev ? { ...prev, status: oldStatus, updatedAt: oldUpdatedAt } : null
+    );
+  } finally {
+    setIsUpdatingStatus(false);
+  }
+};
+
+useEffect(() => {
+  const fetchOrder = async () => {
+    if (!orderId || !db) {
+      setError("Missing Order ID");
+      setLoading(false);
       return;
     }
 
-    const oldStatus = order.status;
-    const oldUpdatedAt = order.updatedAt;
-
-    setIsUpdatingStatus(true);
-
     try {
-      const newTimestamp = Timestamp.fromDate(new Date());
+      setLoading(true);
 
-      // Optimistic UI update
-      setOrder((prev) =>
-        prev ? { ...prev, status: newStatus, updatedAt: newTimestamp } : null
-      );
+      const orderRef = isLegacyOrder
+        ? doc(db, "orders", orderId)
+        : doc(db, "users", userId, "orders", orderId);
 
-      const orderRef = isLegacyOrder 
-            ? doc(db, "orders", orderId) 
-            : doc(db, "users", userId, "orders", orderId);
+      const docSnap = await getDoc(orderRef);
 
-      await updateDoc(orderRef, {
-        status: newStatus,
-        updatedAt: newTimestamp,
-      });
-    } catch (err) {
-      console.error("Update Status Error:", err);
-      alert(`Failed to update status: ${err.message}`);
-
-      // Roll back
-      setOrder((prev) =>
-        prev ? { ...prev, status: oldStatus, updatedAt: oldUpdatedAt } : null
-      );
-    } finally {
-      setIsUpdatingStatus(false);
-    }
-  };
-
-  // ---------------------------------------------------------
-  // FETCH ORDER FROM FIREBASE
-  // ---------------------------------------------------------
-  useEffect(() => {
-    const fetchOrder = async () => {
-      if (!orderId || !db) {
-        setLoading(false);
-        setError("Missing DB instance or Order ID.");
+      if (!docSnap.exists()) {
+        setError(`Order not found: ${orderId}`);
         return;
       }
 
-      setLoading(true);
+      const orderData = docSnap.data();
+      const customerInfo = orderData.customerInfo || {};
 
-      try {
-        const orderRef = isLegacyOrder
-          ? doc(db, "orders", orderId)
-          : doc(db, "users", userId, "orders", orderId);
+      // ✅ normalize items + sellerId
+   const normalizedItems = orderData.items
+  ? Array.isArray(orderData.items)
+    ? orderData.items.map(item => ({
+        ...item,
+        sellerId:
+          item.sellerId ||
+          item.seller ||
+          orderData.primarySellerId ||
+          orderData.sellerId ||
+          "N/A",
+      }))
+    : Object.values(orderData.items).map(item => ({
+      
+        sellerId:
+          item.sellerId ||
+          item.seller ||
+          orderData.primarySellerId ||
+          orderData.sellerId ||
+          "N/A",
+      }))
+  : [];
 
-        const docSnap = await getDoc(orderRef);
-
-        if (!docSnap.exists()) {
-          setError(`Order not found: ${orderId}`);
-          setLoading(false);
-          return;
-        }
-
-        const orderData = docSnap.data();
-        const customerInfo = orderData.customerInfo || {};
-
-        // Build readable address
-        const fullAddress =
+      setOrder({
+        id: docSnap.id,
+        userId,
+        ...orderData,
+        items: normalizedItems,
+        customer: orderData.customer || customerInfo.name || "N/A",
+        email: orderData.email || customerInfo.email || "N/A",
+        phone: orderData.phone || customerInfo.phone || "N/A",
+        address:
           orderData.address ||
           [customerInfo.address, customerInfo.city, customerInfo.pincode]
             .filter(Boolean)
             .join(", ") ||
-          "N/A";
+          "N/A",
+        deliveryCharge: orderData.deliveryCharge || 0,
+        paymentMethod: orderData.paymentMethod || "COD",
+      });
+    } catch (err) {
+      console.error(err);
+      setError("Failed to load order");
+    } finally {
+      setLoading(false);
+    }
+  };
 
-        setOrder({
-          id: docSnap.id,
-          userId,
-          ...orderData,
-          customer: orderData.customer || customerInfo.name || "N/A",
-          email: orderData.email || customerInfo.email || "N/A",
-          phone: orderData.phone || customerInfo.phone || "N/A",
-          address: fullAddress,
-          deliveryCharge: orderData.deliveryCharge || orderData.shippingFee || 0,
-          items: orderData.items || [], // Ensure items array exists
-          paymentMethod: orderData.paymentMethod || 'COD' // Added payment method field default to 'COD'
-        });
-      } catch (err) {
-        console.error("Fetch Order Error:", err);
-        setError(`Could not load order. Check Firebase permissions. Error: ${err.message}`);
-      } finally {
-        setLoading(false);
-      }
-    };
+  fetchOrder();
+}, [orderId, userId, isLegacyOrder]);
 
-    fetchOrder();
-  }, [orderId, userId, isLegacyOrder]);
 // ======================================================================
 // --- 3. PDF GENERATION (FINAL UPDATED VERSION) ---
 // ======================================================================
@@ -659,6 +674,15 @@ return (
               <span className="font-medium">User ID:</span> {order.userId}
             </p>
           )}
+{order?.items?.[0]?.sellerId && (
+  <p className="text-xs text-gray-500 mt-2">
+    <span className="font-medium">Seller ID:</span>{" "}
+    <span className="font-mono">
+      {order.items[0].sellerId}
+    </span>
+  </p>
+)}
+   
         </div>
 
         {/* Order Summary */}
@@ -702,8 +726,10 @@ return (
         <h2 className="text-xl font-semibold text-gray-900 mb-4">
           📦 Items Ordered ({order.items?.length || 0})
         </h2>
+        
 
         <div className="space-y-6">
+          
           {order.items?.map((item, index) => (
             <div key={index} className="flex flex-col md:flex-row gap-4 p-4 bg-gray-50 rounded-lg border">
               {/* Product Image */}
@@ -718,6 +744,7 @@ return (
                         e.target.onerror = null;
                         e.target.src = "https://via.placeholder.com/150x150?text=No+Image";
                       }}
+                      
                     />
                   ) : (
                     <div className="flex flex-col items-center justify-center w-full h-full text-gray-400">
@@ -725,12 +752,19 @@ return (
                       <span className="text-sm">No Image Available</span>
                     </div>
                   )}
+                  
+ 
+
                 </div>
               </div>
 
               {/* Product Details */}
               <div className="md:w-3/4">
+              
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+
+
+
                   <div>
                     <h3 className="text-lg font-semibold text-gray-800 mb-1">
   {item.name || `Item ${index + 1}`}
