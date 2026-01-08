@@ -430,23 +430,37 @@ const handleDownloadInvoice = async () => {
   // -------------------------
   // ITEMS LOOP
   // -------------------------
-  order.items.forEach((item, index) => {
-    const amount = item.amount || (item.price * item.quantity);
+ order.items.forEach((item, index) => {
+  const amount = item.amount || (item.price * item.quantity);
 
-    pdf.text(String(index + 1), colIndexX, y);
-    pdf.text(item.name, colItemX, y);
-    pdf.text(String(item.quantity), colQtyX, y, { align: "center" });
+  const variantDetails = [
+    item.selectedColor && `Color: ${item.selectedColor}`,
+    item.selectedSize && `Size: ${item.selectedSize}`,
+    item.selectedRam && `RAM: ${item.selectedRam}`,
+  ].filter(Boolean).join(" | ");
 
-    pdf.text(cleanNumber(formatAmount(item.price)), colUnitX, y, {
-      align: "right",
-    });
+  const itemText = variantDetails
+    ? `${item.name}\n(${variantDetails})`
+    : item.name;
 
-    pdf.text(cleanNumber(formatAmount(amount)), colAmtX, y, {
-      align: "right",
-    });
+  const wrappedItemText = pdf.splitTextToSize(itemText, 80);
 
-    y += 7;
+  pdf.text(String(index + 1), colIndexX, y);
+  pdf.text(wrappedItemText, colItemX, y);
+  pdf.text(String(item.quantity), colQtyX, y, { align: "center" });
+
+  pdf.text(cleanNumber(formatAmount(item.price)), colUnitX, y, {
+    align: "right",
   });
+
+  pdf.text(cleanNumber(formatAmount(amount)), colAmtX, y, {
+    align: "right",
+  });
+
+  // dynamic row height
+  y += wrappedItemText.length * 5 + 2;
+});
+
 
   y += 5;
   pdf.line(margin, y, rightX, y);
@@ -718,12 +732,16 @@ return (
               <div className="md:w-3/4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <h3 className="text-lg font-semibold text-gray-800 mb-2">
-                      {item.name || `Item ${index + 1}`}
-                    </h3>
-                    <p className="text-sm text-gray-600 mb-1">
-                      <span className="font-medium">Quantity:</span> {item.quantity || 1}
-                    </p>
+                    <h3 className="text-lg font-semibold text-gray-800 mb-1">
+  {item.name || `Item ${index + 1}`}
+</h3>
+
+<p className="text-sm text-gray-600">
+  {item.selectedColor && <>Color: {item.selectedColor} </>}
+  {item.selectedSize && <>| Size: {item.selectedSize} </>}
+  {item.selectedRam && <>| RAM: {item.selectedRam}</>}
+</p>
+
                     {item.category && (
                       <p className="text-sm text-gray-600 mb-1">
                         <span className="font-medium">Category:</span> {item.category}
@@ -735,6 +753,8 @@ return (
                       </p>
                     )}
                   </div>
+  
+
 
                   <div className="text-right">
                     <div className="mb-2">
@@ -759,6 +779,7 @@ return (
                       </div>
                     )}
                   </div>
+                  
                 </div>
                 
                 {/* Item Description (if available) */}
