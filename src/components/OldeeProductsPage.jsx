@@ -712,90 +712,108 @@ imageURLs: uploadedImageURLs,
                 )}
 
                 <form onSubmit={handleSubmit} className="space-y-4">
-                    {/* PRODUCT IMAGES */}
-<div className="space-y-4">
-  <div>
-    <h3 className="text-sm font-semibold text-gray-900">
-      Product Images
-    </h3>
-    <p className="text-xs text-gray-500">
-      Upload or remove product images. First image will be used as thumbnail.
-    </p>
-  </div>
+<div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 gap-3">
 
-  {/* IMAGE GRID */}
-  <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 gap-3">
-    {formData.imageURLs.map((url, index) => (
+  {/* EXISTING IMAGES */}
+  {formData.imageURLs.map((url, index) => (
+    <div
+      key={`existing-${index}`}
+      className="relative group rounded-md overflow-hidden bg-gray-100"
+    >
+      <img
+        src={url}
+        alt={`product-${index}`}
+        className="w-full h-24 object-cover"
+      />
+
+      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition" />
+
+      <button
+        type="button"
+        onClick={() =>
+          setFormData(prev => ({
+            ...prev,
+            imageURLs: prev.imageURLs.filter((_, i) => i !== index),
+          }))
+        }
+        className="absolute top-2 right-2
+                   bg-white/90 text-gray-800
+                   rounded-full w-7 h-7
+                   flex items-center justify-center
+                   opacity-0 group-hover:opacity-100
+                   transition shadow-sm hover:bg-red-500 hover:text-white"
+      >
+        ✕
+      </button>
+
+      {index === 0 && (
+        <span className="absolute bottom-1 left-1 text-[10px]
+                         bg-black/70 text-white px-1.5 py-0.5 rounded">
+          MAIN
+        </span>
+      )}
+    </div>
+  ))}
+
+  {/* NEW IMAGE PREVIEWS */}
+  {newImages.map((file, index) => {
+    const previewUrl = URL.createObjectURL(file);
+
+    return (
       <div
-        key={index}
+        key={`new-${index}`}
         className="relative group rounded-md overflow-hidden bg-gray-100"
       >
         <img
-          src={url}
-          alt={`product-${index}`}
-          className="w-full h-24 object-full"
+          src={previewUrl}
+          alt={`new-${index}`}
+          className="w-full h-24 object-cover"
         />
 
-        {/* Overlay on hover */}
-        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition" />
+        <div className="absolute inset-0 bg-black/30" />
 
-        {/* Remove */}
+        <span className="absolute bottom-1 left-1 text-[10px]
+                         bg-green-600 text-white px-1.5 py-0.5 rounded">
+          NEW
+        </span>
+
         <button
           type="button"
           onClick={() =>
-            setFormData(prev => ({
-              ...prev,
-              imageURLs: prev.imageURLs.filter((_, i) => i !== index),
-            }))
+            setNewImages(prev => prev.filter((_, i) => i !== index))
           }
           className="absolute top-2 right-2
                      bg-white/90 text-gray-800
                      rounded-full w-7 h-7
                      flex items-center justify-center
-                     opacity-0 group-hover:opacity-100
                      transition shadow-sm hover:bg-red-500 hover:text-white"
-          title="Remove image"
         >
           ✕
         </button>
-
-        {/* MAIN IMAGE BADGE */}
-        {index === 0 && (
-          <span className="absolute bottom-1 left-1 text-[10px]
-                           bg-black/70 text-white
-                           px-1.5 py-0.5 rounded">
-            MAIN
-          </span>
-        )}
       </div>
-    ))}
+    );
+  })}
 
-    {/* ADD IMAGE TILE */}
-    <label className="flex flex-col items-center justify-center
-                      h-24 rounded-md
-                      border border-dashed border-gray-300
-                      text-gray-500 cursor-pointer
-                      hover:border-gray-400 hover:bg-gray-50
-                      transition">
-      <span className="text-xl leading-none">＋</span>
-      <span className="text-xs mt-1">Add</span>
+  {/* ADD IMAGE TILE */}
+  <label className="flex flex-col items-center justify-center
+                    h-24 rounded-md
+                    border border-dashed border-gray-300
+                    text-gray-500 cursor-pointer
+                    hover:border-gray-400 hover:bg-gray-50
+                    transition">
+    <span className="text-xl leading-none">＋</span>
+    <span className="text-xs mt-1">Add</span>
 
-      <input
-        type="file"
-        multiple
-        accept="image/*"
-        onChange={(e) => setNewImages([...e.target.files])}
-        className="hidden"
-      />
-    </label>
-  </div>
-
-  {/* FILE INFO */}
-  {newImages.length > 0 && (
-    <p className="text-xs text-gray-600">
-      {newImages.length} image{newImages.length > 1 ? "s" : ""} selected
-    </p>
-  )}
+    <input
+      type="file"
+      multiple
+      accept="image/*"
+      onChange={(e) =>
+        setNewImages(prev => [...prev, ...Array.from(e.target.files)])
+      }
+      className="hidden"
+    />
+  </label>
 </div>
 
 
