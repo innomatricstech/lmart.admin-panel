@@ -14,6 +14,8 @@ import {
     getDocs,
     writeBatch 
 } from "firebase/firestore";
+import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
+
 import { db } from "../../firerbase";
 import { 
     FiUser, 
@@ -43,6 +45,7 @@ import {
     FiSearch,
     FiFilter
 } from "react-icons/fi";
+const storage = getStorage();
 
 // Format Firestore timestamp
 const formatDate = (timestamp) => {
@@ -622,11 +625,15 @@ const CategoryManagementModal = ({ categories, onAddCategory, onEditCategory, on
 
 // --- INLINE EDIT COMPONENT ---
 const InlineEditForm = ({ productData, onSave, onCancel, onSaveSuccess, categories }) => {
-    const [formData, setFormData] = useState({
-        ...productData,
-        price: String(productData.price || 0),
-        offerPrice: String(productData.offerPrice || 0), 
-    });
+   const [formData, setFormData] = useState({
+  ...productData,
+  price: String(productData.price || 0),
+  offerPrice: String(productData.offerPrice || 0),
+  imageURLs: productData.imageURLs || [],
+});
+
+const [newImages, setNewImages] = useState([]);
+
     const [isSaving, setIsSaving] = useState(false);
     const [editError, setEditError] = useState(null);
 
@@ -642,6 +649,21 @@ const InlineEditForm = ({ productData, onSave, onCancel, onSaveSuccess, categori
         e.preventDefault();
         setIsSaving(true);
         setEditError(null);
+        let uploadedImageURLs = [...formData.imageURLs];
+
+if (newImages.length > 0) {
+  for (const file of newImages) {
+    const imageRef = ref(
+      storage,
+      `oldee-products/${formData.id}/${Date.now()}-${file.name}`
+    );
+
+    await uploadBytes(imageRef, file);
+    const downloadURL = await getDownloadURL(imageRef);
+    uploadedImageURLs.push(downloadURL);
+  }
+}
+
 
         if (!formData.name || !formData.price) {
             setEditError("Product Name and Price are required.");
@@ -652,12 +674,13 @@ const InlineEditForm = ({ productData, onSave, onCancel, onSaveSuccess, categori
         try {
             const productRef = doc(db, "oldee", formData.id);
             
-            const updatedData = {
-                ...formData,
-                price: Number(formData.price),
-                offerPrice: Number(formData.offerPrice || 0),
-                updatedAt: new Date(),
-            };
+           const updatedData = {
+  ...formData,
+  price: Number(formData.price),
+  offerPrice: Number(formData.offerPrice || 0),
+imageURLs: uploadedImageURLs,
+  updatedAt: new Date(),
+};
 
             await updateDoc(productRef, updatedData);
             
@@ -689,7 +712,93 @@ const InlineEditForm = ({ productData, onSave, onCancel, onSaveSuccess, categori
                 )}
 
                 <form onSubmit={handleSubmit} className="space-y-4">
-                    
+                    {/* PRODUCT IMAGES */}
+<div className="space-y-4">
+  <div>
+    <h3 className="text-sm font-semibold text-gray-900">
+      Product Images
+    </h3>
+    <p className="text-xs text-gray-500">
+      Upload or remove product images. First image will be used as thumbnail.
+    </p>
+  </div>
+
+  {/* IMAGE GRID */}
+  <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 gap-3">
+    {formData.imageURLs.map((url, index) => (
+      <div
+        key={index}
+        className="relative group rounded-md overflow-hidden bg-gray-100"
+      >
+        <img
+          src={url}
+          alt={`product-${index}`}
+          className="w-full h-24 object-full"
+        />
+
+        {/* Overlay on hover */}
+        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition" />
+
+        {/* Remove */}
+        <button
+          type="button"
+          onClick={() =>
+            setFormData(prev => ({
+              ...prev,
+              imageURLs: prev.imageURLs.filter((_, i) => i !== index),
+            }))
+          }
+          className="absolute top-2 right-2
+                     bg-white/90 text-gray-800
+                     rounded-full w-7 h-7
+                     flex items-center justify-center
+                     opacity-0 group-hover:opacity-100
+                     transition shadow-sm hover:bg-red-500 hover:text-white"
+          title="Remove image"
+        >
+          ✕
+        </button>
+
+        {/* MAIN IMAGE BADGE */}
+        {index === 0 && (
+          <span className="absolute bottom-1 left-1 text-[10px]
+                           bg-black/70 text-white
+                           px-1.5 py-0.5 rounded">
+            MAIN
+          </span>
+        )}
+      </div>
+    ))}
+
+    {/* ADD IMAGE TILE */}
+    <label className="flex flex-col items-center justify-center
+                      h-24 rounded-md
+                      border border-dashed border-gray-300
+                      text-gray-500 cursor-pointer
+                      hover:border-gray-400 hover:bg-gray-50
+                      transition">
+      <span className="text-xl leading-none">＋</span>
+      <span className="text-xs mt-1">Add</span>
+
+      <input
+        type="file"
+        multiple
+        accept="image/*"
+        onChange={(e) => setNewImages([...e.target.files])}
+        className="hidden"
+      />
+    </label>
+  </div>
+
+  {/* FILE INFO */}
+  {newImages.length > 0 && (
+    <p className="text-xs text-gray-600">
+      {newImages.length} image{newImages.length > 1 ? "s" : ""} selected
+    </p>
+  )}
+</div>
+
+
                     <div className="grid grid-cols-5 gap-4">
                         <div className="col-span-1">
                             <label htmlFor="name" className="block text-sm font-medium text-gray-700">Product Name</label>
@@ -699,6 +808,7 @@ const InlineEditForm = ({ productData, onSave, onCancel, onSaveSuccess, categori
                             <label htmlFor="price" className="block text-sm font-medium text-gray-700">Original Price (₹)</label>
                             <input type="number" name="price" id="price" value={formData.price} onChange={handleChange} required className="mt-1 p-2 block w-full border border-gray-300 rounded-md" />
                         </div>
+                        
                         <div className="col-span-1">
                             <label htmlFor="offerPrice" className="block text-sm font-medium text-gray-700">Offer Price (₹)</label>
                             <input type="number" name="offerPrice" id="offerPrice" value={formData.offerPrice} onChange={handleChange} className="mt-1 p-2 block w-full border border-gray-300 rounded-md" placeholder="e.g., 16500" />
