@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { db } from "../firerbase";
+import {db} from  "../firerbase"
 import { collection, getDocs, updateDoc, doc, query, orderBy } from "firebase/firestore";
 import {
   FiStar,
@@ -89,57 +89,40 @@ export default function TrendingProducts() {
   const [sortBy, setSortBy] = useState("name");
 
   // Fetch products
-  const fetchProducts = useCallback(async () => {
-    setLoading(true);
-    setError(null);
+ const fetchProducts = useCallback(async () => {
+  setLoading(true);
+  setError(null);
 
-    try {
-      const productsRef = collection(db, "products");
-      // NOTE: orderBy will need indexes on Firestore for "price" / "trending"
-      const q = query(productsRef, orderBy(sortBy));
-      const querySnapshot = await getDocs(q);
+  try {
+    const productsRef = collection(db, "products");
+    const querySnapshot = await getDocs(productsRef);
 
-      const data = querySnapshot.docs.map((docSnap) => {
-        const raw = docSnap.data() || {};
+    const data = querySnapshot.docs.map((docSnap) => {
+      const raw = docSnap.data() || {};
+      const summary = getVariantSummary(raw.variants || []);
 
-        // Pull data from variants first
-        const summary = getVariantSummary(raw.variants || []);
+      return {
+        id: docSnap.id,
+        name: raw.name || "Unnamed Product",
+        brand: raw.brand || "No Brand",
+        price: summary.price || Number(raw.price || 0),
+        stock: summary.stock || Number(raw.stock || 0),
+        category: raw.category || "Uncategorized",
+        trending: Boolean(raw.trending),
+        mainImageUrl: raw.mainImageUrl || "",
+        ...raw,
+      };
+    });
 
-        const fallbackPrice = Number(raw.price ?? raw.amount ?? 0);
-        const fallbackStock = Number(raw.stock ?? raw.quantity ?? 0);
+    setProducts(data);
+  } catch (err) {
+    console.error("Error fetching products:", err);
+    setError(err.message); // <-- show real error
+  } finally {
+    setLoading(false);
+  }
+}, []);
 
-        return {
-          id: docSnap.id,
-          name: raw.name || "Unnamed Product",
-          brand: raw.brand || "No Brand",
-
-          // final price & stock
-          price: summary.price || fallbackPrice || 0,
-          stock: summary.stock || fallbackStock || 0,
-
-          category:
-            typeof raw.category === "object"
-              ? raw.category.name
-              : raw.category || "Uncategorized",
-
-          trending: Boolean(raw.trending),
-          mainImageUrl: raw.mainImageUrl || "",
-          description: raw.description || "",
-          variants: raw.variants || [],
-
-          ...raw,
-        };
-      });
-
-      setProducts(data);
-    } catch (err) {
-      console.error("Error fetching products:", err);
-      setError("Failed to load products. Please try again.");
-      setProducts([]);
-    } finally {
-      setLoading(false);
-    }
-  }, [sortBy]);
 
   useEffect(() => {
     fetchProducts();
