@@ -8,7 +8,8 @@ import ProfilePage from "./components/ProfilePage.jsx";
 import Dashboard from "./components/Dashboard.jsx";
 
 // Customers
-import CustomerDirectory from "./components/Customer.jsx";
+import CustomerDirectory from "./components/Customers/Customer.jsx";
+import DeletedCustomers from "./components/Customers/DeletedCustomers.jsx";
 
 import OldeeProductsPage from "./components/OldeeProductsPage.jsx";
 
@@ -174,6 +175,8 @@ export default function App() {
 
                     {/* Customers */}
                     <Route path="customers" element={<CustomerDirectory />} />
+                    <Route path="customers/deleted" element={<DeletedCustomers />} />
+
 
                     {/* Orders */}
                     <Route path="orders" element={<Navigate to="all" replace />} />

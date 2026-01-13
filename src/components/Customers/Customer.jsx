@@ -19,16 +19,18 @@ import {
 
 
 // --- Firebase/Firestore Imports ---
-import { db } from "../../firerbase"; 
+import { db } from "../../../firerbase"; 
 import { 
-    collection, 
-    onSnapshot,
-    orderBy,
-    query,
-    doc,  
-    deleteDoc ,      
-    updateDoc   
+  collection, 
+  onSnapshot,
+  orderBy,
+  query,
+  doc,
+  setDoc,          // ✅ ADD THIS
+  deleteDoc,      
+  updateDoc   
 } from "firebase/firestore";
+
 
 // Define the columns without fixed widths, using flexible widths where possible (e.g., Email is wider)
 const COLUMNS = [
@@ -92,23 +94,36 @@ const [selectedCustomerId, setSelectedCustomerId] = useState(null);
         }
     }, []);
 const deleteCustomer = async () => {
-    if (!selectedCustomerId) return;
+  if (!selectedCustomerId) return;
 
-    setDeleteInProgress(selectedCustomerId);
-    setError(null);
+  setDeleteInProgress(selectedCustomerId);
+  setError(null);
 
-    try {
-        const customerRef = doc(db, "users", selectedCustomerId);
-        await deleteDoc(customerRef);
-        setShowDeleteModal(false);
-        setSelectedCustomerId(null);
-    } catch (err) {
-        console.error("Error deleting customer:", err);
-        setError(`Failed to delete customer: ${err.message}`);
-    } finally {
-        setDeleteInProgress(null);
-    }
+  try {
+    const customer = customers.find(c => c.id === selectedCustomerId);
+    if (!customer) throw new Error("Customer not found");
+
+    // Save to deletedCustomers
+    await setDoc(doc(db, "deletedCustomers", selectedCustomerId), {
+      ...customer,
+      originalId: selectedCustomerId,
+      deletedAt: new Date(),
+      deletedBy: "admin"
+    });
+
+    // Remove from users
+    await deleteDoc(doc(db, "users", selectedCustomerId));
+
+    setShowDeleteModal(false);
+    setSelectedCustomerId(null);
+  } catch (err) {
+    console.error(err);
+    setError("Failed to archive customer");
+  } finally {
+    setDeleteInProgress(null);
+  }
 };
+
 
 
     // 2. FIREBASE BLOCK STATUS TOGGLE FUNCTION

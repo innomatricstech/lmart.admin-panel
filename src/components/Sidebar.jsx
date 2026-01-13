@@ -23,8 +23,11 @@ import {
   FiRss,
   FiUser,
   FiStar,   // ADDED for Trending
-  FiZap     // ✅ FIXED (this was missing)
+  FiZap ,
+  FiTrash2     // ✅ FIXED (this was missing)
 } from "react-icons/fi";
+
+
 
 const PRIMARY_RED = "bg-gradient-to-r from-red-600 to-red-700";
 const HOVER_RED = "hover:from-red-700 hover:to-red-800";
@@ -98,7 +101,18 @@ export default function Sidebar({ onCloseSidebar, onLogout }) {
   // All Navigation Items
   const navigationItems = [
     { text: "Overview", icon: FiBarChart2, key: "Overview", path: "/" },
-    { text: "Customers", icon: FiUsers, key: "Customers", path: "/customers" },
+ {
+  text: "Customers",
+  icon: FiUsers,
+  key: "Customers",
+  path: "/customers",
+  hasDropdown: true,
+  dropdownContent: [
+    { text: "All Customers", path: "/customers" },
+    { text: "Deleted Customers", path: "/customers/deleted" },
+  ]
+}
+,
 
  
 
