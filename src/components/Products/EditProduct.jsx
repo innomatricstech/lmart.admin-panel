@@ -1115,7 +1115,7 @@ const galleryUploadPromises = newGalleryImages.map(async (imageObj, index) => {
                         <img
                           src={mainImageFile?.url || productData.existingMainImage?.url}
                           alt="Main product"
-                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                          className="w-full h-full object-contain group-hover:scale-105 transition-transform duration-300"
                         />
                         
                         <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
@@ -1334,7 +1334,7 @@ const galleryUploadPromises = newGalleryImages.map(async (imageObj, index) => {
                             <img
                               src={image.url}
                               alt={image.name}
-                              className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
+                              className="w-full h-full object-contain group-hover:scale-110 transition-transform duration-300"
                               onError={(e) => {
                                 e.target.src = `https://via.placeholder.com/300/FF0000/FFFFFF?text=Image+Error`;
                               }}

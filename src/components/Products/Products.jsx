@@ -8,6 +8,7 @@ import {
     orderBy,
     onSnapshot,
     deleteDoc,
+    updateDoc 
 } from "firebase/firestore";
 
 // Icon imports
@@ -241,6 +242,20 @@ const Products = () => {
     const [error, setError] = useState(null);
     const [searchTerm, setSearchTerm] = useState('');
     
+    
+const handleToggleTrending = async (product) => {
+  try {
+    await updateDoc(doc(db, "products", product.id), {
+  trending: !product.trending
+});
+
+  } catch (error) {
+    console.error("Failed to update trending status", error);
+    alert("Failed to update trending status");
+  }
+};
+
+
     // 🚨 NEW STATE: To control the success message modal
     const [showSuccessModal, setShowSuccessModal] = useState(false); 
 
@@ -321,6 +336,11 @@ const Products = () => {
     const filteredProducts = productsWithNames.filter(product =>
         product.name && product.name.toLowerCase().includes(searchTerm.toLowerCase())
     );
+
+   const trendingProducts = productsWithNames.filter(
+  (product) => product.trending === true
+);
+
 
     const formatVariants = (variants) => {
         if (!variants || variants.length === 0) {
@@ -517,9 +537,12 @@ const Products = () => {
                             </span>
                         </div>
                     </div>
+   
+
 
                     {/* Products List */}
                     <div className="overflow-x-auto">
+                    
                         <table className="min-w-full divide-y divide-gray-200">
                             <thead className="bg-gray-50">
                                 <tr>
@@ -552,11 +575,22 @@ const Products = () => {
                                                 </div>
                                                 
                                                 <div className="flex-1 min-w-0">
-                                                    <div className="font-semibold text-gray-900 text-lg hover:text-indigo-600 cursor-pointer transition-colors"
-                                                         onClick={() => handleViewProduct(product.id)}
-                                                    >
-                                                        {product.name || 'Untitled Product'}
-                                                    </div>
+                                                    <div className="flex items-center gap-2">
+  <span
+    className="font-semibold text-gray-900 text-lg hover:text-indigo-600 cursor-pointer"
+    onClick={() => handleViewProduct(product.id)}
+  >
+    {product.name || 'Untitled Product'}
+  </span>
+
+  {product.trending && (
+  <span className="px-2 py-0.5 text-xs font-bold text-orange-700 bg-orange-100 rounded-full">
+    🔥 Trending
+  </span>
+)}
+
+</div>
+
                                                     <div className="text-sm text-gray-500 truncate max-w-xs">
                                                         {product.description || "No description available"}
                                                     </div>
@@ -655,6 +689,22 @@ const Products = () => {
                                                     <TrashIcon className="h-4 w-4" />
                                                     <span>Delete</span>
                                                 </button>
+                                 <button
+  onClick={() => handleToggleTrending(product)}
+  className={`flex items-center space-x-1 px-3 py-2 rounded-lg transition-colors duration-200 font-medium text-sm
+    ${
+      product.trending
+        ? "bg-orange-100 text-orange-700 hover:bg-orange-200"
+        : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+    }
+  `}
+  title="Toggle Trending"
+>
+  <span>🔥</span>
+  <span>{product.trending ? "Trending" : "Mark Trending"}</span>
+</button>
+
+
                                             </div>
                                         </td>
                                     </tr>
