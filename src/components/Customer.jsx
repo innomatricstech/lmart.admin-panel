@@ -22,7 +22,8 @@ import {
     onSnapshot,
     orderBy,
     query,
-    doc,        
+    doc,  
+    deleteDoc ,      
     updateDoc   
 } from "firebase/firestore";
 
@@ -41,6 +42,8 @@ const COLUMNS = [
 const CustomerDirectory = () => {
     
     // Internal States for Data and UI Management
+    const [deleteInProgress, setDeleteInProgress] = useState(null);
+
     const [customers, setCustomers] = useState([]);
     const [searchTerm, setSearchTerm] = useState("");
     const [loading, setLoading] = useState(true); 
@@ -48,6 +51,9 @@ const CustomerDirectory = () => {
     const [sortField, setSortField] = useState("customerId");
     const [sortDirection, setSortDirection] = useState("desc");
     const [updateInProgress, setUpdateInProgress] = useState(null); 
+    const [showDeleteModal, setShowDeleteModal] = useState(false);
+const [selectedCustomerId, setSelectedCustomerId] = useState(null);
+
 
     // 1. FIREBASE DATA FETCHING (Real-time listener)
     useEffect(() => {
@@ -82,6 +88,25 @@ const CustomerDirectory = () => {
             setLoading(false);
         }
     }, []);
+const deleteCustomer = async () => {
+    if (!selectedCustomerId) return;
+
+    setDeleteInProgress(selectedCustomerId);
+    setError(null);
+
+    try {
+        const customerRef = doc(db, "users", selectedCustomerId);
+        await deleteDoc(customerRef);
+        setShowDeleteModal(false);
+        setSelectedCustomerId(null);
+    } catch (err) {
+        console.error("Error deleting customer:", err);
+        setError(`Failed to delete customer: ${err.message}`);
+    } finally {
+        setDeleteInProgress(null);
+    }
+};
+
 
     // 2. FIREBASE BLOCK STATUS TOGGLE FUNCTION
     const toggleBlockStatus = async (customerId, currentStatus) => {
@@ -311,29 +336,80 @@ const CustomerDirectory = () => {
                                         </td>
                                         
                                         {/* Action Button (w-[10%]) */}
-                                        <td className="p-4 text-center">
-                                            <button
-                                                onClick={() => toggleBlockStatus(customer.id, customer.isBlocked)}
-                                                disabled={updateInProgress === customer.id}
-                                                className={`w-full px-1 py-1.5 text-xs rounded-lg text-white font-medium transition-colors flex items-center justify-center gap-1 ${
-                                                    customer.isBlocked 
-                                                        ? 'bg-blue-500 hover:bg-blue-600' 
-                                                        : 'bg-red-500 hover:bg-red-600'
-                                                } ${updateInProgress === customer.id ? 'opacity-60 cursor-not-allowed' : ''}`}
-                                            >
-                                                {updateInProgress === customer.id ? (
-                                                    <Loader className="w-3 h-3 animate-spin" />
-                                                ) : (
-                                                    customer.isBlocked ? 'Unblock' : 'Block'
-                                                )}
-                                            </button>
-                                        </td>
+                                       <td className="p-4 text-center space-y-2">
+    {/* Block / Unblock */}
+    <button
+        onClick={() => toggleBlockStatus(customer.id, customer.isBlocked)}
+        disabled={updateInProgress === customer.id}
+        className={`w-full px-1 py-1.5 text-xs rounded-lg text-white font-medium transition-colors flex items-center justify-center gap-1 ${
+            customer.isBlocked 
+                ? 'bg-blue-500 hover:bg-blue-600' 
+                : 'bg-red-500 hover:bg-red-600'
+        } ${updateInProgress === customer.id ? 'opacity-60 cursor-not-allowed' : ''}`}
+    >
+        {updateInProgress === customer.id ? (
+            <Loader className="w-3 h-3 animate-spin" />
+        ) : (
+            customer.isBlocked ? 'Unblock' : 'Block'
+        )}
+    </button>
+
+    {/* Delete */}
+    <button
+    onClick={() => {
+        setSelectedCustomerId(customer.id);
+        setShowDeleteModal(true);
+    }}
+    className="w-full px-1 py-1.5 text-xs rounded-lg text-white font-medium transition-colors flex items-center justify-center gap-1 bg-gray-800 hover:bg-black"
+>
+    Delete
+</button>
+
+</td>
+
+                                        
                                     </tr>
                                 ))}
                             </tbody>
                         </table>
                     )}
                 </div>
+                {showDeleteModal && (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+        <div className="bg-white rounded-xl shadow-xl w-full max-w-sm p-6">
+            <h2 className="text-lg font-bold text-gray-900 mb-2">
+                Delete Customer
+            </h2>
+            <p className="text-sm text-gray-600 mb-6">
+                This action cannot be undone. Do you want to continue?
+            </p>
+
+            <div className="flex justify-end gap-3">
+                <button
+                    onClick={() => {
+                        setShowDeleteModal(false);
+                        setSelectedCustomerId(null);
+                    }}
+                    className="px-4 py-2 text-sm rounded-lg border border-gray-300 hover:bg-gray-100"
+                >
+                    Cancel
+                </button>
+
+                <button
+                    onClick={deleteCustomer}
+                    disabled={deleteInProgress === selectedCustomerId}
+                    className="px-4 py-2 text-sm rounded-lg bg-red-600 text-white hover:bg-red-700 flex items-center gap-2"
+                >
+                    {deleteInProgress === selectedCustomerId && (
+                        <Loader className="w-4 h-4 animate-spin" />
+                    )}
+                    Delete
+                </button>
+            </div>
+        </div>
+    </div>
+)}
+
             </div>
         </div>
     );
