@@ -149,35 +149,29 @@ export default function TrendingProducts() {
   const nonTrendingProducts = totalProducts - trendingProducts;
 
   // Filter
-  const filteredProducts = products.filter((p) => {
-    if (!p) return false;
+ const filteredProducts = products.filter((p) => {
+  if (!p || !p.trending) return false; // 🔥 ONLY TRENDING
 
-    const searchTerm = search.toLowerCase();
-    const productName = (p.name || "").toLowerCase();
-    const productBrand = (p.brand || "").toLowerCase();
+  const searchTerm = search.toLowerCase();
+  const productName = (p.name || "").toLowerCase();
+  const productBrand = (p.brand || "").toLowerCase();
 
-    const productCategory = (
-      typeof p.category === "object" && p.category?.name
-        ? p.category.name
-        : typeof p.category === "string"
-        ? p.category
-        : ""
-    ).toLowerCase();
+  const productCategory = (
+    typeof p.category === "object" && p.category?.name
+      ? p.category.name
+      : typeof p.category === "string"
+      ? p.category
+      : ""
+  ).toLowerCase();
 
-    const matchesSearch =
-      productName.includes(searchTerm) ||
-      productBrand.includes(searchTerm) ||
-      productCategory.includes(searchTerm);
+  return (
+    productName.includes(searchTerm) ||
+    productBrand.includes(searchTerm) ||
+    productCategory.includes(searchTerm)
+  );
+});
 
-    const matchesFilter =
-      filterTrending === "all"
-        ? true
-        : filterTrending === "trending"
-        ? p.trending
-        : !p.trending;
-
-    return matchesSearch && matchesFilter;
-  });
+    
 
   // Sort
   const sortedProducts = [...filteredProducts].sort((a, b) => {
@@ -237,16 +231,7 @@ export default function TrendingProducts() {
             </div>
 
             <div className="flex items-center space-x-3 mt-4 md:mt-0">
-              <select
-                value={sortBy}
-                onChange={(e) => setSortBy(e.target.value)}
-                className="px-4 py-2 border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              >
-                <option value="name">Sort by Name</option>
-                <option value="price">Sort by Price</option>
-                <option value="trending">Sort by Trending</option>
-              </select>
-
+              
               <button
                 onClick={fetchProducts}
                 className="px-4 py-2 bg-white border border-gray-300 rounded-xl text-gray-700 hover:bg-gray-50 transition-colors duration-200 flex items-center"
@@ -296,17 +281,7 @@ export default function TrendingProducts() {
               )}
             </div>
 
-            <div className="bg-white rounded-2xl p-6 shadow-lg border border-gray-100">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-gray-500 text-sm font-medium">Regular Products</p>
-                  <p className="text-3xl font-bold text-gray-700 mt-2">{nonTrendingProducts}</p>
-                </div>
-                <div className="w-12 h-12 bg-gray-100 rounded-xl flex items-center justify-center">
-                  <FiGrid className="w-6 h-6 text-gray-600" />
-                </div>
-              </div>
-            </div>
+            
           </div>
 
           {/* CONTROLS */}
@@ -582,20 +557,7 @@ export default function TrendingProducts() {
             </>
           )}
 
-          {/* FOOTER TIP */}
-          <div className="mt-8 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-2xl p-6 border border-blue-100">
-            <div className="flex items-center">
-              <FiStar className="w-6 h-6 text-yellow-500 mr-3" />
-              <div>
-                <h4 className="font-semibold text-gray-900">Pro Tip</h4>
-                <p className="text-gray-600 text-sm">
-                  Products marked as &quot;Trending&quot; will appear prominently on your
-                  store&apos;s homepage. Consider rotating trending products regularly to
-                  keep your store fresh.
-                </p>
-              </div>
-            </div>
-          </div>
+          
         </div>
       </div>
     </div>
