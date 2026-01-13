@@ -1090,7 +1090,7 @@ const galleryUploadPromises = newGalleryImages.map(async (imageObj, index) => {
                     <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full">Required</span>
                   </div>
                   
-                  <div className="h-64">
+                  <div className="h-30">
                     {!mainImageFile && !productData.existingMainImage ? (
                       <label 
                         htmlFor="mainImageFile"
@@ -1133,10 +1133,11 @@ const galleryUploadPromises = newGalleryImages.map(async (imageObj, index) => {
                         <div className="absolute bottom-4 left-4 right-4 flex space-x-2">
                           <label 
                             htmlFor="mainImageFile" 
-                            className="flex-1 bg-white/90 backdrop-blur-sm text-gray-800 p-3 rounded-xl hover:bg-white transition-colors cursor-pointer flex items-center justify-center space-x-2 shadow-lg"
+                            className="absolute bottom-2 left-2 bg-blue-600 text-white p-2 rounded-lg shadow-lg hover:bg-blue-700 transition-colors z-20 cursor-pointer flex items-center space-x-1"
+                                                title="Replace Image"
                           >
                             <FiUpload className="w-4 h-4" />
-                            <span className="font-medium">Replace</span>
+                            <span className="text-xs font-medium hidden sm:inline">Replace</span>
                             <input 
                               type="file"
                               id="mainImageFile"
@@ -1157,255 +1158,216 @@ const galleryUploadPromises = newGalleryImages.map(async (imageObj, index) => {
                 </div>
 
                 {/* Video */}
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <label className="block text-sm font-semibold text-gray-700">
-                      Product Video
-                    </label>
-                    <span className="text-xs bg-gray-100 text-gray-800 px-2 py-1 rounded-full">Optional</span>
-                  </div>
-                  
-                  <div className="h-64">
-                    {!videoFile && !productData.existingVideo ? (
-                      <label 
-                        htmlFor="videoFile"
-                        className="h-full border-3 border-dashed border-purple-300 rounded-2xl p-6 text-center hover:border-purple-500 transition-all duration-300 bg-gradient-to-br from-purple-50 to-white flex flex-col justify-center items-center cursor-pointer group"
-                      >
-                        <div className="w-16 h-16 bg-gradient-to-r from-purple-500 to-pink-600 rounded-full flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-                          <FiVideo className="w-8 h-8 text-white" />
-                        </div>
-                        <span className="text-lg font-semibold text-gray-700 mb-2">Upload Video</span>
-                        <p className="text-gray-500 text-sm max-w-xs">Show your product in action (MP4, MOV)</p>
-                        <input 
-                          type="file"
-                          id="videoFile"
-                          accept="video/*"
-                          onChange={handleVideoChange}
-                          className="hidden"
-                          disabled={isFormDisabled}
-                        />
-                      </label>
-                    ) : (
-                      <div className="relative h-full bg-gradient-to-br from-gray-900 to-gray-800 rounded-2xl overflow-hidden shadow-xl group">
-                        <div className="absolute inset-0 flex items-center justify-center">
-                          <div className="text-center">
-                            <FiVideo className="w-12 h-12 text-white/80 mx-auto mb-4" />
-                            <p className="text-white font-semibold">
-                              {videoFile?.name || 'Existing Video'}
-                            </p>
-                            <p className="text-white/60 text-sm mt-1">Video Ready</p>
-                          </div>
-                        </div>
-                        
-                        <button
-                          type="button"
-                          onClick={removeVideo}
-                          className="absolute top-4 right-4 bg-red-500 text-white w-8 h-8 rounded-full flex items-center justify-center shadow-lg hover:bg-red-600 transition-colors transform hover:scale-110"
-                          disabled={isFormDisabled}
-                          title="Remove Video"
-                        >
-                          <FiX className="w-4 h-4" />
-                        </button>
-                        
-                        <div className="absolute bottom-4 left-4 right-4">
-                          <label 
-                            htmlFor="videoFile" 
-                            className="block bg-white/90 backdrop-blur-sm text-gray-800 p-3 rounded-xl hover:bg-white transition-colors cursor-pointer text-center font-medium shadow-lg"
-                          >
-                            Replace Video
-                            <input 
-                              type="file"
-                              id="videoFile"
-                              accept="video/*"
-                              onChange={handleVideoChange}
-                              className="hidden"
-                              disabled={isFormDisabled}
-                            />
-                          </label>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </div>
+                {/* Product Video (SAME UI AS ADD PRODUCT) */}
+<div className="space-y-4">
+  <div className="flex items-center justify-between">
+    <label className="block text-sm font-semibold text-gray-700">
+      Product Video
+    </label>
+    <span className="text-xs bg-gray-100 text-gray-800 px-2 py-1 rounded-full">
+      Optional
+    </span>
+  </div>
+
+  <div className="h-30">
+    {!videoFile && !productData.existingVideo ? (
+      /* Upload Video */
+      <label
+        htmlFor="videoFile"
+        className="h-full border-2 border-dashed border-violet-300 rounded-xl p-4 text-center hover:border-violet-500 transition-colors duration-200 bg-white flex flex-col justify-center cursor-pointer"
+      >
+        <FiVideo className="w-6 h-6 text-violet-400 mx-auto mb-2" />
+        <span className="text-md font-medium text-gray-700 block mb-1">
+          Upload Product Video
+        </span>
+        <p className="text-gray-500 text-xs">(Max 1 file)</p>
+
+        <input
+          type="file"
+          id="videoFile"
+          accept="video/*"
+          onChange={handleVideoChange}
+          className="hidden"
+          disabled={isFormDisabled}
+        />
+      </label>
+    ) : (
+      /* Video Preview */
+      <div className="p-3 border-4 border-violet-500 rounded-xl bg-white flex flex-col h-full shadow-lg justify-center relative">
+        <FiVideo className="w-6 h-6 text-violet-600 mx-auto mb-1" />
+
+        <p
+          className="font-semibold text-gray-800 truncate text-center text-sm"
+          title={videoFile?.name || productData.existingVideo?.name}
+        >
+          {videoFile?.name || productData.existingVideo?.name || 'Video Ready'}
+        </p>
+
+        <p className="text-xs text-gray-500 text-center">Video Ready</p>
+
+        {/* Remove */}
+        <button
+          type="button"
+          onClick={removeVideo}
+          className="absolute top-2 right-2 bg-red-500 text-white w-6 h-6 rounded-full flex items-center justify-center shadow-md hover:bg-red-600 transition-colors z-20"
+          disabled={isFormDisabled}
+          title="Remove Video"
+        >
+          <FiX className="w-3 h-3" />
+        </button>
+
+        {/* Replace */}
+        <label
+          htmlFor="videoFile"
+          className="absolute bottom-2 left-2 bg-blue-600 text-white p-2 rounded-lg shadow-lg hover:bg-blue-700 transition-colors z-20 cursor-pointer flex items-center space-x-1"
+          title="Replace Video"
+        >
+          <FiUpload className="w-4 h-4" />
+          <span className="text-xs font-medium hidden sm:inline">
+            Replace
+          </span>
+
+          <input
+            type="file"
+            id="videoFile"
+            accept="video/*"
+            onChange={handleVideoChange}
+            className="hidden"
+            disabled={isFormDisabled}
+          />
+        </label>
+      </div>
+    )}
+  </div>
+</div>
+
               </div>
 
-              {/* Gallery Images - Bulk Upload */}
-              <div className="space-y-4 mt-8">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h4 className="text-lg font-bold text-gray-900">Gallery Images</h4>
-                    <p className="text-gray-600 text-sm">Upload multiple images for product gallery</p>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <span className="text-sm font-medium text-gray-700">
-                      {galleryFiles.length} images
-                    </span>
-                    <span className="px-3 py-1 bg-gradient-to-r from-green-100 to-emerald-100 text-green-800 rounded-full text-xs font-bold">
-                      Bulk Upload
-                    </span>
-                  </div>
-                </div>
-                
-                {/* Gallery Upload Area */}
-                <div className="relative">
-                  <label 
-                    htmlFor="galleryImages" 
-                    className="block border-3 border-dashed border-emerald-300 rounded-2xl p-8 text-center hover:border-emerald-500 transition-all duration-300 bg-gradient-to-br from-emerald-50 to-white cursor-pointer group"
-                  >
-                    <div className="max-w-md mx-auto">
-                      <div className="w-20 h-20 bg-gradient-to-r from-emerald-500 to-teal-600 rounded-2xl flex items-center justify-center mb-6 mx-auto group-hover:scale-110 transition-transform">
-                        <FiGrid className="w-10 h-10 text-white" />
-                      </div>
-                      <h5 className="text-xl font-bold text-gray-900 mb-2">Bulk Upload Gallery Images</h5>
-                      <p className="text-gray-600 mb-4">
-                        Select multiple images at once (JPG, PNG, WebP)
-                      </p>
-                      <div className="flex items-center justify-center space-x-4 text-sm text-gray-500">
-                        <span className="flex items-center">
-                          <FiCheck className="w-4 h-4 mr-1 text-emerald-500" />
-                          Multiple selection
-                        </span>
-                        <span className="flex items-center">
-                          <FiCheck className="w-4 h-4 mr-1 text-emerald-500" />
-                          Drag & drop
-                        </span>
-                        <span className="flex items-center">
-                          <FiCheck className="w-4 h-4 mr-1 text-emerald-500" />
-                          Auto-upload
-                        </span>
-                      </div>
-                    </div>
-                    <input 
-                      type="file"
-                      id="galleryImages"
-                      multiple
-                      accept="image/*"
-                      onChange={handleGalleryImageChange}
-                      className="hidden"
-                      disabled={isFormDisabled || uploadingImages}
-                    />
-                  </label>
-                  
-                  {uploadingImages && (
-                    <div className="absolute inset-0 bg-white/90 backdrop-blur-sm rounded-2xl flex items-center justify-center">
-                      <div className="text-center">
-                        <FiRefreshCw className="w-12 h-12 text-emerald-600 animate-spin mx-auto mb-4" />
-                        <p className="font-semibold text-gray-700">Uploading {galleryFiles.length} images...</p>
-                        <p className="text-sm text-gray-600 mt-1">Please don't close the page</p>
-                      </div>
-                    </div>
-                  )}
-                </div>
+              {/* --- GALLERY IMAGE UPLOAD & PREVIEWS (SAME AS ADD PRODUCT PAGE) --- */}
+<div className="space-y-6 border p-6 rounded-xl bg-pink-50 border-pink-200">
 
-                {/* Gallery Previews */}
-                {galleryFiles.length > 0 && (
-                  <div className="mt-6">
-                    <div className="flex items-center justify-between mb-4">
-                      <h6 className="font-semibold text-gray-700">
-                        Image Previews ({galleryFiles.length})
-                      </h6>
-                      <label 
-                        htmlFor="galleryImages" 
-                        className="text-emerald-600 hover:text-emerald-800 font-medium text-sm flex items-center space-x-1 cursor-pointer"
-                      >
-                        <FiPlus className="w-4 h-4" />
-                        <span>Add More Images</span>
-                        <input 
-                          type="file"
-                          id="galleryImages"
-                          multiple
-                          accept="image/*"
-                          onChange={handleGalleryImageChange}
-                          className="hidden"
-                          disabled={isFormDisabled || uploadingImages}
-                        />
-                      </label>
-                    </div>
-                    
-                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
-                      {galleryFiles.map((image) => (
-                        <div 
-                          key={image.id} 
-                          className={`relative rounded-xl overflow-hidden shadow-lg group border-2 ${
-                            image.color ? 'border-emerald-500' : 'border-gray-300'
-                          } ${image.isExisting ? 'border-dashed' : ''}`}
-                        >
-                          <div className="aspect-square bg-gray-100">
-                            <img
-                              src={image.url}
-                              alt={image.name}
-                              className="w-full h-full object-contain group-hover:scale-110 transition-transform duration-300"
-                              onError={(e) => {
-                                e.target.src = `https://via.placeholder.com/300/FF0000/FFFFFF?text=Image+Error`;
-                              }}
-                            />
-                          </div>
-                          
-                          {image.isExisting && (
-                            <span className="absolute top-2 left-2 bg-gradient-to-r from-blue-500 to-purple-600 text-white text-xs font-bold px-2 py-1 rounded-lg z-10 shadow-md">
-                              EXISTING
-                            </span>
-                          )}
-                          
-                          <button
-                            type="button"
-                            onClick={() => removeGalleryImage(image.id)}
-                            className="absolute top-2 right-2 bg-red-500 text-white w-6 h-6 rounded-full flex items-center justify-center shadow-lg hover:bg-red-600 transition-colors opacity-0 group-hover:opacity-100 transform hover:scale-110"
-                            title="Remove Image"
-                            disabled={isFormDisabled}
-                          >
-                            <FiX className="w-3 h-3" />
-                          </button>
-                          
-                          <div className="p-2 bg-gradient-to-r from-gray-50 to-white">
-                            <p className="text-xs font-medium text-gray-800 truncate mb-1" title={image.name}>
-                              {image.name}
-                            </p>
-                            
-                            <div className="flex items-center justify-between">
-                              <div className="relative flex-1 mr-2">
-                                <FiChevronDown className="absolute right-1 top-1/2 transform -translate-y-1/2 text-gray-400 w-3 h-3 pointer-events-none" />
-                                <select
-                                  value={image.color || ''}
-                                  onChange={(e) => handleColorChangeOnImage(image.id, e.target.value)}
-                                  className={`appearance-none w-full text-xs py-1 pl-2 pr-5 border rounded-lg ${
-                                    image.color ? 'border-emerald-400 bg-emerald-50 text-emerald-700' : 'border-gray-300 bg-white text-gray-700'
-                                  }`}
-                                  disabled={isFormDisabled || availableColors.length === 0}
-                                  title={image.color ? `Color: ${image.color}` : 'Assign Color'}
-                                >
-                                  <option value="">Assign Color</option>
-                                  {availableColors.map(color => (
-                                    <option key={color} value={color}>
-                                      {color}
-                                    </option>
-                                  ))}
-                                </select>
-                              </div>
-                              
-                              {image.color && (
-                                <div 
-                                  className="w-4 h-4 rounded-full border-2 border-white shadow"
-                                  style={{ backgroundColor: image.color.toLowerCase() }}
-                                  title={`Color: ${image.color}`}
-                                />
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                    
-                    <div className="mt-4 text-center">
-                      <p className="text-sm text-gray-600">
-                        {galleryFiles.filter(img => img.isExisting).length} existing + {' '}
-                        {galleryFiles.filter(img => !img.isExisting).length} new = {' '}
-                        <span className="font-bold text-gray-800">{galleryFiles.length} total images</span>
-                      </p>
-                    </div>
-                  </div>
-                )}
+  {/* Upload box (only when empty) */}
+  {galleryFiles.length === 0 && (
+    <label
+      htmlFor="galleryImages"
+      className="border-2 border-dashed border-blue-400 rounded-xl p-6 text-center hover:border-blue-600 transition-colors duration-200 bg-white cursor-pointer block"
+    >
+      <FiCamera className="w-8 h-8 text-blue-500 mx-auto mb-3" />
+      <span className="text-lg font-semibold text-gray-700 block mb-1">
+        Upload Gallery Images (Multiple)
+      </span>
+      <p className="text-gray-500 text-sm">
+        Optional color assignment
+      </p>
+
+      <input
+        type="file"
+        id="galleryImages"
+        multiple
+        accept="image/*"
+        onChange={handleGalleryImageChange}
+        className="hidden"
+        disabled={isFormDisabled}
+      />
+    </label>
+  )}
+
+  {/* Preview grid */}
+  {galleryFiles.length > 0 && (
+    <div className="p-4 border border-gray-300 rounded-lg bg-white">
+      <p className="text-sm font-bold text-gray-700 mb-3 flex justify-between items-center">
+        <span>Gallery Image Previews ({galleryFiles.length})</span>
+
+        {/* Add more */}
+        <label
+          htmlFor="galleryImages"
+          className="cursor-pointer text-blue-600 hover:text-blue-800 text-sm font-semibold flex items-center space-x-1"
+        >
+          <FiPlus className="w-4 h-4" />
+          <span>Add More</span>
+          <input
+            type="file"
+            id="galleryImages"
+            multiple
+            accept="image/*"
+            onChange={handleGalleryImageChange}
+            className="hidden"
+            disabled={isFormDisabled}
+          />
+        </label>
+      </p>
+
+      <div className="grid grid-cols-3 md:grid-cols-6 gap-4">
+        {galleryFiles.map(image => (
+          <div
+            key={image.id}
+            className={`relative rounded-lg overflow-hidden shadow-md group border-2 ${
+              image.color ? 'border-green-500' : 'border-gray-300'
+            }`}
+          >
+            <img
+              src={image.url}
+              alt={image.name}
+              className="w-full h-20 object-contain"
+            />
+
+            {/* EXISTING badge */}
+            {image.isExisting && (
+              <span className="absolute top-0 left-0 bg-blue-600 text-white text-xs font-bold px-2 py-1 rounded-br-lg z-10">
+                EXISTING
+              </span>
+            )}
+
+            {/* Remove */}
+            <button
+              type="button"
+              onClick={() => removeGalleryImage(image.id)}
+              className="absolute top-1 right-1 bg-red-500 text-white w-5 h-5 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity z-20"
+              title="Remove Image"
+              disabled={isFormDisabled}
+            >
+              <FiX className="w-3 h-3" />
+            </button>
+
+            {/* Color assignment */}
+            <div className="p-1 bg-gray-50 border-t border-gray-200">
+              <div className="relative">
+                <FiChevronDown className="absolute right-1 top-1/2 -translate-y-1/2 text-gray-400 w-3 h-3 pointer-events-none" />
+                <select
+                  value={image.color || ''}
+                  onChange={e =>
+                    handleColorChangeOnImage(image.id, e.target.value)
+                  }
+                  className={`appearance-none w-full text-xs py-1 pl-1 pr-4 border rounded ${
+                    image.color
+                      ? 'border-green-400 text-green-700'
+                      : 'border-gray-400 text-gray-700'
+                  }`}
+                  disabled={isFormDisabled || availableColors.length === 0}
+                >
+                  <option value="">Assign Color</option>
+                  {availableColors.map(color => (
+                    <option key={color} value={color}>
+                      {color}
+                    </option>
+                  ))}
+                </select>
               </div>
+
+              <p
+                className="text-xs text-gray-600 truncate pt-1 font-medium"
+                title={image.name}
+              >
+                {image.name}
+              </p>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )}
+</div>
+
             </div>
 
             {/* Product Identifiers */}
