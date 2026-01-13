@@ -12,8 +12,11 @@ import {
     ChevronUp,
     Ban, 
     CheckCircle,
-    AlertTriangle
+    AlertTriangle,
+    Shield,
+  Trash2
 } from 'lucide-react';
+
 
 // --- Firebase/Firestore Imports ---
 import { db } from "../../firerbase"; 
@@ -305,9 +308,10 @@ const deleteCustomer = async () => {
                             <tbody className="divide-y divide-gray-100">
                                 {filteredAndSortedCustomers.map((customer) => (
                                     <tr 
-                                        key={customer.id} 
-                                        className={`hover:bg-indigo-50/20 transition-colors ${customer.isBlocked ? 'bg-red-50' : ''}`}
-                                    >
+  key={customer.id} 
+  className={`group hover:bg-indigo-50/20 transition-colors ${customer.isBlocked ? 'bg-red-50' : ''}`}
+>
+
                                         
                                         {/* Name (w-[15%]) */}
                                         <td className="p-4 font-medium text-gray-900 truncate">{customer.name || "N/A"}</td>
@@ -335,37 +339,42 @@ const deleteCustomer = async () => {
                                             {getStatusBadge(customer.isBlocked)}
                                         </td>
                                         
-                                        {/* Action Button (w-[10%]) */}
-                                       <td className="p-4 text-center space-y-2">
-    {/* Block / Unblock */}
+<td className="p-4 text-center">
+  <div className="flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+
+    {/* BLOCK / UNBLOCK */}
     <button
-        onClick={() => toggleBlockStatus(customer.id, customer.isBlocked)}
-        disabled={updateInProgress === customer.id}
-        className={`w-full px-1 py-1.5 text-xs rounded-lg text-white font-medium transition-colors flex items-center justify-center gap-1 ${
-            customer.isBlocked 
-                ? 'bg-blue-500 hover:bg-blue-600' 
-                : 'bg-red-500 hover:bg-red-600'
-        } ${updateInProgress === customer.id ? 'opacity-60 cursor-not-allowed' : ''}`}
+      onClick={() => toggleBlockStatus(customer.id, customer.isBlocked)}
+      disabled={updateInProgress === customer.id}
+      title={customer.isBlocked ? "Unblock Customer" : "Block Customer"}
+      className={`p-2 rounded-lg text-white shadow-md transition-colors ${
+        customer.isBlocked
+          ? "bg-blue-600 hover:bg-blue-700"
+          : "bg-red-600 hover:bg-red-700"
+      } ${updateInProgress === customer.id ? "opacity-60 cursor-not-allowed" : ""}`}
     >
-        {updateInProgress === customer.id ? (
-            <Loader className="w-3 h-3 animate-spin" />
-        ) : (
-            customer.isBlocked ? 'Unblock' : 'Block'
-        )}
+      {updateInProgress === customer.id ? (
+        <Loader className="w-4 h-4 animate-spin" />
+      ) : (
+        <Shield className="w-4 h-4" />
+      )}
     </button>
 
-    {/* Delete */}
+    {/* DELETE */}
     <button
-    onClick={() => {
+      onClick={() => {
         setSelectedCustomerId(customer.id);
         setShowDeleteModal(true);
-    }}
-    className="w-full px-1 py-1.5 text-xs rounded-lg text-white font-medium transition-colors flex items-center justify-center gap-1 bg-gray-800 hover:bg-black"
->
-    Delete
-</button>
+      }}
+      title="Delete Customer"
+      className="p-2 rounded-lg bg-gray-800 hover:bg-black text-white shadow-md transition-colors"
+    >
+      <Trash2 className="w-4 h-4" />
+    </button>
 
+  </div>
 </td>
+
 
                                         
                                     </tr>
