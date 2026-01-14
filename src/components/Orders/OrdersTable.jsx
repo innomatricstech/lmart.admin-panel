@@ -113,71 +113,99 @@ const StatusBadge = ({ status }) => {
         </span>
     );
 };
-
 const StatusChangeModal = ({ order, currentStatus, onSave, onClose }) => {
-    const allowedStatuses = STATUS_FLOW[currentStatus] || [];
+  const allowedStatuses = STATUS_FLOW[currentStatus] || [];
+  const [newStatus, setNewStatus] = useState(
+    allowedStatuses[0] || currentStatus
+  );
+  const [isSaving, setIsSaving] = useState(false);
 
-const [newStatus, setNewStatus] = useState(
-  allowedStatuses[0] || currentStatus
-);
+  const handleConfirm = async () => {
+    try {
+      setIsSaving(true);
+      await onSave(order.userId, order.id, newStatus);
+      onClose();
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
-    return (
-        <div className="fixed inset-0 bg-gray-900/75 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
-            <div className="bg-white rounded-xl shadow-2xl w-full max-w-md p-6">
-                <div className="flex justify-between items-center border-b pb-3 mb-4">
-                    <h3 className="text-xl font-bold text-gray-900 flex items-center">
-                        <FiEdit className="mr-2 text-red-600" /> Update Order Status
-                    </h3>
-                    <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded-full"><FiX className="w-6 h-6 text-gray-500" /></button>
-                </div>
-                <div className="space-y-4">
-                    <p className="text-sm">Order: <span className="font-mono font-bold">{order.id.substring(0, 12)}</span></p>
-  {allowedStatuses.length > 0 ? (
-  <select
-    value={newStatus}
-    onChange={(e) => setNewStatus(e.target.value)}
-    className="w-full border p-3 rounded-lg focus:ring-2 focus:ring-red-500 outline-none"
-  >
-    {allowedStatuses.map(status => (
-      <option key={status} value={status}>
-        {status}
-      </option>
-    ))}
-  </select>
-) : (
-  <div className="w-full p-3 rounded-lg bg-gray-100 text-gray-500 text-sm">
-    This order status can no longer be changed.
-  </div>
-)}
-
-
-
-                </div>
-             <div className="flex justify-end gap-3 mt-6">
-  <button
-    onClick={onClose}
-    className="px-4 py-2 text-gray-600 bg-gray-100 rounded-lg"
-  >
-    Close
-  </button>
-
-  {allowedStatuses.length > 0 && (
-    <button
-      onClick={() => {
-        onSave(order.userId, order.id, newStatus);
-        onClose();
-      }}
-      className="px-4 py-2 bg-red-600 text-white rounded-lg"
-    >
-      Confirm Change
-    </button>
-  )}
-</div>
-
-            </div>
+  return (
+    <div className="fixed inset-0 bg-gray-900/75 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-md p-6">
+        {/* Header */}
+        <div className="flex justify-between items-center border-b pb-3 mb-4">
+          <h3 className="text-xl font-bold text-gray-900 flex items-center">
+            <FiEdit className="mr-2 text-red-600" /> Update Order Status
+          </h3>
+          <button
+            onClick={onClose}
+            disabled={isSaving}
+            className="p-1 hover:bg-gray-100 rounded-full"
+          >
+            <FiX className="w-6 h-6 text-gray-500" />
+          </button>
         </div>
-    );
+
+        {/* Body */}
+        <div className="space-y-4">
+          <p className="text-sm">
+            Order:{" "}
+            <span className="font-mono font-bold">
+              {order.id.substring(0, 12)}
+            </span>
+          </p>
+
+          {allowedStatuses.length > 0 ? (
+            <select
+              value={newStatus}
+              disabled={isSaving}
+              onChange={(e) => setNewStatus(e.target.value)}
+              className="w-full border p-3 rounded-lg focus:ring-2 focus:ring-red-500 outline-none"
+            >
+              {allowedStatuses.map((status) => (
+                <option key={status} value={status}>
+                  {status}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <div className="w-full p-3 rounded-lg bg-gray-100 text-gray-500 text-sm">
+              This order status can no longer be changed.
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="flex justify-end gap-3 mt-6">
+          <button
+            onClick={onClose}
+            disabled={isSaving}
+            className="px-4 py-2 text-gray-600 bg-gray-100 rounded-lg"
+          >
+            Close
+          </button>
+
+          {allowedStatuses.length > 0 && (
+            <button
+              onClick={handleConfirm}
+              disabled={isSaving}
+              className={`px-4 py-2 rounded-lg text-white flex items-center gap-2
+                ${isSaving ? 'bg-red-400 cursor-not-allowed' : 'bg-red-600'}
+              `}
+            >
+              {isSaving && (
+                <FiRefreshCw className="w-4 h-4 animate-spin" />
+              )}
+              {isSaving ? 'Updating...' : 'Confirm Change'}
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
 };
+
 
 // --- Main Component ---
 const OrdersTable = () => {
