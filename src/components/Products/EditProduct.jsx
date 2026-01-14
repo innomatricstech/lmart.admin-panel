@@ -47,6 +47,19 @@ const normalizeImages = (imageUrls, mainImageUrl) => {
 
   return [];
 };
+const normalize = (text = "") =>
+  text
+    .toLowerCase()
+    .replace(/[-_]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+const safeTrim = (value) => {
+  if (typeof value === "string") {
+    return value.trim();
+  }
+  return "";
+};
 
 const generateSearchKeywords = (product) => {
   const keywords = new Set();
@@ -189,6 +202,7 @@ const EditProductPage = () => {
         }));
         setSubcategoriesList(fetchedSubCats);
 
+        
         // Normalize images
         let normalizedImages = [];
         if (productData.imageUrls && Array.isArray(productData.imageUrls)) {
@@ -283,66 +297,78 @@ const EditProductPage = () => {
   }, [existingProduct, categoriesList, productData.category]);
 
   // Filter categories
- const filteredCategories = categoriesList.filter(cat => {
+const filteredCategories = categoriesList.filter(cat => {
   if (!productData.productTag) return true;
-  if (!cat.label) return true; // IMPORTANT
-  return cat.label.toLowerCase().includes(productData.productTag.toLowerCase());
+  if (!cat.label) return false;
+
+  return normalize(cat.label) === normalize(productData.productTag);
 });
+
 
 const filteredSubcategories = subcategoriesList.filter(sub => {
-  if (productData.category && sub.categoryId !== productData.category) return false;
+  if (productData.category && sub.categoryId !== productData.category) {
+    return false;
+  }
+
   if (!productData.productTag) return true;
+
+  // Allow subcategories without label
   if (!sub.label) return true;
-  return sub.label.toLowerCase().includes(productData.productTag.toLowerCase());
+
+  return normalize(sub.label) === normalize(productData.productTag);
 });
 
-useEffect(() => {
-  if (!existingProduct) return;
-  if (!categoriesList.length || !subcategoriesList.length) return;
 
-  setProductData(prev => ({
-    ...prev,
-    category: existingProduct.category?.id || '',
-    subCategory: existingProduct.subCategory?.id || ''
-  }));
-}, [existingProduct, categoriesList, subcategoriesList]);
 
-  // Helper function to safely trim values
-  const safeTrim = (value) => {
-    if (value === null || value === undefined) return '';
-    if (typeof value === 'number') return String(value);
-    return String(value).trim();
-  };
+
 
   // Handlers
   const handleChange = (e) => {
     const { name, value } = e.target;
 
-    if (name === "productTag") {
-      setProductData(prev => ({
-        ...prev,
-        [name]: value,
-        category: '',
-        subCategory: '',
-      }));
-      return;
-    }
-    
-    if (name === "category") {
-      const subsByCat = subcategoriesList.filter(sub => sub.categoryId === value);
-      
-      const subsByCatAndLabel = subsByCat.filter(sub => 
-        !productData.productTag || (sub.label && productData.productTag && sub.label.toLowerCase() === productData.productTag.toLowerCase())
-      );
-      
-      const newSubCatId = subsByCatAndLabel.length > 0 ? subsByCatAndLabel[0].id : '';
+   if (name === "productTag") {
+  // 1️⃣ Find matching categories
+  const matchedCategories = categoriesList.filter(cat =>
+    !cat.label || normalize(cat.label) === normalize(value)
+  );
 
-      setProductData(prev => ({
-        ...prev,
-        category: value,
-        subCategory: newSubCatId,
-      }));
-    } else {
+  const selectedCategoryId = matchedCategories[0]?.id || '';
+
+  // 2️⃣ Find matching subcategories for that category
+  const matchedSubcategories = subcategoriesList.filter(sub =>
+    sub.categoryId === selectedCategoryId &&
+    (!sub.label || normalize(sub.label) === normalize(value))
+  );
+
+  setProductData(prev => ({
+    ...prev,
+    productTag: value,
+    category: selectedCategoryId,
+    subCategory: matchedSubcategories[0]?.id || ''
+  }));
+
+  return;
+}
+
+    
+ if (name === "category") {
+  const subsByCat = subcategoriesList.filter(
+    sub => sub.categoryId === value
+  );
+const subsByCatAndLabel = subsByCat.filter(sub =>
+  !productData.productTag ||
+  !sub.label ||
+  normalize(sub.label) === normalize(productData.productTag)
+);
+
+
+  setProductData(prev => ({
+    ...prev,
+    category: value,
+    subCategory: subsByCatAndLabel[0]?.id || ''
+  }));
+}
+else {
       setProductData(prev => ({ ...prev, [name]: value }));
     }
   };
@@ -358,13 +384,27 @@ useEffect(() => {
     const cleanColor = color.trim();
     const cleanSize = size.trim().toUpperCase();
     const cleanPrice = price ? parseFloat(price) : 0;
-    const cleanOfferPrice = offerPrice ? parseFloat(offerPrice) : null;
+    const cleanOfferPrice =
+  offerPrice === "" || offerPrice === null
+    ? null
+    : Number(offerPrice);
+
     const cleanStock = stock ? parseInt(stock, 10) : 0;
 
-    if (cleanOfferPrice !== null && cleanOfferPrice > 0 && cleanOfferPrice >= cleanPrice) {
-      setMessage("❌ Variant Offer Price cannot be greater than or equal to the regular Price.");
-      return;
-    }
+  if (cleanOfferPrice !== null && cleanOfferPrice < 0) {
+  setMessage("❌ Offer Price cannot be negative.");
+  return;
+}
+
+if (
+  cleanOfferPrice !== null &&
+  cleanOfferPrice !== 0 &&
+  cleanOfferPrice >= cleanPrice
+) {
+  setMessage("❌ Offer Price must be less than the regular price.");
+  return;
+}
+
 
     const exists = productData.variants.some(
       v => v.color.toLowerCase() === cleanColor.toLowerCase() && v.size.toLowerCase() === cleanSize.toLowerCase()
@@ -1517,7 +1557,9 @@ const galleryUploadPromises = newGalleryImages.map(async (imageObj, index) => {
       </label>
       <div className="relative">
         <FiChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5 pointer-events-none" />
+        
         <select
+        
           name="subCategory"
           value={productData.subCategory}
           onChange={handleChange}
@@ -1814,19 +1856,41 @@ const galleryUploadPromises = newGalleryImages.map(async (imageObj, index) => {
                                 <FiX className="w-3 h-3" />
                               </button>
                             </div>
-                          ) : v.offerPrice ? (
-                            <div 
-                              className="cursor-pointer hover:bg-orange-100 p-1 rounded transition-colors"
-                              onClick={() => startInlineEdit(v.variantId, 'offerPrice', v.offerPrice)}
-                            >
-                              <span className="text-red-600 font-bold block">
-                                ₹{v.offerPrice.toFixed(2)}
-                              </span>
-                              <span className="text-xs text-gray-500 line-through">
-                                ₹{v.price.toFixed(2)}
-                              </span>
-                            </div>
-                          ) : (
+                         ) : v.offerPrice !== null && v.offerPrice !== undefined ? (
+  <div className="flex flex-col space-y-1">
+    <div
+      className="cursor-pointer hover:bg-orange-100 p-1 rounded transition-colors"
+      onClick={() => startInlineEdit(v.variantId, 'offerPrice', v.offerPrice)}
+    >
+      <span className="text-red-600 font-bold block">
+        ₹{v.offerPrice.toFixed(2)}
+      </span>
+      <span className="text-xs text-gray-500 line-through">
+        ₹{v.price.toFixed(2)}
+      </span>
+    </div>
+
+    {/* 🗑 REMOVE OFFER */}
+    <button
+      type="button"
+      onClick={() => {
+        setProductData(prev => ({
+          ...prev,
+          variants: prev.variants.map(variant =>
+            variant.variantId === v.variantId
+              ? { ...variant, offerPrice: null }
+              : variant
+          )
+        }));
+        setMessage("✅ Offer price removed.");
+      }}
+      className="text-xs text-red-500 hover:text-red-700 hover:underline"
+    >
+      Remove Offer
+    </button>
+  </div>
+) : (
+
                             <button
                               onClick={() => startInlineEdit(v.variantId, 'offerPrice', '')}
                               className="text-gray-400 hover:text-gray-600 hover:bg-orange-100 px-2 py-1 rounded transition-colors text-sm"
