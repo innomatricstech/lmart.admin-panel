@@ -1429,8 +1429,7 @@ const galleryUploadPromises = newGalleryImages.map(async (imageObj, index) => {
               </div>
             </div>
 
-            {/* Category Selection - AUTO POPULATED */}
-           {/* Category Selection - AUTO POPULATED */}
+{/* Category Selection - AUTO POPULATED */}
 <div className="space-y-6">
   <div className="flex items-center space-x-3 mb-4">
     <div className="bg-gradient-to-r from-green-100 to-emerald-50 p-2 rounded-lg">
@@ -1445,112 +1444,105 @@ const galleryUploadPromises = newGalleryImages.map(async (imageObj, index) => {
     )}
   </div>
 
-  {/* 🔥 OUTLINE CONTAINER (SAME AS BRAND NAME STYLE) */}
-  <div
-    className="
-      rounded-2xl
-      
+  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
 
-      transition-all
-    "
-  >
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-
-      {/* Product Tag */}
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-2">
-          Product Label
-        </label>
-        <div className="relative">
-          <FiTag className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
-          <FiChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5 pointer-events-none" />
-          <select
-            name="productTag"
-            value={productData.productTag}
-            onChange={handleChange}
-            className="
-              appearance-none w-full
-              pl-10 pr-10 py-3
-              border-2 border-gray-200
-              rounded-xl
-              bg-gray-50
-              focus:outline-none
-              focus:border-purple-500
-            "
-          >
-           
-            {PRODUCT_TAG_OPTIONS.map(option => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-        </div>
+    {/* PRODUCT TAG */}
+    <div>
+      <label className="block text-sm font-medium text-gray-700 mb-2">
+        Product Label
+      </label>
+      <div className="relative">
+        <FiTag className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
+        <FiChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5 pointer-events-none" />
+        <select
+          name="productTag"
+          value={productData.productTag}
+          onChange={handleChange}
+          className="
+            appearance-none w-full
+            pl-10 pr-10 py-3
+            rounded-xl
+            border-2 border-gray-200
+            bg-gray-50
+            focus:outline-none
+            focus:border-purple-500
+          "
+        >
+          <option value="">Select Product Tag</option>
+          {PRODUCT_TAG_OPTIONS.map(option => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </select>
       </div>
-
-      {/* Category */}
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-2">
-          Category
-        </label>
-        <div className="relative">
-          <FiChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5 pointer-events-none" />
-          <select
-            name="category"
-            value={productData.category}
-            onChange={handleChange}
-            className="
-              appearance-none w-full
-              px-4 py-3
-              border-2 border-gray-200
-              rounded-xl
-              bg-gray-50
-              focus:outline-none
-              focus:border-purple-500
-            "
-          >
-          
-            {filteredCategories.map(cat => (
-              <option key={cat.id} value={cat.id}>
-                {cat.name}
-              </option>
-            ))}
-          </select>
-        </div>
-      </div>
-
-      {/* Sub Category */}
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-2">
-          Subcategory
-        </label>
-        <div className="relative">
-          <FiChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5 pointer-events-none" />
-          <select
-            name="subCategory"
-            value={productData.subCategory}
-            onChange={handleChange}
-            className="
-              appearance-none w-full
-              px-4 py-3
-              border-2 border-gray-200
-              rounded-xl
-              bg-gray-50
-              focus:outline-none
-              focus:border-purple-500
-            "
-          >
-            
-            {filteredSubcategories.map(subCat => (
-              <option key={subCat.id} value={subCat.id}>
-                {subCat.name}
-              </option>
-            ))}
-          </select>
-        </div>
-      </div>
-
     </div>
+
+    {/* CATEGORY */}
+    <div>
+      <label className="block text-sm font-medium text-gray-700 mb-2">
+        Category
+      </label>
+      <div className="relative">
+        <FiChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5 pointer-events-none" />
+        <select
+          name="category"
+          value={productData.category}
+          onChange={handleChange}
+          className="
+            appearance-none w-full
+            px-4 py-3
+            rounded-xl
+            border-2 border-gray-200
+            bg-gray-50
+            focus:outline-none
+            focus:border-purple-500
+            disabled:bg-gray-100
+          "
+        >
+          <option value="">Select Category</option>
+          {filteredCategories.map(cat => (
+            <option key={cat.id} value={cat.id}>
+              {cat.name}
+            </option>
+          ))}
+        </select>
+      </div>
+    </div>
+
+    {/* SUB CATEGORY */}
+    <div>
+      <label className="block text-sm font-medium text-gray-700 mb-2">
+        Subcategory
+      </label>
+      <div className="relative">
+        <FiChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5 pointer-events-none" />
+        <select
+          name="subCategory"
+          value={productData.subCategory}
+          onChange={handleChange}
+          disabled={!productData.category}
+          className="
+            appearance-none w-full
+            px-4 py-3
+            rounded-xl
+            border-2 border-gray-200
+            bg-gray-50
+            focus:outline-none
+            focus:border-purple-500
+            disabled:bg-gray-100
+          "
+        >
+          <option value="">Select Sub Category</option>
+          {filteredSubcategories.map(subCat => (
+            <option key={subCat.id} value={subCat.id}>
+              {subCat.name}
+            </option>
+          ))}
+        </select>
+      </div>
+    </div>
+
   </div>
 </div>
 

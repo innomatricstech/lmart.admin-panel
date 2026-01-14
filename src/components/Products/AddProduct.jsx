@@ -964,7 +964,7 @@
           name="category"
           value={productData.category}
           onChange={handleChange}
-          disabled={isFormDisabled || filteredCategories.length === 0}
+         
           className="
             appearance-none w-full
             px-4 py-3
@@ -991,7 +991,7 @@
           name="subCategory"
           value={productData.subCategory}
           onChange={handleChange}
-          disabled={isFormDisabled || filteredSubcategories.length === 0}
+         
           className="
             appearance-none w-full
             px-4 py-3
