@@ -1468,7 +1468,7 @@ const galleryUploadPromises = newGalleryImages.map(async (imageObj, index) => {
             focus:border-purple-500
           "
         >
-          <option value="">Select Product Tag</option>
+         
           {PRODUCT_TAG_OPTIONS.map(option => (
             <option key={option.value} value={option.value}>
               {option.label}
@@ -1500,7 +1500,7 @@ const galleryUploadPromises = newGalleryImages.map(async (imageObj, index) => {
             disabled:bg-gray-100
           "
         >
-          <option value="">Select Category</option>
+         
           {filteredCategories.map(cat => (
             <option key={cat.id} value={cat.id}>
               {cat.name}
@@ -1533,7 +1533,7 @@ const galleryUploadPromises = newGalleryImages.map(async (imageObj, index) => {
             disabled:bg-gray-100
           "
         >
-          <option value="">Select Sub Category</option>
+   
           {filteredSubcategories.map(subCat => (
             <option key={subCat.id} value={subCat.id}>
               {subCat.name}

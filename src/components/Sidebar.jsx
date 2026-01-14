@@ -107,22 +107,27 @@ export default function Sidebar({ onCloseSidebar, onLogout }) {
   key: "Customers",
   path: "/customers"
 },
-
+{
+      text: "Market News",
+      icon: FiRss,
+      key: "News",
+      path: "/news",
+      hasDropdown: true,
+      dropdownContent: [
+        { text: "View Market News", path: "/news/view" },
+        { text: "Add News Today", path: "/news/add" }
+      ]
+    },
 
  
 
-     {
-      text: "Oldee",
-      icon: FiUser,
-      key: "Oldee",
-      path: "/oldee",
-      hasDropdown: true,
-      dropdownContent: [
-        { text: "All Oldee", path: "/oldee" },
-        { text: "Deleted Oldee", path: "/oldee/delete" },
-        
-      ]
-    },
+    {
+  text: "Oldee",
+  icon: FiUser,
+  key: "Oldee",
+  path: "/oldee"
+}
+,
     // Orders Menu
     {
       text: "Orders",
@@ -141,10 +146,7 @@ export default function Sidebar({ onCloseSidebar, onLogout }) {
     },
 
     { text: "Return Orders", icon: FiArchive, key: "Return Orders", path: "/return-orders" },
-    { text: "Earnings", icon: FiDollarSign, key: "Earnings", path: "/earnings" },
-
-    // Products menu
-    {
+     {
       text: "Products",
       icon: FiBox,
       key: "Products",
@@ -157,8 +159,22 @@ export default function Sidebar({ onCloseSidebar, onLogout }) {
         { text: "Manage Subcategories", path: "/products/subcategories" }
       ]
     },
+       { text: "Files", icon: FiFileText, key: "Files", path: "/files" },
+         {
+  text: "Sellers",
+  icon: FiPackage,
+  key: "Sellers",
+  path: "/sellers/all"
+},
 
-    // NEW - Trending Products
+{ text: "Recent Orders", icon: FiClock, key: "Recent Orders", path: "/recent-orders" },
+
+    { text: "Earnings", icon: FiDollarSign, key: "Earnings", path: "/earnings" },
+
+
+    // Products menu
+   
+
     {
       text: "Trending Products",
       icon: FiStar,
@@ -166,60 +182,44 @@ export default function Sidebar({ onCloseSidebar, onLogout }) {
       path: "/trending-products"
     },
 
-    // News menu
-    {
-      text: "Market News",
-      icon: FiRss,
-      key: "News",
-      path: "/news",
-      hasDropdown: true,
-      dropdownContent: [
-        { text: "View Market News", path: "/news/view" },
-        { text: "Add News Today", path: "/news/add" }
-      ]
-    },
-
-    { text: "Files", icon: FiFileText, key: "Files", path: "/files" },
+ 
     { text: "Posters", icon: FiImage, key: "Banners", path: "/banners" },
 
-   {
-  text: "Sellers",
-  icon: FiPackage,
-  key: "Sellers",
-  path: "/sellers/all"
-},
-
+ 
 ,
 
-    { text: "Recent Orders", icon: FiClock, key: "Recent Orders", path: "/recent-orders" },
+    
     { text: "Bulk Upload", icon: FiUploadCloud, key: "Bulk Upload", path: "/bulk-upload" },
     
-  {
-    text: "BKUP Lmart",
-    icon: FiArchive,
-    key: "BKUPLmart",
-    path: "#",
-    hasDropdown: true,
-    dropdownContent: [
-      {
-        text: "Deleted Customers",
-        icon: FiTrash2,
-        path: "/customers/deleted",
-      },
-      {
-        text: "Deleted Sellers",
-        icon: FiTrash2,
-        path: "/sellers/delete",
-      },
-      {
-        text: "Deleted Products",
-        icon: FiTrash2,
-        path: "/products/deleted",
-      },
-    ],
-  },
-
-    
+ {
+  text: "BKUP Lmart",
+  icon: FiArchive,
+  key: "BKUPLmart",
+  path: "#",
+  hasDropdown: true,
+  dropdownContent: [
+    {
+      text: "Deleted Customers",
+      icon: FiTrash2,
+      path: "/customers/deleted",
+    },
+    {
+      text: "Deleted Sellers",
+      icon: FiTrash2,
+      path: "/sellers/delete",
+    },
+    {
+      text: "Deleted Products",
+      icon: FiTrash2,
+      path: "/products/deleted",
+    },
+    {
+      text: "Deleted Oldee",      
+      icon: FiTrash2,
+      path: "/oldee/delete",      
+    },
+  ],
+},
   ];
   
   
