@@ -23,6 +23,7 @@ import { DeliveredOrdersTable } from "./components/Orders/DeliveredOrdersTable.j
 import { CancelledOrdersTable } from "./components/Orders/CancelledOrdersTable.jsx";
 import ReturnOrdersTable from "./components/ReturnOrdersTable.jsx";
 import RecentOrdersTable from "./components/RecentOrdersTable.jsx";
+import DeleteProducts from "./components/Products/DeleteProducts.jsx";
 
 // Others
 import EarningsPage from "./components/EarningsPage.jsx";
@@ -176,6 +177,8 @@ export default function App() {
                     {/* Customers */}
                     <Route path="customers" element={<CustomerDirectory />} />
                     <Route path="customers/deleted" element={<DeletedCustomers />} />
+                    <Route path="/products/deleted" element={<DeleteProducts />} />
+
 
 
                     {/* Orders */}

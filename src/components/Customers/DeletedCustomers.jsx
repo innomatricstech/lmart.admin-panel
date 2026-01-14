@@ -44,6 +44,7 @@ const DeletedCustomers = () => {
               <tr>
                 <th className="p-4 text-left">Name</th>
                 <th className="p-4 text-left">Email</th>
+                 <th className="p-4 text-left">Contact No</th>
                 <th className="p-4 text-left">Deleted At</th>
               </tr>
             </thead>
@@ -52,6 +53,9 @@ const DeletedCustomers = () => {
                 <tr key={c.id} className="border-t">
                   <td className="p-4">{c.name}</td>
                   <td className="p-4">{c.email}</td>
+                    <td className="p-4 text-gray-700">
+        {c.contactNo || "—"}
+      </td>
                   <td className="p-4 flex items-center gap-2">
                     <Calendar size={14} />
                     {c.deletedAt?.toDate?.().toLocaleString() || "—"}

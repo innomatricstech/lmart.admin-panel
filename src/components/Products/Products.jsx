@@ -1,15 +1,19 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from "react-router-dom";
 import {
-    doc,
-    getDoc,
-    collection,
-    query,
-    orderBy,
-    onSnapshot,
-    deleteDoc,
-    updateDoc 
+  doc,
+  getDoc,
+  collection,
+  query,
+  orderBy,
+  onSnapshot,
+  deleteDoc,
+  updateDoc,
+  addDoc,
+  serverTimestamp
 } from "firebase/firestore";
+
+
 
 // Icon imports
 import {
@@ -364,33 +368,36 @@ const handleToggleTrending = async (product) => {
         setShowSuccessModal(false);
     };
 
-    const confirmDelete = async () => {
-        if (!productToDelete) return;
-        
-        const productName = productToDelete.name || 'Unknown Product';
-        
-        // 1. Close the confirmation modal
-        setProductToDelete(null); // This clears productToDelete and closes the confirmation modal
+   const confirmDelete = async () => {
+  if (!productToDelete) return;
 
-        try {
-            // 2. Perform Firebase Deletion
-            const productRef = doc(db, "products", productToDelete.id);
-            await deleteDoc(productRef);
-            
-        
-            setShowSuccessModal(true); 
+  const product = productToDelete;
 
-            console.log(`Product '${productName}' deleted successfully.`);
-        } catch (err) {
-            console.error("Error deleting product:", err);
-            alert("Failed to delete product. Check console for details.");
-        } finally {
-             // We wait for the user to close the success modal before resetting all states.
-             // For now, we only clear the selection, the success modal is handled by its own state.
-             setSelectedProductId(null);
-        }
-    };
-// 🔥 SHARED IMAGE RESOLVER (ADMIN + SELLER SAFE)
+  try {
+    // 1️⃣ Save product to deletedProducts collection
+    await addDoc(collection(db, "deletedProducts"), {
+      ...product,
+      originalProductId: product.id,
+      deletedAt: serverTimestamp(),
+      deletedBy: "admin", // optional
+    });
+
+    // 2️⃣ Remove product from products collection
+    await deleteDoc(doc(db, "products", product.id));
+
+    // 3️⃣ Show success modal
+    setShowSuccessModal(true);
+
+    console.log(`Product '${product.name}' moved to deletedProducts`);
+  } catch (error) {
+    console.error("Delete failed:", error);
+    alert("Failed to delete product");
+  } finally {
+    setProductToDelete(null);
+    setSelectedProductId(null);
+  }
+};
+
 
 
 
@@ -585,7 +592,7 @@ const handleToggleTrending = async (product) => {
 
   {product.trending && (
   <span className="px-2 py-0.5 text-xs font-bold text-orange-700 bg-orange-100 rounded-full">
-    🔥 Trending
+ Trending
   </span>
 )}
 
@@ -661,52 +668,59 @@ const handleToggleTrending = async (product) => {
                                         </td>
 
                                         {/* ACTIONS COLUMN */}
-                                        <td className="px-6 py-4">
-                                            <div className="flex justify-center space-x-2">
-                                                <button
-                                                    onClick={() => handleViewProduct(product.id)}
-                                                    className="flex items-center space-x-1 bg-blue-50 text-blue-600 hover:bg-blue-100 px-3 py-2 rounded-lg transition-colors duration-200 font-medium text-sm"
-                                                    title="View Product"
-                                                >
-                                                    <EyeIcon className="h-4 w-4" />
-                                                    <span>View</span>
-                                                </button>
-
-                                                <button
-                                                    onClick={() => handleEditProduct(product.id)}
-                                                    className="flex items-center space-x-1 bg-green-50 text-green-600 hover:bg-green-100 px-3 py-2 rounded-lg transition-colors duration-200 font-medium text-sm"
-                                                    title="Edit Product"
-                                                >
-                                                    <PencilSquareIcon className="h-4 w-4" />
-                                                    <span>Edit</span>
-                                                </button>
-
-                                                <button
-                                                    onClick={() => handleDeleteProduct(product)}
-                                                    className="flex items-center space-x-1 bg-red-50 text-red-600 hover:bg-red-100 px-3 py-2 rounded-lg transition-colors duration-200 font-medium text-sm"
-                                                    title="Delete Product"
-                                                >
-                                                    <TrashIcon className="h-4 w-4" />
-                                                    <span>Delete</span>
-                                                </button>
-                                 <button
-  onClick={() => handleToggleTrending(product)}
-  className={`flex items-center space-x-1 px-3 py-2 rounded-lg transition-colors duration-200 font-medium text-sm
-    ${
-      product.trending
-        ? "bg-orange-100 text-orange-700 hover:bg-orange-200"
-        : "bg-gray-100 text-gray-600 hover:bg-gray-200"
-    }
-  `}
-  title="Toggle Trending"
->
-  <span>🔥</span>
-  <span>{product.trending ? "Trending" : "Mark Trending"}</span>
-</button>
+                                       <td className="px-6 py-4">
+<div className="grid grid-cols-2 gap-3 w-[160px] mx-auto">
 
 
-                                            </div>
-                                        </td>
+    {/* Row 1: View */}
+    <button
+      onClick={() => handleViewProduct(product.id)}
+      className="flex items-center justify-center space-x-1 bg-blue-50 text-blue-600 hover:bg-blue-100 px-3 py-2 rounded-lg transition font-medium text-sm"
+      title="View Product"
+    >
+      {/* <EyeIcon className="h-4 w-4" /> */}
+      <span>View</span>
+    </button>
+
+    {/* Row 1: Edit */}
+    <button
+      onClick={() => handleEditProduct(product.id)}
+      className="flex items-center justify-center space-x-1 bg-green-50 text-green-600 hover:bg-green-100 px-3 py-2 rounded-lg transition font-medium text-sm"
+      title="Edit Product"
+    >
+      {/* <PencilSquareIcon className="h-4 w-4" /> */}
+      <span>Edit</span>
+    </button>
+
+    {/* Row 2: Trending */}
+    <button
+      onClick={() => handleToggleTrending(product)}
+      className={`flex items-center justify-center space-x-1 px-2 py-2 rounded-lg transition font-medium text-sm
+        ${
+          product.trending
+            ? "bg-orange-100 text-orange-700 hover:bg-orange-200"
+            : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+        }
+      `}
+      title="Toggle Trending"
+    >
+    
+      <span>{product.trending ? "Trending" : "Mark"}</span>
+    </button>
+
+    {/* Row 2: Delete */}
+    <button
+      onClick={() => handleDeleteProduct(product)}
+      className="flex items-center justify-center space-x-1 bg-red-50 text-red-600 hover:bg-red-100 px-3 py-2 rounded-lg transition font-medium text-sm"
+      title="Delete Product"
+    >
+      {/* <TrashIcon className="h-4 w-4" /> */}
+      <span>Delete</span>
+    </button>
+
+  </div>
+</td>
+
                                     </tr>
                                 )})}
                             </tbody>

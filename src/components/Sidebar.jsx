@@ -105,14 +105,9 @@ export default function Sidebar({ onCloseSidebar, onLogout }) {
   text: "Customers",
   icon: FiUsers,
   key: "Customers",
-  path: "/customers",
-  hasDropdown: true,
-  dropdownContent: [
-    { text: "All Customers", path: "/customers" },
-    { text: "Deleted Customers", path: "/customers/deleted" },
-  ]
-}
-,
+  path: "/customers"
+},
+
 
  
 
@@ -187,22 +182,47 @@ export default function Sidebar({ onCloseSidebar, onLogout }) {
     { text: "Files", icon: FiFileText, key: "Files", path: "/files" },
     { text: "Posters", icon: FiImage, key: "Banners", path: "/banners" },
 
-    {
-      text: "Sellers",
-      icon: FiPackage,
-      key: "Sellers",
-      path: "/sellers/all",
-      hasDropdown: true,
-      dropdownContent: [
-        { text: "Sellers", path: "/sellers/all" },
-        { text: "Delete Seller", path: "/sellers/delete" }
-      ]
-    },
+   {
+  text: "Sellers",
+  icon: FiPackage,
+  key: "Sellers",
+  path: "/sellers/all"
+},
+
+,
 
     { text: "Recent Orders", icon: FiClock, key: "Recent Orders", path: "/recent-orders" },
-    { text: "Bulk Upload", icon: FiUploadCloud, key: "Bulk Upload", path: "/bulk-upload" }
-  ];
+    { text: "Bulk Upload", icon: FiUploadCloud, key: "Bulk Upload", path: "/bulk-upload" },
+    
+  {
+    text: "BKUP Lmart",
+    icon: FiArchive,
+    key: "BKUPLmart",
+    path: "#",
+    hasDropdown: true,
+    dropdownContent: [
+      {
+        text: "Deleted Customers",
+        icon: FiTrash2,
+        path: "/customers/deleted",
+      },
+      {
+        text: "Deleted Sellers",
+        icon: FiTrash2,
+        path: "/sellers/delete",
+      },
+      {
+        text: "Deleted Products",
+        icon: FiTrash2,
+        path: "/products/deleted",
+      },
+    ],
+  },
 
+    
+  ];
+  
+  
   // Auto-open dropdown if child route active
   useEffect(() => {
     navigationItems.forEach((item) => {

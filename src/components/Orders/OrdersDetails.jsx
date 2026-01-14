@@ -167,10 +167,7 @@ const OrderDetail = () => {
   const ORDER_STATUSES = [
     "Pending",
     "Processing",
-    "Shipped",
-    "Delivered",
-    "Cancelled",
-    "Refunded",
+    
   ];
 
   const isLegacyOrder = userId === "unknown_user" || !userId; 

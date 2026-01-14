@@ -10,6 +10,8 @@ import {
     FiCalendar, 
     FiEye 
 } from 'react-icons/fi';
+import { FiRefreshCw } from 'react-icons/fi';
+
 import {
     collectionGroup,
     query,
@@ -79,26 +81,45 @@ const convertToCSV = (data) => {
 
 const ORDER_STATUSES = ['Pending', 'Processing', 'Shipped', 'Delivered', 'Cancelled', 'Refunded'];
 
-// --- Sub-Components ---
+const STATUS_FLOW = {
+  Pending: ['Processing', 'Cancelled'],
+  Processing: ['Shipped', 'Refunded', 'Cancelled'],
+  Shipped: ['Delivered', 'Cancelled'],
+  Delivered: [],
+  Cancelled: [],
+  Refunded: []
+};
+
 const StatusBadge = ({ status }) => {
     const styles = {
-        'Delivered': 'bg-green-100 text-green-700',
-        'Shipped': 'bg-indigo-100 text-indigo-700',
-        'Processing': 'bg-yellow-100 text-yellow-700 animate-pulse',
-        'Cancelled': 'bg-red-100 text-red-700 line-through',
-        'Refunded': 'bg-red-100 text-red-700',
-        'Pending': 'bg-blue-100 text-blue-700'
+        Delivered: 'bg-green-100 text-green-700',
+        Shipped: 'bg-indigo-100 text-indigo-700',
+        Processing: 'bg-yellow-100 text-yellow-700',
+        Cancelled: 'bg-red-100 text-red-700 line-through',
+        Refunded: 'bg-red-100 text-red-700',
+        Pending: 'bg-blue-100 text-blue-700'
     };
 
     return (
-        <span className={`inline-flex items-center px-3 py-1 text-xs font-semibold rounded-full shadow-sm ${styles[status] || 'bg-gray-100'}`}>
+        <span
+            key={status}
+            className={`
+              inline-flex items-center px-3 py-1 text-xs font-semibold rounded-full shadow-sm
+              animate-pop
+              ${styles[status]}
+            `}
+        >
             {status}
         </span>
     );
 };
 
 const StatusChangeModal = ({ order, currentStatus, onSave, onClose }) => {
-    const [newStatus, setNewStatus] = useState(currentStatus);
+    const allowedStatuses = STATUS_FLOW[currentStatus] || [];
+
+const [newStatus, setNewStatus] = useState(
+  allowedStatuses[0] || currentStatus
+);
 
     return (
         <div className="fixed inset-0 bg-gray-900/75 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
@@ -111,24 +132,48 @@ const StatusChangeModal = ({ order, currentStatus, onSave, onClose }) => {
                 </div>
                 <div className="space-y-4">
                     <p className="text-sm">Order: <span className="font-mono font-bold">{order.id.substring(0, 12)}</span></p>
-                    <select 
-                        value={newStatus} 
-                        onChange={(e) => setNewStatus(e.target.value)}
-                        className="w-full border p-3 rounded-lg focus:ring-2 focus:ring-red-500 outline-none"
-                    >
-                        {ORDER_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
-                    </select>
+  {allowedStatuses.length > 0 ? (
+  <select
+    value={newStatus}
+    onChange={(e) => setNewStatus(e.target.value)}
+    className="w-full border p-3 rounded-lg focus:ring-2 focus:ring-red-500 outline-none"
+  >
+    {allowedStatuses.map(status => (
+      <option key={status} value={status}>
+        {status}
+      </option>
+    ))}
+  </select>
+) : (
+  <div className="w-full p-3 rounded-lg bg-gray-100 text-gray-500 text-sm">
+    This order status can no longer be changed.
+  </div>
+)}
+
+
+
                 </div>
-                <div className="flex justify-end gap-3 mt-6">
-                    <button onClick={onClose} className="px-4 py-2 text-gray-600 bg-gray-100 rounded-lg">Cancel</button>
-                    <button 
-                        onClick={() => { onSave(order.userId, order.id, newStatus); onClose(); }}
-                        disabled={newStatus === currentStatus}
-                        className="px-4 py-2 bg-red-600 text-white rounded-lg disabled:opacity-50"
-                    >
-                        Confirm Change
-                    </button>
-                </div>
+             <div className="flex justify-end gap-3 mt-6">
+  <button
+    onClick={onClose}
+    className="px-4 py-2 text-gray-600 bg-gray-100 rounded-lg"
+  >
+    Close
+  </button>
+
+  {allowedStatuses.length > 0 && (
+    <button
+      onClick={() => {
+        onSave(order.userId, order.id, newStatus);
+        onClose();
+      }}
+      className="px-4 py-2 bg-red-600 text-white rounded-lg"
+    >
+      Confirm Change
+    </button>
+  )}
+</div>
+
             </div>
         </div>
     );
@@ -142,6 +187,9 @@ const OrdersTable = () => {
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedOrder, setSelectedOrder] = useState(null);
     const navigate = useNavigate();
+    const [updatingId, setUpdatingId] = useState(null);
+
+
 
     const fetchOrders = useCallback(async () => {
         setLoading(true);
@@ -191,19 +239,26 @@ const OrdersTable = () => {
         setFilteredOrders(filtered);
     }, [searchTerm, orders]);
 
-    const updateOrderStatus = async (userId, orderId, newStatus) => {
-        try {
-            const orderRef = doc(db, 'users', userId, 'orders', orderId);
-            const now = Timestamp.now();
-            await updateDoc(orderRef, { status: newStatus, updatedAt: now });
+   const updateOrderStatus = async (userId, orderId, newStatus) => {
+    try {
+        setUpdatingId(orderId);
+        const orderRef = doc(db, 'users', userId, 'orders', orderId);
+        const now = Timestamp.now();
 
-            setOrders(prev => prev.map(o => 
+        await updateDoc(orderRef, { status: newStatus, updatedAt: now });
+
+        setOrders(prev =>
+            prev.map(o =>
                 o.id === orderId ? { ...o, status: newStatus, updatedAt: now } : o
-            ));
-        } catch (err) {
-            alert("Update failed. Check Firebase permissions.");
-        }
-    };
+            )
+        );
+    } catch {
+        alert("Update failed.");
+    } finally {
+        setUpdatingId(null);
+    }
+};
+
 
     if (loading) return (
         <div className="flex flex-col items-center justify-center h-screen bg-white">
@@ -274,49 +329,104 @@ const OrdersTable = () => {
                                 <th className="px-6 py-4 text-center">Action</th>
                             </tr>
                         </thead>
-                        <tbody className="divide-y divide-gray-100">
-                            {filteredOrders.map((order) => (
-                                <tr key={order.id} className="hover:bg-gray-50/80 transition cursor-pointer" onClick={() => navigate(order.linkToDetail)}>
-                                    <td className="px-6 py-4">
-                                        <div className="flex items-center gap-3">
-                                            <div className="w-8 h-8 rounded-full bg-red-100 text-red-600 flex items-center justify-center font-bold text-xs">
-                                                {order.customer[0]}
-                                            </div>
-                                            <div>
-                                                <p className="text-sm font-semibold text-gray-900">{order.customer}</p>
-                                                <p className="text-xs font-mono text-gray-400">#{order.id.substring(0, 8)}</p>
-                                            </div>
-                                        </div>
-                                    </td>
-                                    <td className="px-6 py-4 text-xs text-gray-600">
-                                        <p>{order.email}</p>
-                                        <p>{order.phone}</p>
-                                    </td>
-                                    <td className="px-6 py-4 text-sm text-gray-700">
-                                        {Array.isArray(order.items) ? order.items.length : 0} items
-                                    </td>
-                                    <td className="px-6 py-4" onClick={(e) => e.stopPropagation()}>
-                                        <button onClick={() => setSelectedOrder(order)}>
-                                            <StatusBadge status={order.status || 'Pending'} />
-                                        </button>
-                                    </td>
-                                    <td className="px-6 py-4 font-bold text-red-600">
-                                        {formatDisplayAmount(order.amount)}
-                                    </td>
-                                    <td className="px-6 py-4 text-xs text-gray-500">
-                                        <div className="flex items-center gap-1"><FiCalendar /> {formatDisplayDate(order.createdAt)}</div>
-                                    </td>
-                                    <td className="px-6 py-4 text-center" onClick={(e) => e.stopPropagation()}>
-                                        <button 
-                                            onClick={() => navigate(order.linkToDetail)}
-                                            className="p-2 text-red-500 hover:bg-red-50 rounded-full transition"
-                                        >
-                                            <FiEye size={18} />
-                                        </button>
-                                    </td>
-                                </tr>
-                            ))}
-                        </tbody>
+                     <tbody className="divide-y divide-gray-100">
+  {filteredOrders.map((order) => {
+    const normalizedStatus =
+  order.status
+    ? order.status.charAt(0).toUpperCase() + order.status.slice(1)
+    : 'Pending';
+
+const isLocked =
+  normalizedStatus === 'Pending' ||
+  (STATUS_FLOW[normalizedStatus] || []).length === 0;
+
+
+
+    return (
+      <tr
+        key={order.id}
+        className="hover:bg-gray-50/80 transition cursor-pointer"
+        onClick={() => navigate(order.linkToDetail)}
+      >
+        <td className="px-6 py-4">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-full bg-red-100 text-red-600 flex items-center justify-center font-bold text-xs">
+              {order.customer[0]}
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-gray-900">
+                {order.customer}
+              </p>
+              <p className="text-xs font-mono text-gray-400">
+                #{order.id.substring(0, 8)}
+              </p>
+            </div>
+          </div>
+        </td>
+
+        <td className="px-6 py-4 text-xs text-gray-600">
+          <p>{order.email}</p>
+          <p>{order.phone}</p>
+        </td>
+
+        <td className="px-6 py-4 text-sm text-gray-700">
+          {Array.isArray(order.items) ? order.items.length : 0} items
+        </td>
+
+        <td className="px-6 py-4" onClick={(e) => e.stopPropagation()}>
+          {updatingId === order.id ? (
+            <div className="flex items-center justify-center">
+              <FiRefreshCw className="w-5 h-5 text-gray-400 animate-spin" />
+            </div>
+          ) : (
+           <button
+  disabled={isLocked}
+  onClick={() => !isLocked && setSelectedOrder(order)}
+  className={`${
+    isLocked
+      ? 'cursor-not-allowed opacity-50 pointer-events-none'
+      : 'cursor-pointer'
+  }`}
+  title={
+    isLocked
+      ? normalizedStatus === 'Pending'
+        ? 'Order must be processed first'
+        : 'This order status is locked'
+      : 'Update order status'
+  }
+>
+  <StatusBadge status={normalizedStatus} />
+</button>
+
+          )}
+        </td>
+
+        <td className="px-6 py-4 font-bold text-red-600">
+          {formatDisplayAmount(order.amount)}
+        </td>
+
+        <td className="px-6 py-4 text-xs text-gray-500">
+          <div className="flex items-center gap-1">
+            <FiCalendar /> {formatDisplayDate(order.createdAt)}
+          </div>
+        </td>
+
+        <td
+          className="px-6 py-4 text-center"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <button
+            onClick={() => navigate(order.linkToDetail)}
+            className="p-2 text-red-500 hover:bg-red-50 rounded-full transition"
+          >
+            <FiEye size={18} />
+          </button>
+        </td>
+      </tr>
+    );
+  })}
+</tbody>
+
                     </table>
                 </div>
             </div>
