@@ -935,26 +935,29 @@
       <div className="relative">
         <FiTag className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
         <FiChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5 pointer-events-none" />
-        <select
-          name="productTag"
-          value={productData.productTag}
-          onChange={handleChange}
-          className="
-            appearance-none w-full
-            pl-10 pr-10 py-3
-            rounded-xl
-            border-2 border-gray-200
-            focus:outline-none
-            focus:border-purple-500
-          "
-        >
-       
-          {PRODUCT_TAG_OPTIONS.map(option => (
-            <option key={option.value} value={option.value}>
-              {option.label}
-            </option>
-          ))}
-        </select>
+      <select
+  name="productTag"
+  value={productData.productTag}
+  onChange={handleChange}
+  required
+  className="
+    appearance-none w-full
+    pl-10 pr-10 py-3
+    rounded-xl
+    border-2 border-gray-200
+    focus:outline-none
+    focus:border-purple-500
+  "
+>
+  <option value="">Select Store</option>
+
+  {PRODUCT_TAG_OPTIONS.map(option => (
+    <option key={option.value} value={option.value}>
+      {option.label}
+    </option>
+  ))}
+</select>
+
       </div>
 
       {/* CATEGORY */}
