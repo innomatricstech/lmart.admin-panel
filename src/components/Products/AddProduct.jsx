@@ -620,7 +620,7 @@
                                                 value={productData.sellerId}
                                                 onChange={handleChange}
                                                 placeholder="Seller ID" 
-                                                className="w-full pl-10 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all duration-200"
+                                                className="w-full pl-10 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-0  focus:border-gray-200 transition-all duration-200"
                                                 disabled={isFormDisabled}
                                             />
                                         </div>
@@ -641,7 +641,7 @@
                                         onChange={handleChange}
                                         placeholder="Detailed description of the product..."
                                         rows="4"
-                                        className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-red-500 focus:border-red-500 transition-all duration-200"
+                                        className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-0  focus:border-gray-200 transition-all duration-200"
                                         disabled={isFormDisabled}
                                     />
                                 </div>
@@ -890,7 +890,7 @@
                                             value={productData.sku}
                                             onChange={handleChange}
                                             placeholder="SKU Code"
-                                            className="px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all duration-200"
+                                            className="px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-0  focus:border-gray-200 transition-all duration-200"
                                             disabled={isFormDisabled}
                                         />
                                         <input
@@ -899,7 +899,7 @@
                                             value={productData.brand}
                                             onChange={handleChange}
                                             placeholder="Brand Name"
-                                            className="px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all duration-200"
+                                            className="px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-0  focus:border-gray-200 transition-all duration-200"
                                             disabled={isFormDisabled}
                                         />
                                         <input
@@ -908,7 +908,7 @@
                                             value={productData.hsnCode}
                                             onChange={handleChange}
                                             placeholder="HSN Code"
-                                            className="px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all duration-200"
+                                            className="px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-0  focus:border-gray-200 transition-all duration-200"
                                             disabled={isFormDisabled}
                                         />
                                     </div>
@@ -945,11 +945,9 @@
     pl-10 pr-10 py-3
     rounded-xl
     border-2 border-gray-200
-    focus:outline-none
-    focus:border-purple-500
-  "
+    focus:outline-none focus:ring-0  focus:border-gray-200"
 >
-  <option value="">Select Store</option>
+  
 
   {PRODUCT_TAG_OPTIONS.map(option => (
     <option key={option.value} value={option.value}>
@@ -973,9 +971,7 @@
             px-4 py-3
             rounded-xl
             border-2 border-gray-200
-            focus:outline-none
-            focus:border-purple-500
-            disabled:bg-gray-100
+            focus:outline-none focus:ring-0  focus:border-gray-200
           "
         >
           
@@ -1000,9 +996,7 @@
             px-4 py-3
             rounded-xl
             border-2 border-gray-200
-            focus:outline-none
-            focus:border-purple-500
-            disabled:bg-gray-100
+            focus:outline-none focus:ring-0  focus:border-gray-200
           "
         >
          
@@ -1035,7 +1029,7 @@
                                         value={newVariant.color}
                                         onChange={handleNewVariantChange}
                                         placeholder="Color"
-                                        className="px-3 py-2 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-orange-500"
+                                        className="px-3 py-2 border-2 border-gray-200 rounded-lg focus:outline-none focus:ring-0  focus:border-gray-200"
                                         disabled={isFormDisabled}
                                     />
                                     <input
@@ -1044,7 +1038,7 @@
                                         value={newVariant.size}
                                         onChange={handleNewVariantChange}
                                         placeholder="Size" 
-                                        className="px-3 py-2 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-orange-500"
+                                        className="px-3 py-2 border-2 border-gray-200 rounded-lg focus:outline-none focus:ring-0  focus:border-gray-200"
                                         disabled={isFormDisabled}
                                     />
                                     <div className="relative col-span-2 md:col-span-1">
@@ -1057,7 +1051,7 @@
                                         placeholder="Price (₹)" 
                                         min="0"
                                         step="0.01"
-                                        className="w-full pl-8 pr-3 py-2 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-orange-500"
+                                        className="w-full pl-8 pr-3 py-2 border-2 border-gray-200 rounded-lg focus:outline-none focus:ring-0  focus:border-gray-200"
                                         disabled={isFormDisabled}
                                         />
                                     </div>
@@ -1071,7 +1065,7 @@
                                         placeholder="Offer (₹)"
                                         min="0"
                                         step="0.01"
-                                        className="w-full pl-8 pr-3 py-2 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-orange-500"
+                                        className="w-full pl-8 pr-3 py-2 border-2 border-gray-200 rounded-lg focus:outline-none focus:ring-0  focus:border-gray-200"
                                         disabled={isFormDisabled}
                                         />
                                     </div>
@@ -1082,7 +1076,7 @@
                                         onChange={handleNewVariantChange}
                                         placeholder="Stock" 
                                         min="0"
-                                        className="px-3 py-2 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-orange-500"
+                                        className="px-3 py-2 border-2 border-gray-200 rounded-lg focus:outline-none focus:ring-0  focus:border-gray-200"
                                         disabled={isFormDisabled}
                                     />
                                     <button

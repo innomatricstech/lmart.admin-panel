@@ -1056,7 +1056,7 @@ const galleryUploadPromises = newGalleryImages.map(async (imageObj, index) => {
                     value={productData.name}
                     onChange={handleChange}
                     placeholder="Enter product name"
-                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 text-lg bg-gray-50"
+                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-0  focus:border-gray-200 transition-all duration-200 text-lg bg-gray-50"
                     
                     
                   />
@@ -1074,7 +1074,7 @@ const galleryUploadPromises = newGalleryImages.map(async (imageObj, index) => {
                       value={productData.sellerId}
                       onChange={handleChange}
                       placeholder="Enter seller ID"
-                      className="w-full pl-10 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all duration-200 bg-gray-50"
+                      className="w-full pl-10 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-0  focus:border-gray-200 transition-all duration-200 bg-gray-50"
                       disabled={isFormDisabled}
                     />
                   </div>
@@ -1101,7 +1101,7 @@ const galleryUploadPromises = newGalleryImages.map(async (imageObj, index) => {
                   onChange={handleChange}
                   placeholder="Describe your product in detail..."
                   rows="4"
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-red-500 focus:border-red-500 transition-all duration-200 bg-gray-50"
+                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-0  focus:border-gray-200 transition-all duration-200 bg-gray-50"
                
                 />
                 <p className="text-xs text-gray-500 mt-2">Provide detailed information about the product features and benefits.</p>
@@ -1430,7 +1430,7 @@ const galleryUploadPromises = newGalleryImages.map(async (imageObj, index) => {
                     value={productData.sku}
                     onChange={handleChange}
                     placeholder="Enter SKU"
-                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all duration-200 bg-gray-50"
+                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl  transition-all duration-200 bg-gray-50"
                    
                   
                   />
@@ -1446,7 +1446,7 @@ const galleryUploadPromises = newGalleryImages.map(async (imageObj, index) => {
                     value={productData.brand}
                     onChange={handleChange}
                     placeholder="Enter brand name"
-                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all duration-200 bg-gray-50"
+                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl  transition-all duration-200 bg-gray-50"
                     
                  
                   />
@@ -1462,7 +1462,7 @@ const galleryUploadPromises = newGalleryImages.map(async (imageObj, index) => {
                     value={productData.hsnCode}
                     onChange={handleChange}
                     placeholder="Enter HSN code"
-                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all duration-200 bg-gray-50"
+                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl transition-all duration-200 bg-gray-50"
                     disabled={isFormDisabled}
                   />
                 </div>
@@ -1504,8 +1504,7 @@ const galleryUploadPromises = newGalleryImages.map(async (imageObj, index) => {
             rounded-xl
             border-2 border-gray-200
             bg-gray-50
-            focus:outline-none
-            focus:border-purple-500
+            focus:outline-none focus:ring-0  focus:border-gray-200
           "
         >
          
@@ -1535,9 +1534,7 @@ const galleryUploadPromises = newGalleryImages.map(async (imageObj, index) => {
             rounded-xl
             border-2 border-gray-200
             bg-gray-50
-            focus:outline-none
-            focus:border-purple-500
-            disabled:bg-gray-100
+            focus:outline-none focus:ring-0  focus:border-gray-200
           "
         >
          
@@ -1570,9 +1567,7 @@ const galleryUploadPromises = newGalleryImages.map(async (imageObj, index) => {
             rounded-xl
             border-2 border-gray-200
             bg-gray-50
-            focus:outline-none
-            focus:border-purple-500
-            disabled:bg-gray-100
+            focus:outline-none focus:ring-0  focus:border-gray-200
           "
         >
    
@@ -1616,7 +1611,7 @@ const galleryUploadPromises = newGalleryImages.map(async (imageObj, index) => {
                     value={newVariant.color}
                     onChange={handleNewVariantChange}
                     placeholder="Color"
-                    className="px-3 py-2 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 bg-gray-50"
+                    className="px-3 py-2 border-2 border-gray-200 rounded-lg focus:outline-none focus:ring-0  focus:border-gray-200  bg-gray-50"
                     disabled={isFormDisabled}
                   />
                   <input
@@ -1625,7 +1620,7 @@ const galleryUploadPromises = newGalleryImages.map(async (imageObj, index) => {
                     value={newVariant.size}
                     onChange={handleNewVariantChange}
                     placeholder="Size"
-                    className="px-3 py-2 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 bg-gray-50"
+                    className="px-3 py-2 border-2 border-gray-200 focus:outline-none focus:ring-0  focus:border-gray-200 rounded-lg bg-gray-50"
                     disabled={isFormDisabled}
                   />
                   <div className="relative">
@@ -1638,7 +1633,7 @@ const galleryUploadPromises = newGalleryImages.map(async (imageObj, index) => {
                       placeholder="Price"
                       min="0"
                       step="0.01"
-                      className="w-full pl-8 pr-3 py-2 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 bg-gray-50"
+                      className="w-full pl-8 pr-3 py-2 border-2 focus:outline-none focus:ring-0  focus:border-gray-200 border-gray-200 rounded-lg  bg-gray-50"
                       disabled={isFormDisabled}
                     />
                   </div>
@@ -1652,7 +1647,7 @@ const galleryUploadPromises = newGalleryImages.map(async (imageObj, index) => {
                       placeholder="Offer"
                       min="0"
                       step="0.01"
-                      className="w-full pl-8 pr-3 py-2 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 bg-gray-50"
+                      className="w-full pl-8 pr-3 py-2 border-2 focus:outline-none focus:ring-0  focus:border-gray-200 border-gray-200 rounded-lg  bg-gray-50"
                       disabled={isFormDisabled}
                     />
                   </div>
@@ -1663,7 +1658,7 @@ const galleryUploadPromises = newGalleryImages.map(async (imageObj, index) => {
                     onChange={handleNewVariantChange}
                     placeholder="Stock"
                     min="0"
-                    className="px-3 py-2 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 bg-gray-50"
+                    className="px-3 py-2 border-2 border-gray-200 focus:outline-none focus:ring-0  focus:border-gray-200 rounded-lg bg-gray-50"
                     disabled={isFormDisabled}
                   />
                   <button
