@@ -128,6 +128,7 @@ export default function Sidebar({ onCloseSidebar, onLogout }) {
   path: "/oldee"
 }
 ,
+{ text: "Recent Orders", icon: FiClock, key: "Recent Orders", path: "/recent-orders" },
     // Orders Menu
     {
       text: "Orders",
@@ -167,7 +168,7 @@ export default function Sidebar({ onCloseSidebar, onLogout }) {
   path: "/sellers/all"
 },
 
-{ text: "Recent Orders", icon: FiClock, key: "Recent Orders", path: "/recent-orders" },
+
 
     { text: "Earnings", icon: FiDollarSign, key: "Earnings", path: "/earnings" },
 
