@@ -254,7 +254,21 @@ const OrderRow = ({ order, index }) => {
                             </div>
                         )}
                     </div>
-                    <span className="text-xs text-gray-400 mt-1">via Cash</span>
+                    <span className="text-xs text-gray-400 mt-1">
+  via {(() => {
+    const method = (order.paymentMethod || 'cod').toLowerCase();
+
+    switch (method) {
+      case 'cod':
+        return 'Cash on Delivery';
+      case 'razor pay':
+        return 'Razor Pay'; 
+      default:
+        return method.toUpperCase();
+    }
+  })()}
+</span>
+
                 </div>
             </td>
             <td className="py-4 px-6">
@@ -419,9 +433,19 @@ function AdminDashboardContent() {
                     return !status || status.toLowerCase() === 'pending' || status.toLowerCase() === 'processing';
                 }).length;
                 
-                // 3. Determine RECENT Orders (Limited to 10 from the date-filtered set)
-                const sortedOrders = dateFilteredOrders.sort((a, b) => b.sortDate - a.sortDate);
-                const recentOrdersRaw = sortedOrders.slice(0, 10);
+              // 3. Determine RECENT Orders
+// Show: Pending, Processing, Shipped
+// Hide: Delivered, Cancelled
+
+const recentOrdersFiltered = dateFilteredOrders
+  .filter(order => {
+    const status = (order.status || 'pending').toLowerCase();
+    return status !== 'delivered' && status !== 'cancelled';
+  })
+  .sort((a, b) => b.sortDate - a.sortDate);
+
+const recentOrdersRaw = recentOrdersFiltered.slice(0, 10);
+
                 
                 const formatDate = (timestamp) => {
                     if (!timestamp) return 'N/A';
@@ -436,16 +460,18 @@ function AdminDashboardContent() {
                 };
                 
                 const ordersList = recentOrdersRaw.map(order => ({
-                    id: order.id,
-                    userId: order.userId || 'unknown_user', 
-                    name: order.customerInfo?.name || order.customer || 'Unknown Customer',
-                    email: order.customerInfo?.email || order.email || 'N/A',
-                    phone: order.customerInfo?.phone || order.phone || 'N/A',
-                    amount: `₹${(order.amount || 0).toLocaleString('en-IN')}`,
-                    items: Array.isArray(order.items) ? order.items.length : 1,
-                    date: formatDate(order.createdAt || order.date),
-                    status: order.status || 'pending'
-                }));
+  id: order.id,
+  userId: order.userId || 'unknown_user',
+  name: order.customerInfo?.name || order.customer || 'Unknown Customer',
+  email: order.customerInfo?.email || order.email || 'N/A',
+  phone: order.customerInfo?.phone || order.phone || 'N/A',
+  amount: `₹${(order.amount || 0).toLocaleString('en-IN')}`,
+  items: Array.isArray(order.items) ? order.items.length : 1,
+  date: formatDate(order.createdAt || order.date),
+  status: order.status || 'pending',
+  paymentMethod: order.paymentMethod || 'cod' // 👈 FETCHED HERE
+}));
+
                 
                 // 4. Fetch Total Products Count (Global - Unfiltered)
                 let totalProducts = 0;

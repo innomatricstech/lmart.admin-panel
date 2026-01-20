@@ -1507,6 +1507,10 @@ const galleryUploadPromises = newGalleryImages.map(async (imageObj, index) => {
             focus:outline-none focus:ring-0  focus:border-gray-200
           "
         >
+
+          <option value="" disabled hidden  >
+    Select Store
+  </option>
          
           {PRODUCT_TAG_OPTIONS.map(option => (
             <option key={option.value} value={option.value}>
@@ -1537,7 +1541,9 @@ const galleryUploadPromises = newGalleryImages.map(async (imageObj, index) => {
             focus:outline-none focus:ring-0  focus:border-gray-200
           "
         >
-         
+         <option value="" disabled hidden  >
+    Select Category
+  </option>
           {filteredCategories.map(cat => (
             <option key={cat.id} value={cat.id}>
               {cat.name}
@@ -1570,6 +1576,9 @@ const galleryUploadPromises = newGalleryImages.map(async (imageObj, index) => {
             focus:outline-none focus:ring-0  focus:border-gray-200
           "
         >
+          <option value="" disabled hidden  >
+    Select Sub Category
+  </option>
    
           {filteredSubcategories.map(subCat => (
             <option key={subCat.id} value={subCat.id}>

@@ -164,11 +164,16 @@ const OrderDetail = () => {
   const [error, setError] = useState(null);
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
 
-  const ORDER_STATUSES = [
-    "Pending",
-    "Processing",
-    
-  ];
+const ORDER_STATUSES = [
+  "Pending",
+  "Processing",
+  "Shipped",
+  "Delivered",
+  "Cancelled",
+];
+const isFinalStatus =
+  order?.status === "Delivered" || order?.status === "Cancelled";
+
 
   const isLegacyOrder = userId === "unknown_user" || !userId; 
 
@@ -614,24 +619,27 @@ return (
         <div className="mt-4 md:mt-0 flex items-center gap-3">
           <FiEdit className="w-5 h-5 mr-2 text-gray-400" />
           <select
-            value={order.status || "Pending"}
-            onChange={(e) => updateOrderStatus(e.target.value)}
-            disabled={isUpdatingStatus || isLegacyOrder}
-            className={`px-4 py-2 text-sm font-semibold rounded-lg border shadow-sm transition-colors
-              ${
-                order.status === "Delivered"
-                  ? "bg-green-100 border-green-300 text-green-700"
-                  : order.status === "Cancelled" || order.status === "Refunded"
-                  ? "bg-red-100 border-red-300 text-red-700"
-                  : "bg-yellow-100 border-yellow-300 text-yellow-700"
-              }
-              ${
-                isLegacyOrder
-                  ? "opacity-50 cursor-not-allowed"
-                  : "cursor-pointer"
-              }
-            `}
-          >
+  value={order.status || "Pending"}
+  onChange={(e) => updateOrderStatus(e.target.value)}
+  disabled={isUpdatingStatus || isLegacyOrder || isFinalStatus}
+  className={`px-4 py-2 text-sm font-semibold rounded-lg border shadow-sm transition-colors
+    ${
+      order.status === "Delivered"
+        ? "bg-green-100 border-green-300 text-green-700"
+        : order.status === "Cancelled"
+        ? "bg-red-100 border-red-300 text-red-700"
+        : order.status === "Shipped"
+        ? "bg-blue-100 border-blue-300 text-blue-700"
+        : "bg-yellow-100 border-yellow-300 text-yellow-700"
+    }
+    ${
+      isUpdatingStatus || isLegacyOrder || isFinalStatus
+        ? "opacity-50 cursor-not-allowed"
+        : "cursor-pointer"
+    }
+  `}
+>
+
             {ORDER_STATUSES.map((status) => (
               <option key={status} value={status} disabled={isLegacyOrder}>
                 {status}

@@ -6,6 +6,7 @@ import Sidebar from "./components/Sidebar.jsx";
 import Header from "./components/Header.jsx";
 import ProfilePage from "./components/ProfilePage.jsx";
 import Dashboard from "./components/Dashboard.jsx";
+import DeletedNews from "./components/Products/DeletedNews.jsx";
 
 // Customers
 import CustomerDirectory from "./components/Customers/Customer.jsx";
@@ -224,6 +225,9 @@ export default function App() {
                     <Route path="news" element={<Navigate to="view" replace />} />
                     <Route path="news/view" element={<ViewNews />} />
                     <Route path="news/add" element={<AddNewsToday />} />
+                    <Route path="news/deleted" element={<DeletedNews />} />
+
+
 
                     {/* 404 */}
                     <Route path="*" element={<Placeholder title="404 — Page not found" />} />

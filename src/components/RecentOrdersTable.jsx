@@ -238,25 +238,74 @@ const OrderRow = ({ order, index }) => {
                         {order.status?.toUpperCase() || 'PENDING'}
                     </p>
                 </div>
-            </td>
-            <td className="py-4 px-6 hidden lg:table-cell">
-                <div className="flex flex-col items-end">
-                    <div className="flex items-center space-x-2">
-                        {order.status === 'success' ? (
-                            <div className="flex items-center space-x-1 text-green-600">
-                                <CheckCircle className="w-4 h-4" />
-                                <span className="text-sm font-medium">Paid</span>
-                            </div>
-                        ) : (
-                            <div className="flex items-center space-x-1 text-yellow-600">
-                                <Clock className="w-4 h-4" />
-                                <span className="text-sm font-medium">Processing</span>
-                            </div>
-                        )}
-                    </div>
-                    <span className="text-xs text-gray-400 mt-1">via Cash</span>
-                </div>
-            </td>
+                </td>
+                <td className="py-4 px-6 hidden lg:table-cell">
+  <div className="flex flex-col items-end">
+    <div className="flex items-center space-x-2">
+      {(() => {
+        const status = (order.status || "pending").toLowerCase();
+
+        switch (status) {
+          case "delivered":
+            return (
+              <div className="flex items-center space-x-1 text-green-600">
+                <CheckCircle className="w-4 h-4" />
+                <span className="text-sm font-medium">Delivered</span>
+              </div>
+            );
+
+          case "shipped":
+            return (
+              <div className="flex items-center space-x-1 text-blue-600">
+                <Truck className="w-4 h-4" />
+                <span className="text-sm font-medium">Shipped</span>
+              </div>
+            );
+
+          case "processing":
+            return (
+              <div className="flex items-center space-x-1 text-yellow-600">
+                <RefreshCw className="w-4 h-4 animate-spin" />
+                <span className="text-sm font-medium">Processing</span>
+              </div>
+            );
+
+          case "cancelled":
+            return (
+              <div className="flex items-center space-x-1 text-red-600">
+                <XCircle className="w-4 h-4" />
+                <span className="text-sm font-medium">Cancelled</span>
+              </div>
+            );
+
+          default:
+            return (
+              <div className="flex items-center space-x-1 text-gray-600">
+                <Clock className="w-4 h-4" />
+                <span className="text-sm font-medium">Pending</span>
+              </div>
+            );
+        }
+      })()}
+    </div>
+
+                     <span className="text-xs text-gray-400 mt-1">
+  via {(() => {
+    const method = (order.paymentMethod || 'cod').toLowerCase();
+
+    switch (method) {
+      case 'cod':
+        return 'Cash on Delivery';
+      case 'razor pay':
+        return 'Razor Pay'; 
+      default:
+        return method.toUpperCase();
+    }
+  })()}
+</span>
+  </div>
+</td>
+
             <td className="py-4 px-6">
                 <div className="flex justify-end space-x-2">
                     {/* UPDATED VIEW BUTTON - Links to Order Details page */}
@@ -393,11 +442,19 @@ function AdminDashboardContent() {
                     return !status || status.toLowerCase() === 'pending' || status.toLowerCase() === 'processing';
                 }).length;
                 
-                // 3. Determine RECENT Orders (Limited to 10 for the "Recent Orders" table display)
-                // Sort all orders by the sortDate (most recent first) and take the top 10
-                const sortedOrders = allOrders.sort((a, b) => b.sortDate - a.sortDate);
-                const recentOrdersRaw = sortedOrders.slice(0, 10);
-                
+              // 3. Determine RECENT Orders
+// Show: Pending + Processing + Shipped
+// Hide: Delivered + Cancelled
+
+const recentOrdersFiltered = allOrders
+  .filter(order => {
+    const status = (order.status || 'pending').toLowerCase();
+    return status !== 'delivered' && status !== 'cancelled' && status !== 'processing';;
+  })
+  .sort((a, b) => b.sortDate - a.sortDate);
+
+const recentOrdersRaw = recentOrdersFiltered.slice(0, 10);
+
                 const formatDate = (timestamp) => {
                     if (!timestamp) return 'N/A';
                     try {
@@ -421,7 +478,8 @@ function AdminDashboardContent() {
                     amount: `₹${(order.amount || 0).toLocaleString('en-IN')}`,
                     items: Array.isArray(order.items) ? order.items.length : 1,
                     date: formatDate(order.createdAt || order.date),
-                    status: order.status || 'pending'
+                    status: order.status || 'pending',
+                    paymentMethod: order.paymentMethod || 'cod'
                 }));
                 
                 // 4. Fetch Total Products Count (Global)

@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from "react-router-dom";
+import { serverTimestamp } from "firebase/firestore";
+
 
 import {
     FiTrash2,
@@ -29,8 +31,10 @@ import {
     query,
     orderBy,
     deleteDoc,
-    doc
+    doc,
+    setDoc   // ✅ ADD THIS
 } from "firebase/firestore";
+
 
 import { db } from "../../../firerbase";
 
@@ -433,11 +437,33 @@ const ViewNews = () => {
         categories: [...new Set(newsData.map(n => n.category))].length
     }), [newsData]);
 
-    /* DELETE */
-    const confirmDelete = async () => {
-        await deleteDoc(doc(db, "news", selectedNews.id));
+const confirmDelete = async () => {
+    if (!selectedNews?.id) return;
+
+    try {
+        const { id, ...newsData } = selectedNews;
+
+        const newsRef = doc(db, "news", id);
+        const deletedRef = doc(db, "deletedNews", id);
+
+        // 1️⃣ Move to deletedNews
+        await setDoc(deletedRef, {
+            ...newsData,
+            deletedAt: serverTimestamp(),
+        });
+
+        // 2️⃣ Delete from news
+        await deleteDoc(newsRef);
+
         setDeleteModalOpen(false);
-    };
+        setSelectedNews(null);
+
+    } catch (error) {
+        console.error("🔥 Delete error:", error);
+        alert(error.message); // shows real Firestore error if any
+    }
+};
+
 
     return (
         <>

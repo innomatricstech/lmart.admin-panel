@@ -107,11 +107,11 @@ export default function Sidebar({ onCloseSidebar, onLogout }) {
   key: "Customers",
   path: "/customers"
 },
-{
+{ 
       text: "Market News",
       icon: FiRss,
       key: "News",
-      path: "/news",
+      path: "/news/view",
       
     },
 
@@ -215,6 +215,13 @@ export default function Sidebar({ onCloseSidebar, onLogout }) {
       icon: FiTrash2,
       path: "/oldee/delete",      
     },
+    {
+  text: "Deleted News",
+  icon: FiTrash2,
+  key: "DeletedNews",
+  path: "/news/deleted",
+}
+
   ],
 },
   ];
