@@ -114,7 +114,7 @@ export default function Sidebar({ onCloseSidebar, onLogout }) {
       path: "/news",
       hasDropdown: true,
       dropdownContent: [
-        { text: "View Market News", path: "/news/view" },
+        
         { text: "Add News Today", path: "/news/add" }
       ]
     },
