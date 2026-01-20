@@ -112,11 +112,7 @@ export default function Sidebar({ onCloseSidebar, onLogout }) {
       icon: FiRss,
       key: "News",
       path: "/news",
-      hasDropdown: true,
-      dropdownContent: [
-        
-        { text: "Add News Today", path: "/news/add" }
-      ]
+      
     },
 
  
