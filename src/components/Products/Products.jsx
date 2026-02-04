@@ -337,9 +337,11 @@ const handleToggleTrending = async (product) => {
     }, []);
 
     // --- Filtering & Handlers ---
-    const filteredProducts = productsWithNames.filter(product =>
-        product.name && product.name.toLowerCase().includes(searchTerm.toLowerCase())
-    );
+   const filteredProducts = productsWithNames.filter(product => {
+  const name = product.name || ""; // fallback for unnamed products
+  return name.toLowerCase().includes(searchTerm.toLowerCase());
+});
+
 
    const trendingProducts = productsWithNames.filter(
   (product) => product.trending === true

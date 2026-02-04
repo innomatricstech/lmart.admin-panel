@@ -55,6 +55,8 @@
         return [];
         };
 
+        
+
         // *** REUSABLE KEYWORD GENERATION FUNCTION *** (UNMODIFIED)
         const generateSearchKeywords = (product) => {
         const keywords = new Set();
